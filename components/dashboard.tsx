@@ -17,6 +17,7 @@ import { NutritionSection } from "@/components/sections/nutrition-section"
 import { SleepSection } from "@/components/sections/sleep-section"
 import { MetricsSection } from "@/components/sections/metrics-section"
 import { CoachSection } from "@/components/sections/coach-section"
+import { SyncButton } from "@/components/sync-button"
 
 type Tab = {
   id: string
@@ -102,12 +103,7 @@ export function Dashboard() {
               {greeting()}, {data.profile.name}. Let&apos;s keep the streak going.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-            <Activity className="size-4 text-primary" />
-            <span className="text-xs font-medium tabular-nums">
-              {data.workouts.length} workouts
-            </span>
-          </div>
+          <SyncButton />
         </header>
 
         <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">

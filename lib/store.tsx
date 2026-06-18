@@ -160,6 +160,21 @@ type StoreContextValue = {
   deleteSleep: (id: string) => void
   addMetric: (m: Omit<BodyMetric, "id">) => void
   deleteMetric: (id: string) => void
+  importFromIntervals: (payload: IntervalsPayload) => { workouts: number; sleep: number; weights: number }
+}
+
+type IntervalsPayload = {
+  workouts?: Array<{
+    id: string
+    date: string
+    name: string
+    type?: string
+    durationMin: number
+    calories?: number | null
+    distanceKm?: number | null
+  }>
+  sleep?: Array<{ id: string; date: string; hours: number | null; score?: number | null }>
+  weights?: Array<{ id: string; date: string; weightKg: number }>
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null)
@@ -212,6 +227,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((d) => ({ ...d, metrics: [{ ...m, id: uid() }, ...d.metrics] })),
     deleteMetric: (id) =>
       setData((d) => ({ ...d, metrics: d.metrics.filter((x) => x.id !== id) })),
+    importFromIntervals: (payload) => {
+      const counts = { workouts: 0, sleep: 0, weights: 0 }
+      setData((d) => {
+        // Workouts: dedupe by id
+        const existingWorkoutIds = new Set(d.workouts.map((w) => w.id))
+        const newWorkouts: Workout[] = (payload.workouts || [])
+          .filter((w) => w.date && !existingWorkoutIds.has(w.id))
+          .map((w) => ({
+            id: w.id,
+            date: w.date,
+            name: w.distanceKm ? `${w.name} (${w.distanceKm} km)` : w.name,
+            durationMin: w.durationMin || 0,
+            exercises: [],
+          }))
+        counts.workouts = newWorkouts.length
+
+        // Sleep: dedupe by date
+        const existingSleepDates = new Set(d.sleep.map((s) => s.date))
+        const newSleep: SleepEntry[] = (payload.sleep || [])
+          .filter((s) => s.date && s.hours != null && !existingSleepDates.has(s.date))
+          .map((s) => ({
+            id: s.id,
+            date: s.date,
+            hours: s.hours as number,
+            quality: s.score != null ? Math.max(1, Math.min(5, Math.round((s.score / 100) * 5))) : 3,
+            bedtime: "",
+            wakeTime: "",
+          }))
+        counts.sleep = newSleep.length
+
+        // Weights -> metrics: dedupe by date
+        const existingMetricDates = new Set(d.metrics.map((m) => m.date))
+        const newMetrics: BodyMetric[] = (payload.weights || [])
+          .filter((w) => w.date && !existingMetricDates.has(w.date))
+          .map((w) => ({
+            id: w.id,
+            date: w.date,
+            weight: w.weightKg,
+            bodyFat: 0,
+            waist: 0,
+          }))
+        counts.weights = newMetrics.length
+
+        return {
+          ...d,
+          workouts: [...newWorkouts, ...d.workouts].sort((a, b) => b.date.localeCompare(a.date)),
+          sleep: [...newSleep, ...d.sleep].sort((a, b) => b.date.localeCompare(a.date)),
+          metrics: [...newMetrics, ...d.metrics].sort((a, b) => b.date.localeCompare(a.date)),
+        }
+      })
+      return counts
+    },
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
