@@ -21,7 +21,7 @@ Here is the user's current data snapshot (may be empty):
 ${context ?? "No data provided."}`
 
   const result = streamText({
-    model: "anthropic/claude-opus-4.6",
+    model: "google/gemini-3.5-flash",
     system,
     messages: await convertToModelMessages(messages),
   })
