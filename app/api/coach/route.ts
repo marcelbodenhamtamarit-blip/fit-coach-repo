@@ -21,7 +21,7 @@ Here is the user's current data snapshot (may be empty):
 ${context ?? "No data provided."}`
 
   const result = streamText({
-    model: "openai/gpt-5-mini",
+    model: "anthropic/claude-opus-4.6",
     system,
     messages: await convertToModelMessages(messages),
   })
