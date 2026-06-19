@@ -3,12 +3,13 @@ import { convertToModelMessages, streamText, type UIMessage } from "ai"
 export const maxDuration = 30
 
 export async function POST(req: Request) {
-  const {
-    messages,
-    context,
-  }: { messages: UIMessage[]; context?: string } = await req.json()
+  try {
+    const {
+      messages,
+      context,
+    }: { messages: UIMessage[]; context?: string } = await req.json()
 
-  const system = `You are Marcel's personal AI fitness and health coach inside a tracking app.
+    const system = `You are Marcel's personal AI fitness and health coach inside a tracking app.
 You give concise, practical, encouraging advice on workouts, nutrition, sleep, recovery, and body composition.
 
 Guidelines:
@@ -20,11 +21,20 @@ Guidelines:
 Here is the user's current data snapshot (may be empty):
 ${context ?? "No data provided."}`
 
-  const result = streamText({
-    model: "google/gemini-3.5-flash",
-    system,
-    messages: await convertToModelMessages(messages),
-  })
+    const result = streamText({
+      model: "google/gemini-3.5-flash",
+      system,
+      messages: await convertToModelMessages(messages),
+    })
 
-  return result.toUIMessageStreamResponse()
+    return result.toUIMessageStreamResponse()
+  } catch (error: any) {
+    console.error("[Coach API Error]:", error?.message || error)
+    return Response.json(
+      {
+        error: "AI Coach requires Vercel account verification. To set up a completely free local AI, download Ollama (ollama.ai) and run: ollama pull llama2",
+      },
+      { status: 503 },
+    )
+  }
 }
