@@ -1,31 +1,46 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, MapPin, Heart, Zap, Clock, Flame, Mountain, TrendingUp, AlertCircle } from "lucide-react"
+import {
+  ChevronDown,
+  Heart,
+  Zap,
+  Flame,
+  Mountain,
+  TrendingUp,
+  AlertCircle,
+  Timer,
+  Activity,
+  Navigation,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useStore } from "@/lib/store"
 import useSWR from "swr"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
-  const { data } = useStore()
-  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null)
-  const { data: fitnessData, isLoading, error } = useSWR("/api/intervals", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  })
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const fitnessMetrics = fitnessData?.fitnessMetrics || {}
-  const workouts = fitnessData?.workouts || []
-  const noCredentials = error?.error?.includes("No credentials") || error?.error?.includes("Missing")
+  const { data: fitnessData, isLoading, error } = useSWR(
+    "/api/intervals",
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  )
+
+  const hasCredentialError =
+    fitnessData?.error?.includes("Sin credenciales") ||
+    error?.error?.includes("Sin credenciales") ||
+    (fitnessData?.error && !fitnessData?.activities)
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="h-20 animate-pulse rounded-lg bg-muted" />
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
+          ))}
+        </div>
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
@@ -35,17 +50,19 @@ export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
     )
   }
 
-  if (noCredentials) {
+  if (hasCredentialError) {
     return (
-      <Card className="border-yellow-200 bg-yellow-50 p-6">
+      <Card className="p-6">
         <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-900 shrink-0 mt-0.5" />
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div>
-            <h3 className="font-semibold text-yellow-900 mb-1">No Intervals.icu credentials</h3>
-            <p className="text-sm text-yellow-800 mb-4">Add your Intervals.icu details in Settings to see your fitness data, activities, and metrics.</p>
+            <h3 className="mb-1 font-semibold">Intervals.icu no conectado</h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Conecta tu cuenta de Intervals.icu en Ajustes para ver tus datos.
+            </p>
             {onSettings && (
-              <Button onClick={onSettings} size="sm" className="bg-yellow-600 hover:bg-yellow-700">
-                Go to Settings
+              <Button onClick={onSettings} size="sm">
+                Ir a Ajustes
               </Button>
             )}
           </div>
@@ -54,57 +71,76 @@ export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
     )
   }
 
+  const wellness = fitnessData?.wellness || {}
+  const activities: any[] = fitnessData?.activities || []
+
   return (
     <div className="space-y-6">
-      {/* Fitness Metrics Cards */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      {/* Fitness metric cards */}
+      <div className="grid grid-cols-3 gap-3">
         <MetricCard
-          label="CTL"
-          value={fitnessMetrics.ctl}
-          subtitle="Fitness"
+          label="Fitness"
+          sublabel="CTL"
+          value={wellness.ctl}
           icon={TrendingUp}
-          color="blue"
+          colorClass="text-blue-500"
+          bgClass="bg-blue-500/10 border-blue-500/20"
         />
         <MetricCard
-          label="ATL"
-          value={fitnessMetrics.atl}
-          subtitle="Fatigue"
+          label="Fatiga"
+          sublabel="ATL"
+          value={wellness.atl}
           icon={Zap}
-          color="orange"
+          colorClass="text-orange-500"
+          bgClass="bg-orange-500/10 border-orange-500/20"
         />
         <MetricCard
-          label="TSB"
-          value={fitnessMetrics.tsb}
-          subtitle="Form"
+          label="Forma"
+          sublabel="TSB"
+          value={wellness.tsb}
           icon={Heart}
-          color={
-            typeof fitnessMetrics.tsb === "number"
-              ? fitnessMetrics.tsb >= 0
-                ? "green"
-                : "red"
-              : "gray"
+          colorClass={
+            wellness.tsb != null
+              ? wellness.tsb >= 0
+                ? "text-green-500"
+                : "text-red-500"
+              : "text-muted-foreground"
+          }
+          bgClass={
+            wellness.tsb != null
+              ? wellness.tsb >= 0
+                ? "bg-green-500/10 border-green-500/20"
+                : "bg-red-500/10 border-red-500/20"
+              : "bg-muted border-border"
           }
         />
       </div>
 
-      {/* Activities List */}
+      {/* Wellness row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <WellnessItem label="Pasos" value={wellness.stepsDisplay ?? "--"} icon={Activity} />
+        <WellnessItem label="FC reposo" value={wellness.restingHR ? `${wellness.restingHR} bpm` : "--"} icon={Heart} />
+        <WellnessItem label="Sueño" value={wellness.sleepDisplay ?? "--"} icon={Timer} />
+        <WellnessItem label="HRV" value={wellness.hrv ? String(wellness.hrv) : "--"} icon={Zap} />
+      </div>
+
+      {/* Activities list */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Recent Activities</h3>
-        {workouts.length === 0 ? (
+        <h3 className="text-sm font-semibold">Actividades recientes</h3>
+
+        {activities.length === 0 ? (
           <div className="rounded-lg border border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No activities found</p>
+            <p className="text-sm text-muted-foreground">No hay actividades de running</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {workouts.map((workout) => (
-              <ActivityCard
-                key={workout.id}
-                workout={workout}
-                isExpanded={expandedActivityId === workout.id}
+            {activities.map((a) => (
+              <ActivityRow
+                key={a.id}
+                activity={a}
+                isExpanded={expandedId === a.id}
                 onToggle={() =>
-                  setExpandedActivityId(
-                    expandedActivityId === workout.id ? null : workout.id,
-                  )
+                  setExpandedId(expandedId === a.id ? null : a.id)
                 }
               />
             ))}
@@ -117,170 +153,103 @@ export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
 
 function MetricCard({
   label,
+  sublabel,
   value,
-  subtitle,
   icon: Icon,
-  color,
+  colorClass,
+  bgClass,
 }: {
   label: string
+  sublabel: string
   value: number | null | undefined
-  subtitle: string
   icon: typeof TrendingUp
-  color: "blue" | "orange" | "green" | "red" | "gray"
+  colorClass: string
+  bgClass: string
 }) {
-  const colorClasses = {
-    blue: "bg-blue-500/10 text-blue-600 border-blue-200",
-    orange: "bg-orange-500/10 text-orange-600 border-orange-200",
-    green: "bg-green-500/10 text-green-600 border-green-200",
-    red: "bg-red-500/10 text-red-600 border-red-200",
-    gray: "bg-muted text-muted-foreground border-border",
-  }
-
   return (
-    <Card className={`flex flex-col items-center gap-2 p-3 ${colorClasses[color]}`}>
-      <Icon className="size-5" />
+    <Card className={`flex flex-col items-center gap-1.5 p-3 ${bgClass}`}>
+      <Icon className={`size-4 ${colorClass}`} />
+      <p className={`text-2xl font-bold tabular-nums ${colorClass}`}>
+        {value != null ? Math.round(value) : "—"}
+      </p>
       <div className="text-center">
-        <p className="text-xs font-medium text-muted-foreground">{subtitle}</p>
-        <p className="text-xl font-bold">
-          {value !== null && value !== undefined ? Math.round(value) : "—"}
-        </p>
+        <p className="text-xs font-medium">{label}</p>
+        <p className="text-[10px] text-muted-foreground">{sublabel}</p>
       </div>
     </Card>
   )
 }
 
-interface ActivityCardProps {
-  workout: any
-  isExpanded: boolean
-  onToggle: () => void
+function WellnessItem({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: typeof Activity
+}) {
+  return (
+    <Card className="flex items-center gap-2.5 p-3">
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">
+        <p className="text-[10px] text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-semibold">{value}</p>
+      </div>
+    </Card>
+  )
 }
 
-function ActivityCard({ workout, isExpanded, onToggle }: ActivityCardProps) {
-  const getActivityIcon = (type: string) => {
-    if (type.toLowerCase().includes("run")) return "🏃"
-    if (type.toLowerCase().includes("ride") || type.toLowerCase().includes("bike")) return "🚴"
-    if (type.toLowerCase().includes("swim")) return "🏊"
-    if (type.toLowerCase().includes("walk")) return "🚶"
-    return "⚡"
-  }
-
-  const formatPace = (distanceKm: number | null, durationSec: number | null) => {
-    if (!distanceKm || !durationSec || distanceKm === 0) return "—"
-    const paceMinutes = Math.floor((durationSec / 60) / distanceKm)
-    const paceSeconds = Math.round(((durationSec / 60) % distanceKm) * 60)
-    return `${paceMinutes}:${String(paceSeconds).padStart(2, "0")}/km`
-  }
-
+function ActivityRow({
+  activity,
+  isExpanded,
+  onToggle,
+}: {
+  activity: any
+  isExpanded: boolean
+  onToggle: () => void
+}) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card transition-all">
-      {/* Summary */}
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
       <button
         onClick={onToggle}
-        className="w-full p-3 sm:p-4 text-left hover:bg-muted/50 transition-colors"
+        className="w-full p-3 text-left transition-colors hover:bg-muted/50 sm:p-4"
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <span className="text-xl">{getActivityIcon(workout.type)}</span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-medium text-sm truncate">{workout.name}</p>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Navigation className="size-4 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="truncate text-sm font-medium">{activity.name}</p>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(workout.date + "T00:00:00").toLocaleDateString("es-ES", {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {activity.dateDisplay}
                 </span>
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {workout.distanceKm && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="size-3" />
-                    {workout.distanceKm} km
-                  </span>
-                )}
-                {workout.durationDisplay && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="size-3" />
-                    {workout.durationDisplay}
-                  </span>
-                )}
-                {workout.heartRateAvg && (
-                  <span className="flex items-center gap-1">
-                    <Heart className="size-3" />
-                    {Math.round(workout.heartRateAvg)} bpm
-                  </span>
-                )}
+              <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                <span>{activity.distanceDisplay}</span>
+                <span>{activity.durationDisplay}</span>
+                <span>{activity.heartRateAvg}</span>
               </div>
             </div>
           </div>
           <ChevronDown
-            className={`size-5 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+              isExpanded ? "rotate-180" : ""
+            }`}
           />
         </div>
       </button>
 
-      {/* Expanded Details */}
       {isExpanded && (
-        <div className="border-t border-border bg-muted/30 p-3 sm:p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {workout.elevation && (
-              <DetailItem
-                icon={Mountain}
-                label="Elevation"
-                value={`${Math.round(workout.elevation)} m`}
-              />
-            )}
-            {workout.heartRateMax && (
-              <DetailItem
-                icon={Heart}
-                label="Max HR"
-                value={`${Math.round(workout.heartRateMax)} bpm`}
-              />
-            )}
-            {workout.calories && (
-              <DetailItem
-                icon={Flame}
-                label="Calories"
-                value={`${Math.round(workout.calories)} kcal`}
-              />
-            )}
-            {workout.trainingLoad && (
-              <DetailItem
-                icon={Zap}
-                label="Training Load"
-                value={`${Math.round(workout.trainingLoad)}`}
-              />
-            )}
-            {workout.distanceKm && (
-              <DetailItem
-                icon={MapPin}
-                label="Avg Pace"
-                value={formatPace(workout.distanceKm, workout.durationSec)}
-              />
-            )}
-            {workout.averagePower && (
-              <DetailItem icon={Zap} label="Avg Power" value={`${Math.round(workout.averagePower)} W`} />
-            )}
-          </div>
-
-          {/* Additional Details */}
-          <div className="space-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
-            {workout.elapsedTime && workout.durationSec && (
-              <p>
-                Moving time vs Elapsed time:{" "}
-                <span className="font-medium">
-                  {formatSeconds(workout.durationSec)} / {formatSeconds(workout.elapsedTime)}
-                </span>
-              </p>
-            )}
-            <a
-              href={`https://intervals.icu/app/activities/${workout.id.replace("icu-", "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-primary hover:underline mt-2"
-            >
-              View on Intervals.icu →
-            </a>
+        <div className="border-t border-border bg-muted/20 p-3 sm:p-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <DetailItem icon={Heart} label="FC máx." value={activity.heartRateMax} />
+            <DetailItem icon={Mountain} label="Desnivel" value={activity.elevation} />
+            <DetailItem icon={Flame} label="Calorías" value={activity.calories} />
+            <DetailItem icon={Zap} label="Carga" value={activity.trainingLoad} />
+            <DetailItem icon={Timer} label="Ritmo medio" value={activity.avgPace} />
           </div>
         </div>
       )}
@@ -293,24 +262,17 @@ function DetailItem({
   label,
   value,
 }: {
-  icon: typeof MapPin
+  icon: typeof Mountain
   label: string
   value: string
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+    <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2">
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
       <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-medium text-sm">{value}</p>
+        <p className="text-[10px] text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold">{value}</p>
       </div>
     </div>
   )
-}
-
-function formatSeconds(seconds: number) {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
 }

@@ -39,7 +39,7 @@ export function OverviewSection({
     dedupingInterval: 60000,
   })
 
-  const todayWellness = fitnessData?.todayWellness || {}
+  const wellness = fitnessData?.wellness || {}
 
   const todaysMeals = data.meals.filter((m) => m.date === today)
   const caloriesToday = todaysMeals.reduce((s, m) => s + m.calories, 0)
@@ -73,66 +73,66 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard
           icon={Flame}
-          label="Calories today"
+          label="Calorías de hoy"
           value={caloriesToday.toLocaleString()}
           unit={`/ ${data.profile.calorieGoal.toLocaleString()}`}
-          sub={`${proteinToday}g protein`}
+          sub={`Objetivo: ${data.profile.calorieGoal.toLocaleString()} kcal`}
           accent="amber"
         />
         <StatCard
-          icon={Moon}
-          label="Last sleep"
-          value={lastSleep ? lastSleep.hours.toFixed(1) : "--"}
-          unit="hrs"
-          sub={lastSleep ? `Quality ${lastSleep.quality}/5` : "No data"}
-          accent="blue"
-        />
-        <StatCard
-          icon={Scale}
-          label="Weight"
-          value={latestWeight.toFixed(1)}
-          unit="kg"
-          sub={`${weightDelta >= 0 ? "+" : ""}${weightDelta.toFixed(1)} kg trend`}
-          accent="teal"
-        />
-        <StatCard
           icon={Dumbbell}
-          label="Workouts"
-          value={String(data.workouts.length)}
-          unit="logged"
-          sub={`${data.routines.length} routines`}
+          label="Proteína de hoy"
+          value={`${proteinToday}g`}
+          unit={`/ ${data.profile.proteinGoal ?? 170}g`}
+          sub={`Objetivo: ${data.profile.proteinGoal ?? 170}g`}
           accent="primary"
         />
         <StatCard
+          icon={Scale}
+          label="Peso"
+          value={latestWeight ? latestWeight.toFixed(1) : "--"}
+          unit="kg"
+          sub={latestWeight ? `${weightDelta >= 0 ? "+" : ""}${weightDelta.toFixed(1)} kg tendencia` : "Sin datos"}
+          accent="teal"
+        />
+        <StatCard
           icon={Footprints}
-          label="Steps today"
-          value={todayWellness.steps ? todayWellness.steps.toLocaleString() : "--"}
-          unit="steps"
-          sub="From Intervals.icu"
+          label="Pasos hoy"
+          value={wellness.steps ? wellness.steps.toLocaleString("es-ES") : "--"}
+          unit="pasos"
+          sub="Intervals.icu"
           accent="lime"
         />
         <StatCard
           icon={Heart}
-          label="Resting HR"
-          value={todayWellness.restingHeartRate ? String(todayWellness.restingHeartRate) : "--"}
+          label="FC en reposo"
+          value={wellness.restingHR ? String(wellness.restingHR) : "--"}
           unit="bpm"
-          sub="From Intervals.icu"
+          sub="Intervals.icu"
           accent="rose"
+        />
+        <StatCard
+          icon={Moon}
+          label="Sueño anoche"
+          value={wellness.sleepDisplay ?? (lastSleep ? lastSleep.hours.toFixed(1) + "h" : "--")}
+          unit={wellness.sleepDisplay ? "" : ""}
+          sub={wellness.sleepScore ? `Puntuación: ${wellness.sleepScore}/100` : (lastSleep ? `Calidad ${lastSleep.quality}/5` : "Sin datos")}
+          accent="blue"
         />
       </div>
 
-      {/* Calorie goal ring/bar */}
+      {/* Calorie goal bar */}
       <Card className="p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold">Today&apos;s nutrition goal</h2>
+            <h2 className="text-sm font-semibold">Objetivo nutricional de hoy</h2>
             <p className="text-xs text-muted-foreground">
               {data.profile.calorieGoal - caloriesToday > 0
-                ? `${(data.profile.calorieGoal - caloriesToday).toLocaleString()} kcal remaining`
-                : "Goal reached"}
+                ? `${(data.profile.calorieGoal - caloriesToday).toLocaleString()} kcal restantes`
+                : "Objetivo alcanzado"}
             </p>
           </div>
           <span className="text-2xl font-semibold tabular-nums text-primary">
@@ -147,13 +147,13 @@ export function OverviewSection({
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <TrendingDown className="size-4 text-[var(--chart-5)]" />
-              Weight trend
+              Tendencia de peso
             </h2>
             <button
               onClick={() => onNavigate("metrics")}
               className="flex items-center text-xs text-muted-foreground hover:text-foreground"
             >
-              View <ChevronRight className="size-3.5" />
+              Ver <ChevronRight className="size-3.5" />
             </button>
           </div>
           <ChartFrame data={weightChart} dataKey="weight" color="var(--chart-5)" unit="kg" />
@@ -163,13 +163,13 @@ export function OverviewSection({
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Moon className="size-4 text-[var(--chart-2)]" />
-              Sleep (7 days)
+              Sueño (7 días)
             </h2>
             <button
               onClick={() => onNavigate("sleep")}
               className="flex items-center text-xs text-muted-foreground hover:text-foreground"
             >
-              View <ChevronRight className="size-3.5" />
+              Ver <ChevronRight className="size-3.5" />
             </button>
           </div>
           <ChartFrame data={sleepChart} dataKey="hours" color="var(--chart-2)" unit="h" />

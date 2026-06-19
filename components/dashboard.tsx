@@ -3,23 +3,20 @@
 import { useState } from "react"
 import {
   Activity,
-  Dumbbell,
   UtensilsCrossed,
   Moon,
   Scale,
-  Sparkles,
   Heart,
   Zap,
   Settings,
+  Dumbbell,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
-import { WorkoutsSection } from "@/components/sections/workouts-section"
 import { NutritionSection } from "@/components/sections/nutrition-section"
 import { SleepSection } from "@/components/sections/sleep-section"
 import { MetricsSection } from "@/components/sections/metrics-section"
-import { CoachSection } from "@/components/sections/coach-section"
 import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { FitnessSection } from "@/components/sections/fitness-section"
 import { SettingsSection } from "@/components/sections/settings-section"
@@ -32,16 +29,24 @@ type Tab = {
 }
 
 const TABS: Tab[] = [
-  { id: "overview", label: "Overview", icon: Activity },
+  { id: "overview", label: "Resumen", icon: Activity },
   { id: "fitness", label: "Fitness", icon: Zap },
-  { id: "workouts", label: "Workouts", icon: Dumbbell },
-  { id: "nutrition", label: "Nutrition", icon: UtensilsCrossed },
-  { id: "sleep", label: "Sleep", icon: Moon },
-  { id: "daily", label: "Daily", icon: Heart },
-  { id: "metrics", label: "Body", icon: Scale },
-  { id: "coach", label: "AI Coach", icon: Sparkles },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "nutrition", label: "Nutrición", icon: UtensilsCrossed },
+  { id: "sleep", label: "Sueño", icon: Moon },
+  { id: "daily", label: "Diario", icon: Heart },
+  { id: "metrics", label: "Cuerpo", icon: Scale },
+  { id: "settings", label: "Ajustes", icon: Settings },
 ]
+
+const TAB_TITLES: Record<string, string> = {
+  overview: "Resumen",
+  fitness: "Fitness",
+  nutrition: "Nutrición",
+  sleep: "Sueño",
+  daily: "Métricas diarias",
+  metrics: "Métricas corporales",
+  settings: "Ajustes",
+}
 
 export function Dashboard() {
   const [active, setActive] = useState("overview")
@@ -87,7 +92,7 @@ export function Dashboard() {
         </nav>
 
         <div className="mt-auto rounded-lg border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">Daily calorie goal</p>
+          <p className="text-xs text-muted-foreground">Objetivo calórico diario</p>
           <p className="mt-0.5 text-lg font-semibold tabular-nums" suppressHydrationWarning>
             {data.profile.calorieGoal.toLocaleString()}
             <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -101,19 +106,11 @@ export function Dashboard() {
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
           <div>
-            <h1 className="text-balance text-lg font-semibold capitalize sm:text-xl">
-              {active === "coach"
-                ? "AI Coach"
-                : active === "metrics"
-                  ? "Body Metrics"
-                  : active === "daily"
-                    ? "Daily Metrics"
-                    : active === "fitness"
-                      ? "Fitness"
-                      : active}
+            <h1 className="text-balance text-lg font-semibold sm:text-xl">
+              {TAB_TITLES[active] ?? active}
             </h1>
             <p className="hidden text-xs text-muted-foreground sm:block">
-              {greeting()}, {data.profile.name}. Let&apos;s keep the streak going.
+              {greeting()}, {data.profile.name}. Sigamos con la racha.
             </p>
           </div>
           <SyncButton />
@@ -122,20 +119,20 @@ export function Dashboard() {
         <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">
           {!ready ? (
             <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
-              Loading your data...
+              Cargando datos...
             </div>
           ) : (
             <>
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {active === "fitness" && <FitnessSection onSettings={() => setActive("settings")} />}
-              {active === "workouts" && <WorkoutsSection />}
+              {active === "fitness" && (
+                <FitnessSection onSettings={() => setActive("settings")} />
+              )}
               {active === "nutrition" && <NutritionSection />}
               {active === "sleep" && <SleepSection />}
               {active === "daily" && <DailyMetricsSection />}
               {active === "metrics" && <MetricsSection />}
-              {active === "coach" && <CoachSection />}
               {active === "settings" && <SettingsSection />}
             </>
           )}
@@ -168,7 +165,7 @@ export function Dashboard() {
 
 function greeting() {
   const h = new Date().getHours()
-  if (h < 12) return "Good morning"
-  if (h < 18) return "Good afternoon"
-  return "Good evening"
+  if (h < 12) return "Buenos días, Marcel"
+  if (h < 18) return "Buenas tardes, Marcel"
+  return "Buenas noches, Marcel"
 }

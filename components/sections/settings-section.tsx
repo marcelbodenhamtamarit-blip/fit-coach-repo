@@ -1,58 +1,59 @@
 "use client"
 
-import { useState } from "react"
-import { AlertCircle, CheckCircle, Loader } from "lucide-react"
+import { useEffect, useState } from "react"
+import { AlertCircle, CheckCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+const STORAGE_KEY = "intervals_settings"
+
 export function SettingsSection() {
   const [athleteId, setAthleteId] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [testing, setTesting] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [testResult, setTestResult] = useState<{
     status: "success" | "error" | null
     message: string
   }>({ status: null, message: "" })
-  const [saved, setSaved] = useState(false)
 
-  // Load saved credentials from localStorage
-  useState(() => {
-    const saved = localStorage.getItem("intervals_settings")
-    if (saved) {
-      try {
-        const { athleteId: id, apiKey: key } = JSON.parse(saved)
-        setAthleteId(id)
-        setApiKey(key)
-      } catch {}
-    }
-  })
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const { athleteId: id, apiKey: key } = JSON.parse(raw)
+        if (id) setAthleteId(id)
+        if (key) setApiKey(key)
+      }
+    } catch {}
+  }, [])
 
   const handleSave = () => {
-    if (!athleteId || !apiKey) {
+    if (!athleteId.trim() || !apiKey.trim()) {
       setTestResult({
         status: "error",
-        message: "Please fill in both fields",
+        message: "Por favor, rellena los dos campos.",
       })
       return
     }
 
     localStorage.setItem(
-      "intervals_settings",
-      JSON.stringify({ athleteId, apiKey })
+      STORAGE_KEY,
+      JSON.stringify({ athleteId: athleteId.trim(), apiKey: apiKey.trim() }),
     )
 
-    // Also set as environment variables via a hidden input trick
     setSaved(true)
+    setTestResult({ status: null, message: "" })
     setTimeout(() => setSaved(false), 3000)
   }
 
-  const handleTestConnection = async () => {
-    if (!athleteId || !apiKey) {
+  const handleTest = async () => {
+    if (!athleteId.trim() || !apiKey.trim()) {
       setTestResult({
         status: "error",
-        message: "Please fill in both fields first",
+        message: "Por favor, rellena los dos campos primero.",
       })
       return
     }
@@ -61,29 +62,33 @@ export function SettingsSection() {
     setTestResult({ status: null, message: "" })
 
     try {
-      const response = await fetch("/api/intervals", {
+      const res = await fetch("/api/intervals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ athleteId, apiKey }),
+        body: JSON.stringify({
+          athleteId: athleteId.trim(),
+          apiKey: apiKey.trim(),
+        }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
+      const json = await res.json()
+
+      if (res.ok) {
+        const count = json.activities?.length ?? 0
         setTestResult({
           status: "success",
-          message: `Connected successfully! Found ${data.workouts?.length || 0} activities.`,
+          message: `Conexión correcta. Se han encontrado ${count} actividad${count !== 1 ? "es" : ""} de running.`,
         })
       } else {
-        const error = await response.json()
         setTestResult({
           status: "error",
-          message: error.error || "Connection failed",
+          message: json.error || "La conexión ha fallado.",
         })
       }
-    } catch (err) {
+    } catch {
       setTestResult({
         status: "error",
-        message: "Failed to connect. Check your credentials.",
+        message: "No se pudo conectar. Comprueba tu conexión a internet.",
       })
     } finally {
       setTesting(false)
@@ -92,107 +97,103 @@ export function SettingsSection() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <Card className="border border-border p-6">
-        <h2 className="mb-1 text-lg font-semibold">Intervals.icu Connection</h2>
+      <Card className="p-6">
+        <h2 className="mb-1 text-lg font-semibold">Conexión con Intervals.icu</h2>
         <p className="mb-6 text-sm text-muted-foreground">
-          Connect your Intervals.icu account to see your fitness data, activities, and metrics.
+          Conecta tu cuenta de Intervals.icu para ver tus actividades de running, métricas de fitness y bienestar diario.
         </p>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="athlete-id">Athlete ID</Label>
+            <Label htmlFor="athlete-id">ID de atleta</Label>
             <Input
               id="athlete-id"
-              placeholder="Find this in your intervals.icu URL (example: 45554305)"
+              placeholder="Ej: 1617361"
               value={athleteId}
               onChange={(e) => setAthleteId(e.target.value)}
-              className="font-mono text-sm"
+              className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              Go to intervals.icu → Your profile URL shows the ID (example: intervals.icu/athletes/45554305)
+              Está en la URL de tu perfil: intervals.icu/athletes/<strong>1617361</strong>
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="api-key">API Key</Label>
+            <Label htmlFor="api-key">Clave API</Label>
             <Input
               id="api-key"
               type="password"
-              placeholder="Get this from Settings → API Access in intervals.icu"
+              placeholder="Tu clave API de Intervals.icu"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="font-mono text-sm"
+              className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              Go to intervals.icu → Settings → API Access → Generate API key
+              Intervals.icu → Ajustes → Acceso API → Generar clave API
             </p>
           </div>
 
           {saved && (
-            <Card className="border-green-200 bg-green-50 p-3">
-              <div className="flex items-center gap-2 text-green-900">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">Settings saved successfully!</span>
-              </div>
-            </Card>
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
+              <CheckCircle className="h-4 w-4 shrink-0" />
+              <span className="text-sm font-medium">Ajustes guardados correctamente.</span>
+            </div>
           )}
 
           {testResult.status && (
-            <Card
-              className={
+            <div
+              className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${
                 testResult.status === "success"
-                  ? "border-green-200 bg-green-50 p-3"
-                  : "border-red-200 bg-red-50 p-3"
-              }
+                  ? "border-green-200 bg-green-50 text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-300"
+                  : "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+              }`}
             >
-              <div className={`flex items-start gap-2 ${testResult.status === "success" ? "text-green-900" : "text-red-900"}`}>
-                {testResult.status === "success" ? (
-                  <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                )}
-                <span className="text-sm">{testResult.message}</span>
-              </div>
-            </Card>
+              {testResult.status === "success" ? (
+                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <span>{testResult.message}</span>
+            </div>
           )}
 
           <div className="flex gap-3">
             <Button onClick={handleSave} className="flex-1">
-              Save Settings
+              Guardar
             </Button>
             <Button
-              onClick={handleTestConnection}
+              onClick={handleTest}
               disabled={testing}
               variant="outline"
               className="flex-1"
             >
               {testing ? (
                 <>
-                  <Loader className="mr-2 h-4 w-4 animate-spin" />
-                  Testing...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Probando...
                 </>
               ) : (
-                "Test Connection"
+                "Probar conexión"
               )}
             </Button>
           </div>
         </div>
       </Card>
 
-      <Card className="border border-border p-6">
-        <h3 className="mb-2 text-sm font-semibold">How to get your credentials</h3>
+      <Card className="p-6">
+        <h3 className="mb-3 text-sm font-semibold">Cómo obtener tus credenciales</h3>
         <ol className="space-y-2 text-sm text-muted-foreground">
           <li>
-            <strong>Athlete ID:</strong> Visit intervals.icu, check your profile URL. The number is your ID.
+            <span className="font-medium text-foreground">ID de atleta:</span> Ve a intervals.icu e inicia sesión. Tu ID aparece en la URL del perfil.
           </li>
           <li>
-            <strong>API Key:</strong> Go to Settings → API Access → Generate a new API key.
+            <span className="font-medium text-foreground">Clave API:</span> Ve a Ajustes → Acceso API → haz clic en "Generar clave API".
           </li>
           <li>
-            <strong>Save the credentials</strong> using the form above, then test the connection.
+            Introduce los dos valores en el formulario y haz clic en <span className="font-medium text-foreground">Guardar</span>.
           </li>
           <li>
-            Your data will appear automatically in the Fitness section after connecting.
+            Usa <span className="font-medium text-foreground">Probar conexión</span> para verificar que todo funciona correctamente.
           </li>
         </ol>
       </Card>
