@@ -10,6 +10,7 @@ import {
 import type {
   AppData,
   BodyMetric,
+  DailyMetric,
   Meal,
   Profile,
   Routine,
@@ -143,6 +144,7 @@ function seedData(): AppData {
       { id: uid(), date: day(7), weight: 84.1, bodyFat: 17.9, waist: 85 },
       { id: uid(), date: day(0), weight: 83.5, bodyFat: 17.4, waist: 84.5 },
     ],
+    dailyMetrics: [],
   }
 }
 
@@ -172,9 +174,20 @@ type IntervalsPayload = {
     durationMin: number
     calories?: number | null
     distanceKm?: number | null
+    heartRateAvg?: number | null
+    heartRateMax?: number | null
+    elevation?: number | null
   }>
   sleep?: Array<{ id: string; date: string; hours: number | null; score?: number | null }>
   weights?: Array<{ id: string; date: string; weightKg: number }>
+  dailyMetrics?: Array<{
+    id: string
+    date: string
+    steps?: number | null
+    restingHeartRate?: number | null
+    temperature?: number | null
+    comment?: string | null
+  }>
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null)
@@ -242,6 +255,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             distanceKm: w.distanceKm || undefined,
             calories: w.calories || undefined,
             type: w.type || undefined,
+            heartRateAvg: w.heartRateAvg || undefined,
+            heartRateMax: w.heartRateMax || undefined,
+            elevation: w.elevation || undefined,
           }))
         counts.workouts = importedWorkouts.length
 
@@ -272,11 +288,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }))
         counts.weights = newMetrics.length
 
+        // Daily metrics: dedupe by date
+        const existingDailyDates = new Set(d.dailyMetrics.map((m) => m.date))
+        const newDailyMetrics: DailyMetric[] = (payload.dailyMetrics || [])
+          .filter((m) => m.date && !existingDailyDates.has(m.date))
+
         return {
           ...d,
           workouts: importedWorkouts.sort((a, b) => b.date.localeCompare(a.date)),
           sleep: [...newSleep, ...d.sleep].sort((a, b) => b.date.localeCompare(a.date)),
           metrics: [...newMetrics, ...d.metrics].sort((a, b) => b.date.localeCompare(a.date)),
+          dailyMetrics: [...newDailyMetrics, ...d.dailyMetrics].sort((a, b) => b.date.localeCompare(a.date)),
         }
       })
       return counts

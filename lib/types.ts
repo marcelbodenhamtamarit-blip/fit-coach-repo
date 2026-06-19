@@ -18,6 +18,18 @@ export type Workout = {
   distanceKm?: number
   calories?: number
   type?: string
+  heartRateAvg?: number
+  heartRateMax?: number
+  elevation?: number
+}
+
+export type DailyMetric = {
+  id: string
+  date: string // ISO date
+  steps?: number
+  restingHeartRate?: number
+  temperature?: number
+  comment?: string
 }
 
 export type RoutineExercise = {
@@ -77,6 +89,7 @@ export type AppData = {
   meals: Meal[]
   sleep: SleepEntry[]
   metrics: BodyMetric[]
+  dailyMetrics: DailyMetric[]
 }
 
 export const todayISO = () => new Date().toISOString().slice(0, 10)

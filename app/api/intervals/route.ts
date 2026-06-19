@@ -64,6 +64,9 @@ export async function GET() {
       durationMin: a.moving_time ? Math.round(a.moving_time / 60) : 0,
       calories: a.calories ?? null,
       distanceKm: a.distance ? +(a.distance / 1000).toFixed(2) : null,
+      heartRateAvg: a.avg_heart_rate ?? null,
+      heartRateMax: a.max_heart_rate ?? null,
+      elevation: a.total_elevation_gain ?? null,
       source: "intervals.icu" as const,
     }))
 
@@ -86,7 +89,26 @@ export async function GET() {
         source: "intervals.icu" as const,
       }))
 
-    return NextResponse.json({ workouts, sleep, weights, syncedAt: new Date().toISOString() })
+    // Daily wellness metrics: steps, resting HR, and other biomarkers
+    const dailyMetrics = (wellnessRaw || [])
+      .filter((w) => w.date != null)
+      .map((w) => ({
+        id: `icu-daily-${w.date}`,
+        date: (w.date || "").slice(0, 10),
+        steps: w.steps ?? null,
+        restingHeartRate: w.restingHR ?? null,
+        temperature: w.temp ?? null,
+        comment: w.comment ?? null,
+        source: "intervals.icu" as const,
+      }))
+
+    return NextResponse.json({
+      workouts,
+      sleep,
+      weights,
+      dailyMetrics,
+      syncedAt: new Date().toISOString(),
+    })
   } catch (err) {
     return NextResponse.json(
       { error: "No se pudo conectar con intervals.icu." },

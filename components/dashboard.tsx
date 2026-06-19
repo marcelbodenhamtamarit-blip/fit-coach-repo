@@ -8,6 +8,7 @@ import {
   Moon,
   Scale,
   Sparkles,
+  Heart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -17,6 +18,7 @@ import { NutritionSection } from "@/components/sections/nutrition-section"
 import { SleepSection } from "@/components/sections/sleep-section"
 import { MetricsSection } from "@/components/sections/metrics-section"
 import { CoachSection } from "@/components/sections/coach-section"
+import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { SyncButton } from "@/components/sync-button"
 
 type Tab = {
@@ -30,6 +32,7 @@ const TABS: Tab[] = [
   { id: "workouts", label: "Workouts", icon: Dumbbell },
   { id: "nutrition", label: "Nutrition", icon: UtensilsCrossed },
   { id: "sleep", label: "Sleep", icon: Moon },
+  { id: "daily", label: "Daily", icon: Heart },
   { id: "metrics", label: "Body", icon: Scale },
   { id: "coach", label: "AI Coach", icon: Sparkles },
 ]
@@ -97,7 +100,9 @@ export function Dashboard() {
                 ? "AI Coach"
                 : active === "metrics"
                   ? "Body Metrics"
-                  : active}
+                  : active === "daily"
+                    ? "Daily Metrics"
+                    : active}
             </h1>
             <p className="hidden text-xs text-muted-foreground sm:block">
               {greeting()}, {data.profile.name}. Let&apos;s keep the streak going.
@@ -119,6 +124,7 @@ export function Dashboard() {
               {active === "workouts" && <WorkoutsSection />}
               {active === "nutrition" && <NutritionSection />}
               {active === "sleep" && <SleepSection />}
+              {active === "daily" && <DailyMetricsSection />}
               {active === "metrics" && <MetricsSection />}
               {active === "coach" && <CoachSection />}
             </>

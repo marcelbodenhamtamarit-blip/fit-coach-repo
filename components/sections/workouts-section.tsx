@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2, Dumbbell, Clock, Calendar, X, MapPin, Flame, ChevronRight } from "lucide-react"
+import { Plus, Trash2, Dumbbell, Clock, Calendar, X, MapPin, Flame, ChevronRight, Heart, Mountain } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -518,6 +518,42 @@ function WorkoutDetailsDialog({ workout }: { workout: any }) {
               </div>
             </div>
           </div>
+
+          {/* Heart Rate & Elevation */}
+          {(workout.heartRateAvg || workout.heartRateMax || workout.elevation) && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Cardio & Topografía</p>
+              <div className="grid grid-cols-3 gap-2">
+                {workout.heartRateAvg && (
+                  <div className="rounded-lg border border-border p-2">
+                    <div className="flex items-center gap-1">
+                      <Heart className="size-3 text-red-500" />
+                      <span className="text-xs text-muted-foreground">FC Prom</span>
+                    </div>
+                    <p className="mt-1 font-medium text-sm">{workout.heartRateAvg} bpm</p>
+                  </div>
+                )}
+                {workout.heartRateMax && (
+                  <div className="rounded-lg border border-border p-2">
+                    <div className="flex items-center gap-1">
+                      <Heart className="size-3 text-red-600" />
+                      <span className="text-xs text-muted-foreground">FC Máx</span>
+                    </div>
+                    <p className="mt-1 font-medium text-sm">{workout.heartRateMax} bpm</p>
+                  </div>
+                )}
+                {workout.elevation && (
+                  <div className="rounded-lg border border-border p-2">
+                    <div className="flex items-center gap-1">
+                      <Mountain className="size-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Elevación</span>
+                    </div>
+                    <p className="mt-1 font-medium text-sm">{workout.elevation} m</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Ejercicios */}
           {workout.exercises && workout.exercises.length > 0 && (
