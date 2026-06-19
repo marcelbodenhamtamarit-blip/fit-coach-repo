@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2, Dumbbell, Clock, Calendar, X, MapPin, Flame } from "lucide-react"
+import { Plus, Trash2, Dumbbell, Clock, Calendar, X, MapPin, Flame, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -75,7 +75,7 @@ function LogTab() {
             const isImported = w.id.startsWith("icu-")
             return (
               <Card key={w.id} className="gap-0 p-4">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3 flex-1">
                     <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary flex-shrink-0">
                       <Dumbbell className="size-5" />
@@ -122,15 +122,18 @@ function LogTab() {
                       </div>
                     </div>
                   </div>
-                  {!isImported && (
-                    <button
-                      onClick={() => deleteWorkout(w.id)}
-                      className="text-muted-foreground transition-colors hover:text-destructive flex-shrink-0"
-                      aria-label="Delete workout"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <WorkoutDetailsDialog workout={w} />
+                    {!isImported && (
+                      <button
+                        onClick={() => deleteWorkout(w.id)}
+                        className="text-muted-foreground transition-colors hover:text-destructive p-1"
+                        aria-label="Delete workout"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {w.exercises.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
@@ -434,6 +437,124 @@ function EmptyState({ text }: { text: string }) {
       <Dumbbell className="size-8 text-muted-foreground" />
       <p className="text-sm text-muted-foreground">{text}</p>
     </Card>
+  )
+}
+
+function WorkoutDetailsDialog({ workout }: { workout: any }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          className="text-muted-foreground transition-colors hover:text-primary p-1"
+          aria-label="View workout details"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{workout.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Información general */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-xs text-muted-foreground">Fecha</p>
+              <p className="mt-1 font-medium text-sm">
+                {new Date(workout.date + "T00:00:00").toLocaleDateString(
+                  "es-ES",
+                  {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  },
+                )}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-xs text-muted-foreground">Tipo</p>
+              <p className="mt-1 font-medium text-sm">
+                {workout.type || "No especificado"}
+              </p>
+            </div>
+          </div>
+
+          {/* Métricas principales */}
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">Métricas</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-border p-2">
+                <div className="flex items-center gap-1">
+                  <Clock className="size-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Duración</span>
+                </div>
+                <p className="mt-1 font-medium text-sm">
+                  {workout.durationMin > 0 ? `${workout.durationMin} min` : "—"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-2">
+                <div className="flex items-center gap-1">
+                  <MapPin className="size-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Distancia</span>
+                </div>
+                <p className="mt-1 font-medium text-sm">
+                  {workout.distanceKm && workout.distanceKm > 0
+                    ? `${workout.distanceKm} km`
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-2">
+                <div className="flex items-center gap-1">
+                  <Flame className="size-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Calorías</span>
+                </div>
+                <p className="mt-1 font-medium text-sm">
+                  {workout.calories && workout.calories > 0
+                    ? `${workout.calories} kcal`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Ejercicios */}
+          {workout.exercises && workout.exercises.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Ejercicios</p>
+              <div className="space-y-2">
+                {workout.exercises.map((ex: WorkoutExercise) => (
+                  <div key={ex.id} className="rounded-lg border border-border p-3">
+                    <p className="font-medium text-sm">{ex.name}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {ex.sets.map((set, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {set.reps}×{set.weight}kg
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Mensaje si no hay detalles */}
+          {!workout.durationMin &&
+            !workout.distanceKm &&
+            !workout.calories &&
+            workout.id.startsWith("icu-") && (
+              <div className="rounded-lg bg-muted p-3 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Los detalles de esta actividad no están disponibles en
+                  intervals.icu
+                </p>
+              </div>
+            )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
