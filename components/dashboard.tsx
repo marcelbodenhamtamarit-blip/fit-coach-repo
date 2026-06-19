@@ -79,7 +79,7 @@ export function Dashboard() {
 
         <div className="mt-auto rounded-lg border border-border bg-card p-3">
           <p className="text-xs text-muted-foreground">Daily calorie goal</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums">
+          <p className="mt-0.5 text-lg font-semibold tabular-nums" suppressHydrationWarning>
             {data.profile.calorieGoal.toLocaleString()}
             <span className="ml-1 text-xs font-normal text-muted-foreground">
               kcal
