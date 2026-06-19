@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 
 const BASE = "https://intervals.icu/api/v1"
 
@@ -8,23 +8,9 @@ function isoDaysAgo(days: number) {
   return d.toISOString().slice(0, 10)
 }
 
-export async function GET() {
-  const apiKey = process.env.INTERVALS_ICU_API_KEY
-  const athleteId = process.env.INTERVALS_ICU_ATHLETE_ID
-
-  if (!apiKey || !athleteId) {
-    return NextResponse.json(
-      {
-        error:
-          "Faltan credenciales. Agrega INTERVALS_ICU_API_KEY e INTERVALS_ICU_ATHLETE_ID en los ajustes del proyecto.",
-      },
-      { status: 400 },
-    )
-  }
-
+async function fetchIntervals(apiKey: string, athleteId: string) {
   const id = athleteId.startsWith("i") ? athleteId : `i${athleteId}`
   const auth = "Basic " + Buffer.from(`API_KEY:${apiKey}`).toString("base64")
-  const oldest = isoDaysAgo(30)
   const newest = isoDaysAgo(0)
 
   try {
@@ -44,17 +30,17 @@ export async function GET() {
     ])
 
     if (activitiesRes.status === 401 || wellnessRes.status === 401 || athleteRes.status === 401) {
-      return NextResponse.json(
-        { error: "Clave API inválida. Genera una nueva en intervals.icu (Ajustes > Developer)." },
-        { status: 401 },
-      )
+      return {
+        error: "Invalid API key or athlete ID. Check your credentials in Settings.",
+        status: 401,
+      }
     }
 
     if (!activitiesRes.ok || !wellnessRes.ok) {
-      return NextResponse.json(
-        { error: `Error de intervals.icu (${activitiesRes.status}/${wellnessRes.status}).` },
-        { status: 502 },
-      )
+      return {
+        error: `Connection error (${activitiesRes.status}/${wellnessRes.status}).`,
+        status: 502,
+      }
     }
 
     const activitiesRaw = (await activitiesRes.json()) as any[]
@@ -63,17 +49,17 @@ export async function GET() {
 
     // Limit to last 10 activities for list view
     const recentActivities = (activitiesRaw || []).slice(0, 10)
-    
+
     const workouts = recentActivities.map((a) => {
       const movingTimeSec = a.moving_time || 0
       const hours = Math.floor(movingTimeSec / 3600)
       const minutes = Math.floor((movingTimeSec % 3600) / 60)
-      
+
       return {
         id: `icu-${a.id}`,
         date: (a.start_date_local || a.start_date || "").slice(0, 10),
-        name: a.name || a.type || "Actividad",
-        type: a.type || "Otro",
+        name: a.name || a.type || "Activity",
+        type: a.type || "Other",
         durationSec: movingTimeSec,
         durationMin: Math.round(movingTimeSec / 60),
         durationDisplay: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
@@ -84,7 +70,7 @@ export async function GET() {
         elevation: a.total_elevation_gain ?? null,
         trainingLoad: a.training_load ?? null,
         averagePower: a.average_watts ?? null,
-        elapsedTime: a.elapsed_time ?? null,
+        averagePace: a.average_pace ?? null,
         source: "intervals.icu" as const,
       }
     })
@@ -108,7 +94,6 @@ export async function GET() {
         source: "intervals.icu" as const,
       }))
 
-    // Daily wellness metrics: steps, resting HR, and other biomarkers
     const dailyMetrics = (wellnessRaw || [])
       .filter((w) => w.date != null)
       .map((w) => ({
@@ -116,22 +101,22 @@ export async function GET() {
         date: (w.date || "").slice(0, 10),
         steps: w.steps ?? null,
         restingHeartRate: w.restingHR ?? null,
+        hrv: w.hrv ?? null,
         temperature: w.temp ?? null,
-        comment: w.comment ?? null,
+        sleepHours: w.sleepSecs ? +(w.sleepSecs / 3600).toFixed(1) : null,
+        sleepScore: w.sleepScore ?? null,
         source: "intervals.icu" as const,
       }))
 
-    // Get today's wellness data for steps and resting HR
     const todayWellness = wellnessRaw?.[wellnessRaw.length - 1] || null
 
-    // Extract fitness metrics from athlete data (CTL, ATL, TSB)
     const fitnessMetrics = {
       ctl: athleteData?.ctl ?? null,
       atl: athleteData?.atl ?? null,
       tsb: athleteData?.tsb ?? null,
     }
 
-    return NextResponse.json({
+    return {
       workouts,
       sleep,
       weights,
@@ -140,13 +125,58 @@ export async function GET() {
       todayWellness: {
         steps: todayWellness?.steps ?? null,
         restingHeartRate: todayWellness?.restingHR ?? null,
+        hrv: todayWellness?.hrv ?? null,
+        sleepHours: todayWellness?.sleepSecs ? +(todayWellness.sleepSecs / 3600).toFixed(1) : null,
+        sleepScore: todayWellness?.sleepScore ?? null,
       },
       syncedAt: new Date().toISOString(),
-    })
+    }
   } catch (err) {
+    return {
+      error: "Failed to connect to Intervals.icu",
+      status: 500,
+    }
+  }
+}
+
+export async function GET() {
+  const apiKey = process.env.INTERVALS_ICU_API_KEY
+  const athleteId = process.env.INTERVALS_ICU_ATHLETE_ID
+
+  if (!apiKey || !athleteId) {
     return NextResponse.json(
-      { error: "No se pudo conectar con intervals.icu." },
-      { status: 500 },
+      {
+        error: "No credentials configured. Add your Intervals.icu details in Settings.",
+      },
+      { status: 400 },
     )
   }
+
+  const result = await fetchIntervals(apiKey, athleteId)
+
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+
+  return NextResponse.json(result)
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json()
+  const { athleteId, apiKey } = body
+
+  if (!apiKey || !athleteId) {
+    return NextResponse.json(
+      { error: "Missing athlete ID or API key" },
+      { status: 400 },
+    )
+  }
+
+  const result = await fetchIntervals(apiKey, athleteId)
+
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+
+  return NextResponse.json(result)
 }

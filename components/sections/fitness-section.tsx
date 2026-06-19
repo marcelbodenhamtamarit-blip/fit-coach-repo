@@ -1,24 +1,26 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronDown, MapPin, Heart, Zap, Clock, Flame, Mountain, TrendingUp } from "lucide-react"
+import { ChevronDown, MapPin, Heart, Zap, Clock, Flame, Mountain, TrendingUp, AlertCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { useStore } from "@/lib/store"
 import useSWR from "swr"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-export function FitnessSection() {
+export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
   const { data } = useStore()
   const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null)
-  const { data: fitnessData, isLoading } = useSWR("/api/intervals", fetcher, {
+  const { data: fitnessData, isLoading, error } = useSWR("/api/intervals", fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   })
 
   const fitnessMetrics = fitnessData?.fitnessMetrics || {}
   const workouts = fitnessData?.workouts || []
+  const noCredentials = error?.error?.includes("No credentials") || error?.error?.includes("Missing")
 
   if (isLoading) {
     return (
@@ -30,6 +32,25 @@ export function FitnessSection() {
           ))}
         </div>
       </div>
+    )
+  }
+
+  if (noCredentials) {
+    return (
+      <Card className="border-yellow-200 bg-yellow-50 p-6">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-yellow-900 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-yellow-900 mb-1">No Intervals.icu credentials</h3>
+            <p className="text-sm text-yellow-800 mb-4">Add your Intervals.icu details in Settings to see your fitness data, activities, and metrics.</p>
+            {onSettings && (
+              <Button onClick={onSettings} size="sm" className="bg-yellow-600 hover:bg-yellow-700">
+                Go to Settings
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
     )
   }
 

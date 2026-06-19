@@ -10,6 +10,7 @@ import {
   Sparkles,
   Heart,
   Zap,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -21,6 +22,7 @@ import { MetricsSection } from "@/components/sections/metrics-section"
 import { CoachSection } from "@/components/sections/coach-section"
 import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { FitnessSection } from "@/components/sections/fitness-section"
+import { SettingsSection } from "@/components/sections/settings-section"
 import { SyncButton } from "@/components/sync-button"
 
 type Tab = {
@@ -38,6 +40,7 @@ const TABS: Tab[] = [
   { id: "daily", label: "Daily", icon: Heart },
   { id: "metrics", label: "Body", icon: Scale },
   { id: "coach", label: "AI Coach", icon: Sparkles },
+  { id: "settings", label: "Settings", icon: Settings },
 ]
 
 export function Dashboard() {
@@ -126,13 +129,14 @@ export function Dashboard() {
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {active === "fitness" && <FitnessSection />}
+              {active === "fitness" && <FitnessSection onSettings={() => setActive("settings")} />}
               {active === "workouts" && <WorkoutsSection />}
               {active === "nutrition" && <NutritionSection />}
               {active === "sleep" && <SleepSection />}
               {active === "daily" && <DailyMetricsSection />}
               {active === "metrics" && <MetricsSection />}
               {active === "coach" && <CoachSection />}
+              {active === "settings" && <SettingsSection />}
             </>
           )}
         </main>
