@@ -230,10 +230,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     importFromIntervals: (payload) => {
       const counts = { workouts: 0, sleep: 0, weights: 0 }
       setData((d) => {
-        // Workouts: dedupe by id
-        const existingWorkoutIds = new Set(d.workouts.map((w) => w.id))
-        const newWorkouts: Workout[] = (payload.workouts || [])
-          .filter((w) => w.date && !existingWorkoutIds.has(w.id))
+        // Workouts: REPLACE local with intervals data
+        const importedWorkouts: Workout[] = (payload.workouts || [])
+          .filter((w) => w.date)
           .map((w) => ({
             id: w.id,
             date: w.date,
@@ -241,7 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             durationMin: w.durationMin || 0,
             exercises: [],
           }))
-        counts.workouts = newWorkouts.length
+        counts.workouts = importedWorkouts.length
 
         // Sleep: dedupe by date
         const existingSleepDates = new Set(d.sleep.map((s) => s.date))
@@ -272,7 +271,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
         return {
           ...d,
-          workouts: [...newWorkouts, ...d.workouts].sort((a, b) => b.date.localeCompare(a.date)),
+          workouts: importedWorkouts.sort((a, b) => b.date.localeCompare(a.date)),
           sleep: [...newSleep, ...d.sleep].sort((a, b) => b.date.localeCompare(a.date)),
           metrics: [...newMetrics, ...d.metrics].sort((a, b) => b.date.localeCompare(a.date)),
         }
