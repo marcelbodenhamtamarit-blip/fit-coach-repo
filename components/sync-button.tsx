@@ -14,22 +14,45 @@ export function SyncButton() {
     setStatus("syncing")
     setMessage("")
     try {
-      const res = await fetch("/api/intervals")
-      const json = await res.json()
-      if (!res.ok) {
+      // Fetch both Strava and intervals.icu in parallel
+      const [stravaRes, intervalsRes] = await Promise.all([
+        fetch("/api/strava").catch(() => null),
+        fetch("/api/intervals"),
+      ])
+
+      let combined = { workouts: [], sleep: [], weights: [] }
+
+      // Get Strava workouts (priority source)
+      if (stravaRes?.ok) {
+        const stravaData = await stravaRes.json()
+        if (stravaData.workouts) combined.workouts = stravaData.workouts
+      }
+
+      // Get intervals.icu sleep and weights
+      if (intervalsRes?.ok) {
+        const intervalsData = await intervalsRes.json()
+        if (intervalsData.sleep) combined.sleep = intervalsData.sleep
+        if (intervalsData.weights) combined.weights = intervalsData.weights
+        // Fallback: if no Strava workouts, use intervals.icu workouts
+        if (!combined.workouts.length && intervalsData.workouts) {
+          combined.workouts = intervalsData.workouts
+        }
+      } else {
+        const intervalsData = await intervalsRes.json()
         setStatus("error")
-        setMessage(json.error || "Error al sincronizar")
+        setMessage(intervalsData.error || "Error en intervals.icu")
         return
       }
-      const counts = importFromIntervals(json)
+
+      const counts = importFromIntervals(combined)
       setStatus("ok")
       setMessage(
         `${counts.workouts} entrenos, ${counts.sleep} sueño, ${counts.weights} peso`,
       )
       setTimeout(() => setStatus("idle"), 4000)
-    } catch {
+    } catch (err: any) {
       setStatus("error")
-      setMessage("No se pudo conectar")
+      setMessage(err.message || "No se pudo conectar")
     }
   }
 
@@ -48,14 +71,14 @@ export function SyncButton() {
       <button
         onClick={sync}
         disabled={status === "syncing"}
-        title="Sincronizar con intervals.icu"
+        title="Sincronizar Strava + intervals.icu"
         className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-60"
       >
         <RefreshCw
           className={cn("size-4 text-primary", status === "syncing" && "animate-spin")}
         />
         <span className="hidden sm:inline">
-          {status === "syncing" ? "Sincronizando..." : "intervals.icu"}
+          {status === "syncing" ? "Sincronizando..." : "Sync"}
         </span>
       </button>
     </div>
