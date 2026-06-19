@@ -28,18 +28,22 @@ export async function GET() {
   const newest = isoDaysAgo(0)
 
   try {
-    const [activitiesRes, wellnessRes] = await Promise.all([
-      fetch(`${BASE}/athlete/${id}/activities?oldest=${oldest}&newest=${newest}`, {
+    const [activitiesRes, wellnessRes, athleteRes] = await Promise.all([
+      fetch(`${BASE}/athlete/${id}/activities?oldest=${isoDaysAgo(14)}&newest=${newest}`, {
         headers: { Authorization: auth },
         cache: "no-store",
       }),
-      fetch(`${BASE}/athlete/${id}/wellness?oldest=${oldest}&newest=${newest}`, {
+      fetch(`${BASE}/athlete/${id}/wellness?oldest=${isoDaysAgo(7)}&newest=${newest}`, {
+        headers: { Authorization: auth },
+        cache: "no-store",
+      }),
+      fetch(`${BASE}/athlete/${id}.json`, {
         headers: { Authorization: auth },
         cache: "no-store",
       }),
     ])
 
-    if (activitiesRes.status === 401 || wellnessRes.status === 401) {
+    if (activitiesRes.status === 401 || wellnessRes.status === 401 || athleteRes.status === 401) {
       return NextResponse.json(
         { error: "Clave API inválida. Genera una nueva en intervals.icu (Ajustes > Developer)." },
         { status: 401 },
@@ -55,20 +59,35 @@ export async function GET() {
 
     const activitiesRaw = (await activitiesRes.json()) as any[]
     const wellnessRaw = (await wellnessRes.json()) as any[]
+    const athleteData = athleteRes.ok ? (await athleteRes.json()) as any : null
 
-    const workouts = (activitiesRaw || []).map((a) => ({
-      id: `icu-${a.id}`,
-      date: (a.start_date_local || a.start_date || "").slice(0, 10),
-      name: a.name || a.type || "Actividad",
-      type: a.type || "Otro",
-      durationMin: a.moving_time ? Math.round(a.moving_time / 60) : 0,
-      calories: a.calories ?? null,
-      distanceKm: a.distance ? +(a.distance / 1000).toFixed(2) : null,
-      heartRateAvg: a.avg_heart_rate ?? null,
-      heartRateMax: a.max_heart_rate ?? null,
-      elevation: a.total_elevation_gain ?? null,
-      source: "intervals.icu" as const,
-    }))
+    // Limit to last 10 activities for list view
+    const recentActivities = (activitiesRaw || []).slice(0, 10)
+    
+    const workouts = recentActivities.map((a) => {
+      const movingTimeSec = a.moving_time || 0
+      const hours = Math.floor(movingTimeSec / 3600)
+      const minutes = Math.floor((movingTimeSec % 3600) / 60)
+      
+      return {
+        id: `icu-${a.id}`,
+        date: (a.start_date_local || a.start_date || "").slice(0, 10),
+        name: a.name || a.type || "Actividad",
+        type: a.type || "Otro",
+        durationSec: movingTimeSec,
+        durationMin: Math.round(movingTimeSec / 60),
+        durationDisplay: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
+        calories: a.calories ?? null,
+        distanceKm: a.distance ? +(a.distance / 1000).toFixed(1) : null,
+        heartRateAvg: a.avg_heart_rate ?? null,
+        heartRateMax: a.max_heart_rate ?? null,
+        elevation: a.total_elevation_gain ?? null,
+        trainingLoad: a.training_load ?? null,
+        averagePower: a.average_watts ?? null,
+        elapsedTime: a.elapsed_time ?? null,
+        source: "intervals.icu" as const,
+      }
+    })
 
     const sleep = (wellnessRaw || [])
       .filter((w) => w.sleepSecs != null || w.sleepScore != null)
@@ -102,11 +121,26 @@ export async function GET() {
         source: "intervals.icu" as const,
       }))
 
+    // Get today's wellness data for steps and resting HR
+    const todayWellness = wellnessRaw?.[wellnessRaw.length - 1] || null
+
+    // Extract fitness metrics from athlete data (CTL, ATL, TSB)
+    const fitnessMetrics = {
+      ctl: athleteData?.ctl ?? null,
+      atl: athleteData?.atl ?? null,
+      tsb: athleteData?.tsb ?? null,
+    }
+
     return NextResponse.json({
       workouts,
       sleep,
       weights,
       dailyMetrics,
+      fitnessMetrics,
+      todayWellness: {
+        steps: todayWellness?.steps ?? null,
+        restingHeartRate: todayWellness?.restingHR ?? null,
+      },
       syncedAt: new Date().toISOString(),
     })
   } catch (err) {

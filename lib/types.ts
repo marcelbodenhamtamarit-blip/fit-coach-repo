@@ -14,6 +14,8 @@ export type Workout = {
   date: string // ISO date
   name: string
   durationMin: number
+  durationSec?: number
+  durationDisplay?: string
   exercises: WorkoutExercise[]
   distanceKm?: number
   calories?: number
@@ -21,6 +23,9 @@ export type Workout = {
   heartRateAvg?: number
   heartRateMax?: number
   elevation?: number
+  trainingLoad?: number
+  averagePower?: number
+  elapsedTime?: number
 }
 
 export type DailyMetric = {

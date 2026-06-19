@@ -7,6 +7,8 @@ import {
   Dumbbell,
   TrendingDown,
   ChevronRight,
+  Footprints,
+  Heart,
 } from "lucide-react"
 import {
   Area,
@@ -21,6 +23,9 @@ import { Progress } from "@/components/ui/progress"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function OverviewSection({
   onNavigate,
@@ -29,6 +34,12 @@ export function OverviewSection({
 }) {
   const { data } = useStore()
   const today = todayISO()
+  const { data: fitnessData } = useSWR("/api/intervals", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  })
+
+  const todayWellness = fitnessData?.todayWellness || {}
 
   const todaysMeals = data.meals.filter((m) => m.date === today)
   const caloriesToday = todaysMeals.reduce((s, m) => s + m.calories, 0)
@@ -62,7 +73,7 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <StatCard
           icon={Flame}
           label="Calories today"
@@ -94,6 +105,22 @@ export function OverviewSection({
           unit="logged"
           sub={`${data.routines.length} routines`}
           accent="primary"
+        />
+        <StatCard
+          icon={Footprints}
+          label="Steps today"
+          value={todayWellness.steps ? todayWellness.steps.toLocaleString() : "--"}
+          unit="steps"
+          sub="From Intervals.icu"
+          accent="lime"
+        />
+        <StatCard
+          icon={Heart}
+          label="Resting HR"
+          value={todayWellness.restingHeartRate ? String(todayWellness.restingHeartRate) : "--"}
+          unit="bpm"
+          sub="From Intervals.icu"
+          accent="rose"
         />
       </div>
 
