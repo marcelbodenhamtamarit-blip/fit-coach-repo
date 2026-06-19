@@ -14,37 +14,14 @@ export function SyncButton() {
     setStatus("syncing")
     setMessage("")
     try {
-      // Fetch both Strava and intervals.icu in parallel
-      const [stravaRes, intervalsRes] = await Promise.all([
-        fetch("/api/strava").catch(() => null),
-        fetch("/api/intervals"),
-      ])
-
-      let combined = { workouts: [], sleep: [], weights: [] }
-
-      // Get Strava workouts (priority source)
-      if (stravaRes?.ok) {
-        const stravaData = await stravaRes.json()
-        if (stravaData.workouts) combined.workouts = stravaData.workouts
-      }
-
-      // Get intervals.icu sleep and weights
-      if (intervalsRes?.ok) {
-        const intervalsData = await intervalsRes.json()
-        if (intervalsData.sleep) combined.sleep = intervalsData.sleep
-        if (intervalsData.weights) combined.weights = intervalsData.weights
-        // Fallback: if no Strava workouts, use intervals.icu workouts
-        if (!combined.workouts.length && intervalsData.workouts) {
-          combined.workouts = intervalsData.workouts
-        }
-      } else {
-        const intervalsData = await intervalsRes.json()
+      const res = await fetch("/api/intervals")
+      const data = await res.json()
+      if (!res.ok) {
         setStatus("error")
-        setMessage(intervalsData.error || "Error en intervals.icu")
+        setMessage(data.error || "Error al sincronizar")
         return
       }
-
-      const counts = importFromIntervals(combined)
+      const counts = importFromIntervals(data)
       setStatus("ok")
       setMessage(
         `${counts.workouts} entrenos, ${counts.sleep} sueño, ${counts.weights} peso`,
@@ -71,14 +48,14 @@ export function SyncButton() {
       <button
         onClick={sync}
         disabled={status === "syncing"}
-        title="Sincronizar Strava + intervals.icu"
+        title="Sincronizar con intervals.icu"
         className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-60"
       >
         <RefreshCw
           className={cn("size-4 text-primary", status === "syncing" && "animate-spin")}
         />
         <span className="hidden sm:inline">
-          {status === "syncing" ? "Sincronizando..." : "Sync"}
+          {status === "syncing" ? "Sincronizando..." : "intervals.icu"}
         </span>
       </button>
     </div>
