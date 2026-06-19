@@ -15,6 +15,9 @@ export type Workout = {
   name: string
   durationMin: number
   exercises: WorkoutExercise[]
+  distanceKm?: number
+  calories?: number
+  type?: string
 }
 
 export type RoutineExercise = {

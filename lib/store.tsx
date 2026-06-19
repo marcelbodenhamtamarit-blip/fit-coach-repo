@@ -236,9 +236,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .map((w) => ({
             id: w.id,
             date: w.date,
-            name: w.distanceKm ? `${w.name} (${w.distanceKm} km)` : w.name,
+            name: w.name,
             durationMin: w.durationMin || 0,
             exercises: [],
+            distanceKm: w.distanceKm || undefined,
+            calories: w.calories || undefined,
+            type: w.type || undefined,
           }))
         counts.workouts = importedWorkouts.length
 

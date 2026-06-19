@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2, Dumbbell, Clock, Calendar, X } from "lucide-react"
+import { Plus, Trash2, Dumbbell, Clock, Calendar, X, MapPin, Flame } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -72,45 +72,78 @@ function LogTab() {
                 s + e.sets.reduce((ss, set) => ss + set.reps * set.weight, 0),
               0,
             )
+            const isImported = w.id.startsWith("icu-")
             return (
               <Card key={w.id} className="gap-0 p-4">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="flex items-center gap-3 flex-1">
+                    <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary flex-shrink-0">
                       <Dumbbell className="size-5" />
                     </span>
-                    <div>
-                      <p className="font-medium">{w.name}</p>
-                      <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium">
+                          {w.name}
+                          {!w.durationMin && !w.distanceKm && !w.calories && isImported && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              (sin detalles)
+                            </span>
+                          )}
+                        </p>
+                        {w.type && w.type !== "Otro" && (
+                          <Badge variant="outline" className="text-xs">
+                            {w.type}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="size-3" />
                           {formatDate(w.date)}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="size-3" />
-                          {w.durationMin} min
-                        </span>
+                        {w.durationMin > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {w.durationMin} min
+                          </span>
+                        )}
+                        {w.distanceKm && w.distanceKm > 0 && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="size-3" />
+                            {w.distanceKm} km
+                          </span>
+                        )}
+                        {w.calories && w.calories > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Flame className="size-3" />
+                            {w.calories} kcal
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteWorkout(w.id)}
-                    className="text-muted-foreground transition-colors hover:text-destructive"
-                    aria-label="Delete workout"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                  {!isImported && (
+                    <button
+                      onClick={() => deleteWorkout(w.id)}
+                      className="text-muted-foreground transition-colors hover:text-destructive flex-shrink-0"
+                      aria-label="Delete workout"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-                  {w.exercises.map((e) => (
-                    <Badge key={e.id} variant="secondary">
-                      {e.name} · {e.sets.length}×
+                {w.exercises.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                    {w.exercises.map((e) => (
+                      <Badge key={e.id} variant="secondary">
+                        {e.name} · {e.sets.length}×
+                      </Badge>
+                    ))}
+                    <Badge variant="outline" className="ml-auto tabular-nums">
+                      {totalSets} sets · {volume.toLocaleString()} kg vol
                     </Badge>
-                  ))}
-                  <Badge variant="outline" className="ml-auto tabular-nums">
-                    {totalSets} sets · {volume.toLocaleString()} kg vol
-                  </Badge>
-                </div>
+                  </div>
+                )}
               </Card>
             )
           })}
