@@ -26,6 +26,11 @@ import {
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
 import type { Meal } from "@/lib/types"
+import {
+  searchWoolworthsProducts,
+  calculateNutrients,
+} from "@/lib/woolworths-products"
+import type { WoolworthsProduct } from "@/lib/woolworths-products"
 
 const MEAL_TYPES: Meal["mealType"][] = [
   "breakfast",
@@ -176,34 +181,39 @@ function MacroBox({
 function AddMealDialog() {
   const { addMeal } = useStore()
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({
-    name: "",
-    mealType: "breakfast" as Meal["mealType"],
-    calories: "",
-    protein: "",
-    carbs: "",
-    fat: "",
-  })
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedProduct, setSelectedProduct] = useState<WoolworthsProduct | null>(
+    null,
+  )
+  const [grams, setGrams] = useState("100")
+  const [mealType, setMealType] = useState<Meal["mealType"]>("breakfast")
+
+  const searchResults = searchWoolworthsProducts(searchQuery)
+
+  const handleSelectProduct = (product: WoolworthsProduct) => {
+    setSelectedProduct(product)
+    setSearchQuery("")
+  }
 
   const submit = () => {
-    if (!form.name.trim()) return
+    if (!selectedProduct || !grams.trim()) return
+
+    const nutrients = calculateNutrients(selectedProduct, Number(grams))
+    const portionText = `${grams}g de ${selectedProduct.name}`
+
     addMeal({
       date: todayISO(),
-      name: form.name.trim(),
-      mealType: form.mealType,
-      calories: Number(form.calories) || 0,
-      protein: Number(form.protein) || 0,
-      carbs: Number(form.carbs) || 0,
-      fat: Number(form.fat) || 0,
+      name: portionText,
+      mealType,
+      calories: nutrients.calories,
+      protein: nutrients.protein,
+      carbs: nutrients.carbs,
+      fat: nutrients.fat,
     })
-    setForm({
-      name: "",
-      mealType: "breakfast",
-      calories: "",
-      protein: "",
-      carbs: "",
-      fat: "",
-    })
+
+    setSelectedProduct(null)
+    setGrams("100")
+    setMealType("breakfast")
     setOpen(false)
   }
 
@@ -216,64 +226,143 @@ function AddMealDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add a meal</DialogTitle>
+          <DialogTitle>
+            {selectedProduct ? selectedProduct.name : "Add meal from Woolworths"}
+          </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="m-name">Meal</Label>
-            <Input
-              id="m-name"
-              placeholder="Chicken & rice"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+
+        {!selectedProduct ? (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="search">Search Woolworths products</Label>
+              <Input
+                id="search"
+                placeholder="Chicken, rice, protein..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {searchQuery && (
+              <div className="max-h-60 space-y-1 overflow-y-auto">
+                {searchResults.length > 0 ? (
+                  searchResults.map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => handleSelectProduct(product)}
+                      className="w-full rounded-lg border border-border p-2 text-left hover:bg-accent"
+                    >
+                      <div className="text-sm font-medium">{product.name}</div>
+                      <div className="flex gap-2 text-xs text-muted-foreground">
+                        <span>{product.calories} kcal</span>
+                        <span>|</span>
+                        <span>{product.protein}g protein</span>
+                        <span>|</span>
+                        <span>{product.category}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No products found
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <Select
-              value={form.mealType}
-              onValueChange={(v) =>
-                setForm({ ...form, mealType: v as Meal["mealType"] })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEAL_TYPES.map((t) => (
-                  <SelectItem key={t} value={t} className="capitalize">
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-sm font-semibold">{selectedProduct.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedProduct.category} • {selectedProduct.brand}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Meal type</Label>
+              <Select value={mealType} onValueChange={(v) => setMealType(v as Meal["mealType"])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEAL_TYPES.map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="grams">Portion size (grams)</Label>
+              <Input
+                id="grams"
+                type="number"
+                inputMode="numeric"
+                placeholder="100"
+                value={grams}
+                onChange={(e) => setGrams(e.target.value)}
+              />
+            </div>
+
+            {grams && (
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Nutrient info for {grams}g:
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  {(() => {
+                    const nutrients = calculateNutrients(
+                      selectedProduct,
+                      Number(grams),
+                    )
+                    return (
+                      <>
+                        <div>
+                          <span className="text-muted-foreground">Calories:</span>
+                          <p className="font-semibold">
+                            {nutrients.calories} kcal
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Protein:</span>
+                          <p className="font-semibold">{nutrients.protein}g</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Carbs:</span>
+                          <p className="font-semibold">{nutrients.carbs}g</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Fat:</span>
+                          <p className="font-semibold">{nutrients.fat}g</p>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedProduct(null)
+                  setSearchQuery("")
+                  setGrams("100")
+                }}
+              >
+                Back
+              </Button>
+              <Button onClick={submit} className="flex-1">
+                Add meal
+              </Button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="Calories"
-              value={form.calories}
-              onChange={(v) => setForm({ ...form, calories: v })}
-            />
-            <Field
-              label="Protein (g)"
-              value={form.protein}
-              onChange={(v) => setForm({ ...form, protein: v })}
-            />
-            <Field
-              label="Carbs (g)"
-              value={form.carbs}
-              onChange={(v) => setForm({ ...form, carbs: v })}
-            />
-            <Field
-              label="Fat (g)"
-              value={form.fat}
-              onChange={(v) => setForm({ ...form, fat: v })}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={submit}>Add meal</Button>
-        </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )
