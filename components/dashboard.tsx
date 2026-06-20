@@ -10,6 +10,7 @@ import {
   Zap,
   Settings,
   Dumbbell,
+  Wallet,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -18,6 +19,7 @@ import { NutritionSection } from "@/components/sections/nutrition-section"
 import { SleepSection } from "@/components/sections/sleep-section"
 import { MetricsSection } from "@/components/sections/metrics-section"
 import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
+import { EconomySection } from "@/components/sections/economy-section"
 import { FitnessSection } from "@/components/sections/fitness-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { SyncButton } from "@/components/sync-button"
@@ -30,6 +32,7 @@ type Tab = {
 
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
+  { id: "economy", label: "Economía", icon: Wallet },
   { id: "fitness", label: "Fitness", icon: Zap },
   { id: "nutrition", label: "Nutrición", icon: UtensilsCrossed },
   { id: "sleep", label: "Sueño", icon: Moon },
@@ -38,8 +41,12 @@ const TABS: Tab[] = [
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
 
+// Mobile nav shows a subset (max 5 for readability); Fitness moves to sidebar-only
+const MOBILE_TABS = ["overview", "economy", "nutrition", "sleep", "settings"]
+
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
+  economy: "Economía",
   fitness: "Fitness",
   nutrition: "Nutrición",
   sleep: "Sueño",
@@ -126,6 +133,7 @@ export function Dashboard() {
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
+              {active === "economy" && <EconomySection />}
               {active === "fitness" && (
                 <FitnessSection onSettings={() => setActive("settings")} />
               )}
@@ -141,7 +149,7 @@ export function Dashboard() {
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => MOBILE_TABS.includes(tab.id)).map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (

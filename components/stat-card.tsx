@@ -8,7 +8,7 @@ type StatCardProps = {
   value: string
   unit?: string
   sub?: string
-  accent?: "primary" | "blue" | "amber" | "pink" | "teal"
+  accent?: "primary" | "blue" | "amber" | "pink" | "teal" | "lime" | "rose" | "green" | "red"
 }
 
 const accentMap: Record<NonNullable<StatCardProps["accent"]>, string> = {
@@ -17,6 +17,10 @@ const accentMap: Record<NonNullable<StatCardProps["accent"]>, string> = {
   amber: "text-[var(--chart-3)] bg-[var(--chart-3)]/10",
   pink: "text-[var(--chart-4)] bg-[var(--chart-4)]/10",
   teal: "text-[var(--chart-5)] bg-[var(--chart-5)]/10",
+  lime: "text-lime-500 bg-lime-500/10",
+  rose: "text-rose-500 bg-rose-500/10",
+  green: "text-emerald-500 bg-emerald-500/10",
+  red: "text-red-500 bg-red-500/10",
 }
 
 export function StatCard({

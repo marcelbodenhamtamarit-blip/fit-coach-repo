@@ -15,6 +15,7 @@ import type {
   Profile,
   Routine,
   SleepEntry,
+  Transaction,
   Workout,
 } from "./types"
 import { todayISO, uid } from "./types"
@@ -145,6 +146,7 @@ function seedData(): AppData {
       { id: uid(), date: day(0), weight: 83.5, bodyFat: 17.4, waist: 84.5 },
     ],
     dailyMetrics: [],
+    transactions: [],
   }
 }
 
@@ -163,6 +165,9 @@ type StoreContextValue = {
   addMetric: (m: Omit<BodyMetric, "id">) => void
   deleteMetric: (id: string) => void
   importFromIntervals: (payload: IntervalsPayload) => { workouts: number; sleep: number; weights: number }
+  addTransaction: (t: Omit<Transaction, "id">) => void
+  deleteTransaction: (id: string) => void
+  importTransactions: (rows: Omit<Transaction, "id">[]) => number
 }
 
 type IntervalsPayload = {
@@ -240,6 +245,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((d) => ({ ...d, metrics: [{ ...m, id: uid() }, ...d.metrics] })),
     deleteMetric: (id) =>
       setData((d) => ({ ...d, metrics: d.metrics.filter((x) => x.id !== id) })),
+    addTransaction: (t) =>
+      setData((d) => ({
+        ...d,
+        transactions: [{ ...t, id: uid() }, ...(d.transactions ?? [])].sort(
+          (a, b) => b.date.localeCompare(a.date),
+        ),
+      })),
+    deleteTransaction: (id) =>
+      setData((d) => ({
+        ...d,
+        transactions: (d.transactions ?? []).filter((x) => x.id !== id),
+      })),
+    importTransactions: (rows) => {
+      let count = 0
+      setData((d) => {
+        const existing = new Set((d.transactions ?? []).map((t) => `${t.date}|${t.category}|${t.amount}`))
+        const toAdd: Transaction[] = rows
+          .filter((r) => !existing.has(`${r.date}|${r.category}|${r.amount}`))
+          .map((r) => ({ ...r, id: uid() }))
+        count = toAdd.length
+        return {
+          ...d,
+          transactions: [...toAdd, ...(d.transactions ?? [])].sort(
+            (a, b) => b.date.localeCompare(a.date),
+          ),
+        }
+      })
+      return count
+    },
     importFromIntervals: (payload) => {
       const counts = { workouts: 0, sleep: 0, weights: 0 }
       setData((d) => {

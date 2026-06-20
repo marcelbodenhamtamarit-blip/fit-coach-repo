@@ -87,6 +87,28 @@ export type Profile = {
   weightGoal: number
 }
 
+export const TRANSACTION_CATEGORIES = [
+  "Alojamiento",
+  "Supermercado",
+  "Comida fuera",
+  "Transporte",
+  "Salario",
+  "Compras",
+  "Necesidades",
+  "Ocio",
+  "Otros",
+] as const
+
+export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number]
+
+export type Transaction = {
+  id: string
+  date: string // ISO date yyyy-mm-dd
+  description: string
+  category: TransactionCategory
+  amount: number // negative = expense, positive = income (AUD)
+}
+
 export type AppData = {
   profile: Profile
   workouts: Workout[]
@@ -95,6 +117,7 @@ export type AppData = {
   sleep: SleepEntry[]
   metrics: BodyMetric[]
   dailyMetrics: DailyMetric[]
+  transactions: Transaction[]
 }
 
 export const todayISO = () => new Date().toISOString().slice(0, 10)

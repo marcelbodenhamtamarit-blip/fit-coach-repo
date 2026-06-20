@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Footprints,
   Heart,
+  PiggyBank,
 } from "lucide-react"
 import {
   Area,
@@ -71,9 +72,21 @@ export function OverviewSection({
     .slice(-7)
     .map((s) => ({ date: s.date.slice(5), hours: s.hours }))
 
+  // Ahorro semanal
+  const weekStart = (() => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    return new Date(d.setDate(diff)).toISOString().slice(0, 10)
+  })()
+  const weekTx = (data.transactions ?? []).filter((t) => t.date >= weekStart)
+  const weekIncome = weekTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const weekExpenses = weekTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const weekSavings = weekIncome - weekExpenses
+
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={Flame}
           label="Calorías de hoy"
@@ -113,6 +126,14 @@ export function OverviewSection({
           unit="bpm"
           sub="Intervals.icu"
           accent="rose"
+        />
+        <StatCard
+          icon={PiggyBank}
+          label="Ahorro semanal"
+          value={`$${Math.abs(weekSavings).toFixed(2)}`}
+          unit="AUD"
+          sub={weekSavings >= 0 ? "Esta semana" : "Déficit esta semana"}
+          accent={weekSavings >= 0 ? "green" : "red"}
         />
         <StatCard
           icon={Moon}
