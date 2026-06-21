@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
-import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData } from "@/lib/webhook"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, mapCategory } from "@/lib/webhook"
 import type { Transaction } from "@/lib/types"
 
 export function SettingsSection() {
@@ -114,6 +114,13 @@ export function SettingsSection() {
           continue
         }
 
+        // Map category to canonical Spanish name
+        const mappedCategory = mapCategory(category)
+        if (!mappedCategory) {
+          skippedCount++
+          continue
+        }
+
         // Parse date - try row's date first, then look for date in same week
         let isoDate = parseDate(dateStr)
         
@@ -129,7 +136,7 @@ export function SettingsSection() {
         }
 
         // Check for duplicates
-        const transactionKey = `${isoDate}-${category.trim()}-${amountNum}`
+        const transactionKey = `${isoDate}-${mappedCategory}-${amountNum}`
         if (existingDates.has(transactionKey)) {
           skippedCount++
           continue
@@ -138,9 +145,9 @@ export function SettingsSection() {
         // Add transaction
         try {
           addTransaction({
-            description: category.trim(),
+            description: mappedCategory,
             amount: amountNum,
-            category: category.trim() as Transaction["category"],
+            category: mappedCategory as Transaction["category"],
             date: isoDate,
           })
           importedCount++

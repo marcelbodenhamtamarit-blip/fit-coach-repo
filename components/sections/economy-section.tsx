@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
-import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData } from "@/lib/webhook"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData, mapCategory } from "@/lib/webhook"
 
 type TabId = "diario" | "semanal" | "mensual"
 
@@ -159,6 +159,12 @@ export function EconomySection() {
             continue
           }
 
+          // Map category to canonical Spanish name
+          const mappedCategory = mapCategory(category)
+          if (!mappedCategory) {
+            continue
+          }
+
           // Parse date
           let isoDate = parseDate(dateStr)
 
@@ -179,13 +185,13 @@ export function EconomySection() {
           // Skip if no date found
           if (!isoDate) continue
 
-          const key = `${isoDate}-${category}-${amountNum}`
+          const key = `${isoDate}-${mappedCategory}-${amountNum}`
 
           if (!existingKeys.has(key)) {
             addTransaction({
-              description: category,
+              description: mappedCategory,
               amount: amountNum,
-              category: category as Transaction["category"],
+              category: mappedCategory as Transaction["category"],
               date: isoDate,
             })
           }
@@ -233,6 +239,12 @@ export function EconomySection() {
             continue
           }
 
+          // Map category to canonical Spanish name
+          const mappedCategory = mapCategory(category)
+          if (!mappedCategory) {
+            continue
+          }
+
           // Parse date
           let isoDate = parseDate(dateStr)
 
@@ -253,13 +265,13 @@ export function EconomySection() {
           // Skip if no date found
           if (!isoDate) continue
 
-          const key = `${isoDate}-${category}-${amountNum}`
+          const key = `${isoDate}-${mappedCategory}-${amountNum}`
 
           if (!existingKeys.has(key)) {
             addTransaction({
-              description: category,
+              description: mappedCategory,
               amount: amountNum,
-              category: category as Transaction["category"],
+              category: mappedCategory as Transaction["category"],
               date: isoDate,
             })
           }
