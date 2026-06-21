@@ -274,9 +274,12 @@ export function EconomySection() {
               category: mappedCategory as Transaction["category"],
               date: isoDate,
             })
+            existingKeys.add(key)
           }
         }
       }
+      // Switch to semanal tab to show all imported transactions grouped by week
+      setTab("semanal")
     } finally {
       setRefreshing(false)
       setRefreshToast(true)
@@ -385,7 +388,7 @@ export function EconomySection() {
       {/* Add transaction button - moved to top */}
       <div className="flex gap-2">
         {!showForm && (
-          <Button onClick={() => setShowForm(true)} className="flex-1">
+          <Button onClick={() => setShowForm(true)} className="flex-1 bg-[#7c6fff] hover:bg-[#6d5ee8] text-white">
             <Plus className="mr-2 size-4" />
             Añadir gasto
           </Button>

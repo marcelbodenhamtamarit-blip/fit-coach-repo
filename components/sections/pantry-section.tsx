@@ -153,34 +153,34 @@ export function PantrySection() {
       </div>
 
       {/* Supermarket spending card */}
-      <Card className="border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-transparent p-4 dark:from-blue-950/40">
+      <Card className="border-l-4 border-l-[#7c6fff] bg-[#16161a] p-4 dark:bg-[#16161a] dark:border-l-[#7c6fff]">
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">Total gastado en Supermercado esta semana</p>
-          <p className="text-2xl font-bold text-foreground">${supermarketThisWeek.toFixed(2)} AUD</p>
+          <p className="text-sm font-medium text-[#f0f0f4]">Total gastado en Supermercado esta semana</p>
+          <p className="text-2xl font-bold text-[#f0f0f4]">${supermarketThisWeek.toFixed(2)} AUD</p>
         </div>
       </Card>
 
       {/* Stock list */}
       {data.pantry.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">No hay productos en la despensa</p>
+        <Card className="flex flex-col items-center justify-center border-dashed py-12 text-center bg-[#16161a] dark:bg-[#16161a] border-[#2a2a30] dark:border-[#2a2a30]">
+          <p className="text-sm text-[#f0f0f4]">No hay productos en la despensa</p>
         </Card>
       ) : (
-        <Card className="p-5">
-          <h2 className="mb-4 text-sm font-semibold">Stock actual</h2>
+        <Card className="p-5 bg-[#16161a] dark:bg-[#16161a] border-[#2a2a30] dark:border-[#2a2a30]">
+          <h2 className="mb-4 text-sm font-semibold text-[#f0f0f4]">Stock actual</h2>
           <div className="space-y-2">
             {data.pantry.map((item) => {
               const remainingValue = (item.pricePerKg * item.quantityGrams) / 1000
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[#2a2a30] dark:border-[#2a2a30] p-3 text-sm bg-[#1a1a1f] dark:bg-[#1a1a1f]"
                 >
                   <div className="flex-1">
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.quantityGrams}g</p>
+                    <p className="font-medium text-[#f0f0f4]">{item.name}</p>
+                    <p className="text-xs text-[#a8a8b8]">{item.quantityGrams}g</p>
                   </div>
-                  <div className="text-right font-mono text-sm">
+                  <div className="text-right font-mono text-sm text-[#f0f0f4]">
                     ${remainingValue.toFixed(2)}
                   </div>
                   <Button
