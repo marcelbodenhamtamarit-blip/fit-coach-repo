@@ -98,6 +98,7 @@ export function EconomySection() {
   const [toastError, setToastError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
+  const [loadingCount, setLoadingCount] = useState(0)
 
   // Helper to parse date from string
   const parseDate = (dateStr: string | undefined): string | null => {
@@ -119,6 +120,7 @@ export function EconomySection() {
   useEffect(() => {
     const autoLoad = async () => {
       const data = await fetchWebhookData()
+      let loadedCount = 0
       
       if (data && Array.isArray(data)) {
         const existingKeys = new Set(
@@ -198,7 +200,13 @@ export function EconomySection() {
               category: mappedCategory as Transaction["category"],
               date: isoDate,
             })
+            loadedCount++
           }
+        }
+        
+        if (loadedCount > 0) {
+          setLoadingCount(loadedCount)
+          setTimeout(() => setLoadingCount(0), 3000)
         }
       }
     }
@@ -208,6 +216,7 @@ export function EconomySection() {
 
   const handleRefresh = async () => {
     setRefreshing(true)
+    let loadedCount = 0
     try {
       const data = await fetchWebhookData()
       
@@ -288,9 +297,16 @@ export function EconomySection() {
               date: isoDate,
             })
             existingKeys.add(key)
+            loadedCount++
           }
         }
       }
+      
+      if (loadedCount > 0) {
+        setLoadingCount(loadedCount)
+        setTimeout(() => setLoadingCount(0), 3000)
+      }
+      
       // Switch to semanal tab to show all imported transactions grouped by week
       setTab("semanal")
     } finally {
@@ -311,12 +327,99 @@ export function EconomySection() {
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
 
-  // Filtered list by tab
-  const filtered = useMemo(() => {
-    if (tab === "diario") return transactions.filter((t) => t.date === today)
-    if (tab === "semanal") return transactions.filter((t) => t.date >= weekStart)
-    // mensual
-    return transactions.filter((t) => t.date.startsWith(currentMonth))
+  // Group transactions by period and calculate totals
+  const groupedData = useMemo(() => {
+    let filtered: Transaction[] = []
+    
+    if (tab === "diario") {
+      filtered = transactions.filter((t) => t.date === today)
+    } else if (tab === "semanal") {
+      filtered = transactions.filter((t) => t.date >= weekStart)
+    } else {
+      // mensual
+      filtered = transactions.filter((t) => t.date.startsWith(currentMonth))
+    }
+
+    if (tab === "diario") {
+      // Group by day
+      const groups: Record<string, Transaction[]> = {}
+      filtered.forEach((tx) => {
+        if (!groups[tx.date]) groups[tx.date] = []
+        groups[tx.date].push(tx)
+      })
+      
+      return Object.entries(groups)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([date, txs]) => {
+          const total = txs.reduce((sum, t) => sum + t.amount, 0)
+          const d = new Date(date + "T00:00:00Z")
+          const dayName = d.toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })
+          return {
+            periodType: "day" as const,
+            label: dayName,
+            date,
+            transactions: txs.sort((a, b) => a.category.localeCompare(b.category)),
+            total,
+          }
+        })
+    } else if (tab === "semanal") {
+      // Group by week
+      const groups: Record<number, Transaction[]> = {}
+      filtered.forEach((tx) => {
+        const week = getWeekNumber(tx.date)
+        if (!groups[week]) groups[week] = []
+        groups[week].push(tx)
+      })
+      
+      return Object.entries(groups)
+        .sort(([a], [b]) => Number(b) - Number(a))
+        .map(([weekStr, txs]) => {
+          const week = Number(weekStr)
+          const weekDate = txs[0].date
+          const { sunday, saturday } = getWeekDateRange(weekDate)
+          const income = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+          const expenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+          const savings = income - expenses
+          
+          return {
+            periodType: "week" as const,
+            label: `WEEK ${week} (${sunday} - ${saturday})`,
+            week,
+            transactions: txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            income,
+            expenses,
+            savings,
+          }
+        })
+    } else {
+      // Group by month
+      const groups: Record<string, Transaction[]> = {}
+      filtered.forEach((tx) => {
+        const month = tx.date.slice(0, 7) // "yyyy-mm"
+        if (!groups[month]) groups[month] = []
+        groups[month].push(tx)
+      })
+      
+      return Object.entries(groups)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([month, txs]) => {
+          const d = new Date(month + "-01T00:00:00Z")
+          const monthName = d.toLocaleDateString("es-ES", { month: "long", year: "numeric" })
+          const income = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+          const expenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+          const savings = income - expenses
+          
+          return {
+            periodType: "month" as const,
+            label: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+            month,
+            transactions: txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            income,
+            expenses,
+            savings,
+          }
+        })
+    }
   }, [transactions, tab, today, weekStart, currentMonth])
 
   const handleSave = async () => {
@@ -383,6 +486,13 @@ export function EconomySection() {
 
   return (
     <div className="space-y-5">
+      {/* Loading count toast */}
+      {loadingCount > 0 && (
+        <div className="flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+          {loadingCount} transacciones cargadas
+        </div>
+      )}
+
       {/* Refresh toast */}
       {refreshToast && (
         <div className="flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -459,60 +569,111 @@ export function EconomySection() {
         ))}
       </div>
 
-      {/* Transaction list */}
-      <Card className="divide-y divide-border overflow-hidden p-0">
-        {filtered.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            Sin transacciones en este período
-          </p>
+      {/* Transaction list - grouped by period */}
+      <div className="space-y-5">
+        {groupedData.length === 0 ? (
+          <Card className="px-5 py-8 text-center">
+            <p className="text-sm text-muted-foreground">Sin transacciones en este período</p>
+          </Card>
         ) : (
-          filtered.map((tx) => (
-            <div key={tx.id}>
-              <button
-                onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
-                className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
+          groupedData.map((group, groupIdx) => (
+            <Card key={groupIdx} className="overflow-hidden p-0">
+              {/* Period header */}
+              <div
+                className={`px-5 py-3 border-b border-border flex items-center justify-between ${
+                  group.periodType === "day"
+                    ? "bg-muted/40"
+                    : group.periodType === "week"
+                      ? "bg-blue-500/10"
+                      : "bg-purple-500/10"
+                }`}
               >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{tx.category}</p>
-                  <p className="truncate text-xs text-muted-foreground">{tx.date}</p>
-                </div>
-                <span
-                  className={`text-sm font-semibold tabular-nums ${
-                    tx.amount >= 0 ? "text-emerald-500" : "text-red-400"
-                  }`}
-                >
-                  {fmt(tx.amount)} AUD
-                </span>
-                {expandedId === tx.id ? (
-                  <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                <h3 className="font-semibold text-sm">{group.label}</h3>
+                {group.periodType === "day" && (
+                  <span className={`text-sm font-semibold tabular-nums ${
+                    group.total >= 0 ? "text-emerald-500" : "text-red-400"
+                  }`}>
+                    {fmt(group.total)} AUD
+                  </span>
                 )}
-              </button>
+              </div>
 
-              {expandedId === tx.id && (
-                <div className="border-t border-border bg-muted/20 px-4 py-3 text-sm">
-                  <p className="text-muted-foreground">
-                    <span className="font-medium text-foreground">Descripción:</span>{" "}
-                    {tx.description}
-                  </p>
-                  <div className="mt-3 flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500"
-                      onClick={() => deleteTransaction(tx.id)}
+              {/* Transactions in this period */}
+              <div className="divide-y divide-border">
+                {group.transactions.map((tx) => (
+                  <div key={tx.id}>
+                    <button
+                      onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
+                      className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-muted/40 transition-colors"
                     >
-                      <X className="mr-1 size-3" />
-                      Eliminar
-                    </Button>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{tx.category}</p>
+                        <p className="truncate text-xs text-muted-foreground">{tx.description}</p>
+                      </div>
+                      <span
+                        className={`text-sm font-semibold tabular-nums whitespace-nowrap ${
+                          tx.amount >= 0 ? "text-emerald-500" : "text-red-400"
+                        }`}
+                      >
+                        {fmt(tx.amount)} AUD
+                      </span>
+                      {expandedId === tx.id ? (
+                        <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+
+                    {expandedId === tx.id && (
+                      <div className="border-t border-border bg-muted/20 px-5 py-3 text-sm">
+                        <div className="space-y-2">
+                          <p className="text-muted-foreground">
+                            <span className="font-medium text-foreground">Categoría:</span> {tx.category}
+                          </p>
+                          <p className="text-muted-foreground">
+                            <span className="font-medium text-foreground">Fecha:</span> {tx.date}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                            onClick={() => deleteTransaction(tx.id)}
+                          >
+                            <X className="mr-1 size-3" />
+                            Eliminar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Period footer with totals (for week and month) */}
+              {(group.periodType === "week" || group.periodType === "month") && (
+                <div className="bg-muted/20 px-5 py-3 border-t border-border space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Ingresos:</span>
+                    <span className="font-semibold text-emerald-500">{fmt(group.income)} AUD</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Gastos:</span>
+                    <span className="font-semibold text-red-400">{fmt(-group.expenses)} AUD</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="font-medium">Ahorro:</span>
+                    <span className={`font-semibold ${group.savings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                      {fmt(group.savings)} AUD
+                    </span>
                   </div>
                 </div>
               )}
-            </div>
+            </Card>
           ))
         )}
-      </Card>
+      </div>
 
       {/* Add transaction form */}
       {showForm && (
