@@ -124,6 +124,70 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [data, ready])
 
+  // Auto-sync from Google Sheets every 2 hours
+  useEffect(() => {
+    if (!ready) return
+
+    const autoSync = async () => {
+      try {
+        const { fetchWebhookData } = await import("./webhook")
+        const fetchedData = await fetchWebhookData()
+
+        if (fetchedData && Array.isArray(fetchedData)) {
+          const existingDates = new Set(
+            (data.transactions || []).map((t) => `${t.date}-${t.category}-${t.amount}`),
+          )
+
+          for (const row of fetchedData) {
+            if (
+              row.columnB &&
+              typeof row.columnB === "string" &&
+              !row.columnB.includes("WEEK") &&
+              !row.columnB.includes("TOTAL")
+            ) {
+              const category = row.columnB
+              const amount = parseFloat(row.columnC)
+              const dateStr = row.columnD
+
+              if (category && !isNaN(amount) && dateStr) {
+                const [day, month, year] = dateStr.split("/")
+                const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+
+                const transactionKey = `${isoDate}-${category}-${amount}`
+                if (!existingDates.has(transactionKey)) {
+                  setData((d) => ({
+                    ...d,
+                    transactions: [
+                      {
+                        id: uid(),
+                        date: isoDate,
+                        category: category as Transaction["category"],
+                        amount,
+                        description: category,
+                      },
+                      ...(d.transactions ?? []),
+                    ],
+                  }))
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Silent error - background sync should not notify user
+        console.log("[v0] Background auto-sync error:", err)
+      }
+    }
+
+    // Run sync immediately on mount
+    autoSync()
+
+    // Then run every 2 hours (7200000 ms)
+    const interval = setInterval(autoSync, 7200000)
+
+    return () => clearInterval(interval)
+  }, [ready])
+
   const addMeal = (meal: Omit<Meal, "id">) => {
     setData((d) => ({
       ...d,

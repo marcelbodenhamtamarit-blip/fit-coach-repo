@@ -1,19 +1,70 @@
 "use client"
 
-import { Flame, Dumbbell, Scale, PiggyBank } from "lucide-react"
+import { useState } from "react"
+import { Flame, Dumbbell, PiggyBank, RotateCw } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
+import { fetchWebhookData } from "@/lib/webhook"
 
 export function OverviewSection({
   onNavigate,
 }: {
   onNavigate: (tab: string) => void
 }) {
-  const { data } = useStore()
+  const { data, addTransaction } = useStore()
   const today = todayISO()
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshToast, setRefreshToast] = useState(false)
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      const fetchedData = await fetchWebhookData()
+      if (fetchedData && Array.isArray(fetchedData)) {
+        const existingDates = new Set(
+          (data.transactions || []).map((t) => `${t.date}-${t.category}-${t.amount}`),
+        )
+
+        for (const row of fetchedData) {
+          if (
+            row.columnB &&
+            typeof row.columnB === "string" &&
+            !row.columnB.includes("WEEK") &&
+            !row.columnB.includes("TOTAL")
+          ) {
+            const category = row.columnB
+            const amount = parseFloat(row.columnC)
+            const dateStr = row.columnD
+
+            if (category && !isNaN(amount) && dateStr) {
+              const [day, month, year] = dateStr.split("/")
+              const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+
+              const transactionKey = `${isoDate}-${category}-${amount}`
+              if (!existingDates.has(transactionKey)) {
+                addTransaction({
+                  description: category,
+                  amount,
+                  category: category as any,
+                  date: isoDate,
+                })
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log("[v0] Dashboard refresh error:", err)
+    } finally {
+      setRefreshing(false)
+      setRefreshToast(true)
+      setTimeout(() => setRefreshToast(false), 2000)
+    }
+  }
 
   // Meals today
   const todaysMeals = data.meals.filter((m) => m.date === today)
@@ -57,6 +108,26 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
+      {/* Refresh toast */}
+      {refreshToast && (
+        <div className="flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          Actualizado
+        </div>
+      )}
+
+      {/* Refresh button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          variant="outline"
+          size="icon"
+          title="Sincronizar con Google Sheets"
+        >
+          <RotateCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+
       {/* Top 4 stat cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard

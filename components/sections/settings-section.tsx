@@ -32,37 +32,9 @@ export function SettingsSection() {
     setImportMessage(null)
 
     try {
-      // Fetch from Google Sheets webhook via GET request
-      const response = await fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "GET",
-        mode: "no-cors",
-      })
+      const fetchedData = await fetchWebhookData()
 
-      // Since no-cors mode doesn't give us the response, we need a workaround
-      // The webhook should return data as JSON, but no-cors restricts access
-      // We'll use a text-based approach by fetching the sheet data
-      // For now, we'll attempt to parse any response
-      let data = []
-
-      try {
-        // Try to get the data - this might fail due to CORS, so we catch it
-        const text = await response.text()
-        if (text) {
-          data = JSON.parse(text)
-        }
-      } catch {
-        // If parsing fails, show error
-        setImportMessage({
-          text: "No se pudo leer el historial de Google Sheets. Intenta nuevamente.",
-          type: "error",
-        })
-        setImporting(false)
-        setTimeout(() => setImportMessage(null), 4000)
-        return
-      }
-
-      // Parse the imported data
-      if (!Array.isArray(data) || data.length === 0) {
+      if (!Array.isArray(fetchedData) || fetchedData.length === 0) {
         setImportMessage({ text: "No hay transacciones para importar", type: "error" })
         setImporting(false)
         setTimeout(() => setImportMessage(null), 4000)
@@ -70,10 +42,12 @@ export function SettingsSection() {
       }
 
       // Filter and validate rows
-      const existingDates = new Set(data.transactions?.map((t: Transaction) => `${t.date}-${t.category}-${t.amount}`) || [])
+      const existingDates = new Set(
+        (data.transactions || []).map((t: Transaction) => `${t.date}-${t.category}-${t.amount}`),
+      )
       let importedCount = 0
 
-      for (const row of data) {
+      for (const row of fetchedData) {
         // Skip header rows: column B is empty, contains "WEEK", or contains "TOTAL"
         if (
           !row.columnB ||
