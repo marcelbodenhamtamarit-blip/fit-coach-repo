@@ -144,18 +144,14 @@ export function EconomySection() {
     // Save locally first
     addTransaction(tx)
 
-    // Sync to Google Sheets in background
-    try {
-      const weekNum = getWeekNumber(date)
-      const { sunday, saturday } = getWeekDateRange(date)
-      
-      // First, check if week header exists by trying to fetch
-      const headerCheckRes = await fetch(GOOGLE_SHEETS_WEBHOOK + `?week=${weekNum}`, {
-        method: "GET",
-      }).catch(() => null)
-      
-      // If no header exists, create it
-      if (!headerCheckRes?.ok) {
+    // Sync to Google Sheets in background (fire and forget)
+    ;(async () => {
+      try {
+        const weekNum = getWeekNumber(date)
+        const { sunday, saturday } = getWeekDateRange(date)
+        
+        // First, send header row to ensure week exists
+        // The webhook will create it if it doesn't exist, or ignore if it does
         try {
           await fetch(GOOGLE_SHEETS_WEBHOOK, {
             method: "POST",
@@ -167,29 +163,33 @@ export function EconomySection() {
               amount: "",
               date: "",
             }),
-          })
+          }).catch(() => {}) // no-cors mode always throws, but request goes through
         } catch {
-          // no-cors always throws but request still goes through
+          // Silently ignore header errors
         }
+
+        // Small delay to ensure header is written first
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        
+        // Then send the actual transaction
+        await fetch(GOOGLE_SHEETS_WEBHOOK, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            week: weekNum,
+            category: tx.category,
+            amount: tx.amount,
+            date: tx.date.split("-").reverse().join("/"), // "YYYY-MM-DD" -> "DD/MM/YYYY"
+          }),
+        }).catch(() => {})
+      } catch (err) {
+        // Webhook errors don't prevent local save
+        console.log("[v0] Google Sheets sync error (transaction saved locally):", err)
+        setToastError("No se pudo sincronizar con Google Sheets")
+        setTimeout(() => setToastError(null), 3000)
       }
-      
-      // Then send the actual transaction
-      await fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          week: weekNum,
-          category: tx.category,
-          amount: tx.amount,
-          date: tx.date.split("-").reverse().join("/"), // "YYYY-MM-DD" -> "DD/MM/YYYY"
-        }),
-      })
-    } catch {
-      // Webhook errors don't prevent local save; show silent error
-      setToastError("No se pudo sincronizar con Google Sheets")
-      setTimeout(() => setToastError(null), 3000)
-    }
+    })()
 
     // reset form
     setDesc("")
