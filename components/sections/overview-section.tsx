@@ -7,8 +7,6 @@ import {
   Dumbbell,
   TrendingDown,
   ChevronRight,
-  Footprints,
-  Heart,
   PiggyBank,
 } from "lucide-react"
 import {
@@ -24,9 +22,6 @@ import { Progress } from "@/components/ui/progress"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
-import useSWR from "swr"
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function OverviewSection({
   onNavigate,
@@ -35,12 +30,6 @@ export function OverviewSection({
 }) {
   const { data } = useStore()
   const today = todayISO()
-  const { data: fitnessData } = useSWR("/api/intervals", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  })
-
-  const wellness = fitnessData?.wellness || {}
 
   const todaysMeals = data.meals.filter((m) => m.date === today)
   const caloriesToday = todaysMeals.reduce((s, m) => s + m.calories, 0)
@@ -86,7 +75,7 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard
           icon={Flame}
           label="Calorías de hoy"
@@ -112,22 +101,6 @@ export function OverviewSection({
           accent="teal"
         />
         <StatCard
-          icon={Footprints}
-          label="Pasos hoy"
-          value={wellness.steps ? wellness.steps.toLocaleString("es-ES") : "--"}
-          unit="pasos"
-          sub="Intervals.icu"
-          accent="lime"
-        />
-        <StatCard
-          icon={Heart}
-          label="FC en reposo"
-          value={wellness.restingHR ? String(wellness.restingHR) : "--"}
-          unit="bpm"
-          sub="Intervals.icu"
-          accent="rose"
-        />
-        <StatCard
           icon={PiggyBank}
           label="Ahorro semanal"
           value={`$${Math.abs(weekSavings).toFixed(2)}`}
@@ -138,9 +111,9 @@ export function OverviewSection({
         <StatCard
           icon={Moon}
           label="Sueño anoche"
-          value={wellness.sleepDisplay ?? (lastSleep ? lastSleep.hours.toFixed(1) + "h" : "--")}
-          unit={wellness.sleepDisplay ? "" : ""}
-          sub={wellness.sleepScore ? `Puntuación: ${wellness.sleepScore}/100` : (lastSleep ? `Calidad ${lastSleep.quality}/5` : "Sin datos")}
+          value={lastSleep ? lastSleep.hours.toFixed(1) + "h" : "--"}
+          unit=""
+          sub={lastSleep ? `Calidad ${lastSleep.quality}/5` : "Sin datos"}
           accent="blue"
         />
       </div>

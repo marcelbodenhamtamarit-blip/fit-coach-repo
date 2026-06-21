@@ -20,7 +20,6 @@ import { MetricsSection } from "@/components/sections/metrics-section"
 import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-import { SyncButton } from "@/components/sync-button"
 
 type Tab = {
   id: string
@@ -106,7 +105,7 @@ export function Dashboard() {
 
       {/* Main */}
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
           <div>
             <h1 className="text-balance text-lg font-semibold sm:text-xl">
               {TAB_TITLES[active] ?? active}
@@ -115,7 +114,6 @@ export function Dashboard() {
               {greeting()}, {data.profile.name}. Sigamos con la racha.
             </p>
           </div>
-          <SyncButton />
         </header>
 
         <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">
@@ -165,7 +163,7 @@ export function Dashboard() {
 
 function greeting() {
   const h = new Date().getHours()
-  if (h < 12) return "Buenos días, Marcel"
-  if (h < 18) return "Buenas tardes, Marcel"
-  return "Buenas noches, Marcel"
+  if (h < 12) return "Buenos días"
+  if (h < 18) return "Buenas tardes"
+  return "Buenas noches"
 }
