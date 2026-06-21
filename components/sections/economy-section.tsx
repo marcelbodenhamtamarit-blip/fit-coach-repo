@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   Wallet,
   TrendingUp,
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCw,
+  Loader2,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,9 +20,7 @@ import { Label } from "@/components/ui/label"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
-
-const GOOGLE_SHEETS_WEBHOOK =
-  "https://script.google.com/macros/s/AKfycbzZN7UFMDOaHjPrYe6x4C9Q9EPytiaPq6Wmw5oWx5kAYbI7Z4O_oj-fWK149KCvgqeT/exec"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData } from "@/lib/webhook"
 
 type TabId = "diario" | "semanal" | "mensual"
 
@@ -105,6 +104,59 @@ export function EconomySection() {
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [date, setDate] = useState(todayISO())
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshToast, setRefreshToast] = useState(false)
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      const data = await fetchWebhookData()
+      if (data && Array.isArray(data)) {
+        // Import transactions from webhook
+        for (const row of data) {
+          if (
+            row.columnB &&
+            typeof row.columnB === "string" &&
+            !row.columnB.includes("WEEK") &&
+            !row.columnB.includes("TOTAL")
+          ) {
+            const week = parseFloat(row.columnA)
+            const category = row.columnB
+            const amount = parseFloat(row.columnC)
+            const dateStr = row.columnD
+
+            if (!isNaN(week) && category && !isNaN(amount) && dateStr) {
+              const [day, month, year] = dateStr.split("/")
+              const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+
+              // Check if already exists
+              const exists = transactions.some(
+                (t) =>
+                  t.date === isoDate &&
+                  t.category === category &&
+                  t.amount === amount,
+              )
+
+              if (!exists) {
+                addTransaction({
+                  description: `Importado: ${category}`,
+                  amount,
+                  category: category as Transaction["category"],
+                  date: isoDate,
+                })
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log("[v0] Refresh error:", err)
+    } finally {
+      setRefreshing(false)
+      setRefreshToast(true)
+      setTimeout(() => setRefreshToast(false), 2000)
+    }
+  }
 
   const today = todayISO()
   const now = new Date()
@@ -151,38 +203,23 @@ export function EconomySection() {
         const { sunday, saturday } = getWeekDateRange(date)
         
         // First, send header row to ensure week exists
-        // The webhook will create it if it doesn't exist, or ignore if it does
-        try {
-          await fetch(GOOGLE_SHEETS_WEBHOOK, {
-            method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              week: `WEEK ${weekNum} (${sunday} - ${saturday})`,
-              category: "",
-              amount: "",
-              date: "",
-            }),
-          }).catch(() => {}) // no-cors mode always throws, but request goes through
-        } catch {
-          // Silently ignore header errors
-        }
+        await postWebhookData({
+          week: `WEEK ${weekNum} (${sunday} - ${saturday})`,
+          category: "",
+          amount: "",
+          date: "",
+        })
 
         // Small delay to ensure header is written first
         await new Promise((resolve) => setTimeout(resolve, 100))
         
         // Then send the actual transaction
-        await fetch(GOOGLE_SHEETS_WEBHOOK, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            week: weekNum,
-            category: tx.category,
-            amount: tx.amount,
-            date: tx.date.split("-").reverse().join("/"), // "YYYY-MM-DD" -> "DD/MM/YYYY"
-          }),
-        }).catch(() => {})
+        await postWebhookData({
+          week: weekNum,
+          category: tx.category,
+          amount: tx.amount,
+          date: tx.date.split("-").reverse().join("/"), // "YYYY-MM-DD" -> "DD/MM/YYYY"
+        })
       } catch (err) {
         // Webhook errors don't prevent local save
         console.log("[v0] Google Sheets sync error (transaction saved locally):", err)
@@ -208,6 +245,13 @@ export function EconomySection() {
 
   return (
     <div className="space-y-5">
+      {/* Refresh toast */}
+      {refreshToast && (
+        <div className="flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          Actualizado
+        </div>
+      )}
+
       {/* Error toast */}
       {toastError && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
@@ -224,8 +268,14 @@ export function EconomySection() {
             Añadir gasto
           </Button>
         )}
-        <Button onClick={() => window.location.reload()} variant="outline" size="icon">
-          <RotateCw className="size-4" />
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          variant="outline"
+          size="icon"
+          title="Sincronizar con Google Sheets"
+        >
+          <RotateCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
         </Button>
       </div>
 

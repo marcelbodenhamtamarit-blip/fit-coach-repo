@@ -7,10 +7,8 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData } from "@/lib/webhook"
 import type { Transaction } from "@/lib/types"
-
-const GOOGLE_SHEETS_WEBHOOK =
-  "https://script.google.com/macros/s/AKfycbzZN7UFMDOaHjPrYe6x4C9Q9EPytiaPq6Wmw5oWx5kAYbI7Z4O_oj-fWK149KCvgqeT/exec"
 
 export function SettingsSection() {
   const { data, addTransaction, updateProfileGoals } = useStore()

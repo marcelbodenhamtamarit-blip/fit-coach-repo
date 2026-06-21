@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Trash2, Edit2, Check, X } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Plus, Trash2, Edit2, Check, X, Loader2, RotateCw } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,10 +15,8 @@ import {
 } from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { todayISO, uid } from "@/lib/types"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData } from "@/lib/webhook"
 import type { PantryItem } from "@/lib/types"
-
-const GOOGLE_SHEETS_WEBHOOK =
-  "https://script.google.com/macros/s/AKfycbzZN7UFMDOaHjPrYe6x4C9Q9EPytiaPq6Wmw5oWx5kAYbI7Z4O_oj-fWK149KCvgqeT/exec"
 
 export function PantrySection() {
   const { data, addPantryItem, updatePantryItem, deletePantryItem } = useStore()
@@ -26,9 +24,60 @@ export function PantrySection() {
   const [addOpen, setAddOpen] = useState(false)
   const [useOpen, setUseOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshToast, setRefreshToast] = useState(false)
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      const data = await fetchWebhookData("Despensa")
+      if (data && Array.isArray(data)) {
+        for (const row of data) {
+          if (
+            row.columnB &&
+            typeof row.columnB === "string" &&
+            !row.columnB.includes("WEEK") &&
+            !row.columnB.includes("TOTAL")
+          ) {
+            const name = row.columnA
+            const quantity = parseFloat(row.columnB)
+            const pricePerKg = parseFloat(row.columnC)
+
+            if (name && !isNaN(quantity) && !isNaN(pricePerKg)) {
+              const exists = (data.pantry || []).some(
+                (p: PantryItem) =>
+                  p.name === name && p.quantityGrams === quantity,
+              )
+
+              if (!exists) {
+                addPantryItem({
+                  name,
+                  quantityGrams: quantity,
+                  pricePerKg,
+                })
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log("[v0] Pantry refresh error:", err)
+    } finally {
+      setRefreshing(false)
+      setRefreshToast(true)
+      setTimeout(() => setRefreshToast(false), 2000)
+    }
+  }
 
   return (
     <div className="space-y-5">
+      {/* Refresh toast */}
+      {refreshToast && (
+        <div className="flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          Actualizado
+        </div>
+      )}
+
       {/* Error toast */}
       {toastError && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -73,6 +122,15 @@ export function PantrySection() {
             setTimeout(() => setToastError(null), 3000)
           }}
         />
+        <Button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          variant="outline"
+          size="icon"
+          title="Sincronizar con Google Sheets"
+        >
+          <RotateCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+        </Button>
       </div>
 
       {/* Stock list */}
@@ -123,19 +181,14 @@ export function PantrySection() {
       const cost = (item.pricePerKg! * item.quantityGrams!) / 1000
       const date = todayISO().split("-").reverse().join("/")
       
-      await fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sheet: "Despensa",
-          action,
-          product: item.name,
-          quantity: item.quantityGrams,
-          price: cost,
-          date,
-        }),
-      }).catch(() => {})
+      await postWebhookData({
+        sheet: "Despensa",
+        action,
+        product: item.name,
+        quantity: item.quantityGrams,
+        price: cost,
+        date,
+      })
     } catch (err) {
       console.log("[v0] Despensa sync error:", err)
     }
