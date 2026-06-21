@@ -7,7 +7,6 @@ import {
   Moon,
   Scale,
   Heart,
-  Zap,
   Settings,
   Dumbbell,
   Wallet,
@@ -20,7 +19,6 @@ import { SleepSection } from "@/components/sections/sleep-section"
 import { MetricsSection } from "@/components/sections/metrics-section"
 import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { EconomySection } from "@/components/sections/economy-section"
-import { FitnessSection } from "@/components/sections/fitness-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { SyncButton } from "@/components/sync-button"
 
@@ -33,7 +31,6 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
   { id: "economy", label: "Economía", icon: Wallet },
-  { id: "fitness", label: "Fitness", icon: Zap },
   { id: "nutrition", label: "Nutrición", icon: UtensilsCrossed },
   { id: "sleep", label: "Sueño", icon: Moon },
   { id: "daily", label: "Diario", icon: Heart },
@@ -41,13 +38,11 @@ const TABS: Tab[] = [
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
 
-// Mobile nav shows a subset (max 5 for readability); Fitness moves to sidebar-only
 const MOBILE_TABS = ["overview", "economy", "nutrition", "sleep", "settings"]
 
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
   economy: "Economía",
-  fitness: "Fitness",
   nutrition: "Nutrición",
   sleep: "Sueño",
   daily: "Métricas diarias",
@@ -134,9 +129,6 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} />
               )}
               {active === "economy" && <EconomySection />}
-              {active === "fitness" && (
-                <FitnessSection onSettings={() => setActive("settings")} />
-              )}
               {active === "nutrition" && <NutritionSection />}
               {active === "sleep" && <SleepSection />}
               {active === "daily" && <DailyMetricsSection />}
