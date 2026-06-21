@@ -18,6 +18,19 @@ import { todayISO, uid } from "@/lib/types"
 import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData } from "@/lib/webhook"
 import type { PantryItem } from "@/lib/types"
 
+// Get Sunday and Saturday of current week
+function getWeekDateRange(): { sunday: string; saturday: string } {
+  const now = new Date()
+  const dayOfWeek = now.getDay() // 0 = Sunday
+  const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // Adjust for Sunday
+  const sunday = new Date(now.setDate(diff))
+  const saturday = new Date(sunday)
+  saturday.setDate(sunday.getDate() + 6)
+  
+  const formatDate = (d: Date) => d.toISOString().split('T')[0]
+  return { sunday: formatDate(sunday), saturday: formatDate(saturday) }
+}
+
 export function PantrySection() {
   const { data, addPantryItem, updatePantryItem, deletePantryItem } = useStore()
   const [toastError, setToastError] = useState<string | null>(null)
@@ -26,6 +39,12 @@ export function PantrySection() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
+
+  // Calculate supermarket spending this week
+  const { sunday, saturday } = getWeekDateRange()
+  const supermarketThisWeek = (data.transactions || [])
+    .filter((t) => t.category === "Supermercado" && t.date >= sunday && t.date <= saturday)
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -132,6 +151,14 @@ export function PantrySection() {
           <RotateCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
         </Button>
       </div>
+
+      {/* Supermarket spending card */}
+      <Card className="border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50 to-transparent p-4 dark:from-blue-950/40">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-muted-foreground">Total gastado en Supermercado esta semana</p>
+          <p className="text-2xl font-bold text-foreground">${supermarketThisWeek.toFixed(2)} AUD</p>
+        </div>
+      </Card>
 
       {/* Stock list */}
       {data.pantry.length === 0 ? (

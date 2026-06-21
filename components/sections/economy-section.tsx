@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useEffect } from "react"
 import {
-  Wallet,
   TrendingUp,
   TrendingDown,
   PiggyBank,
@@ -107,6 +106,22 @@ export function EconomySection() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
 
+  // Helper to parse date from string
+  const parseDate = (dateStr: string | undefined): string | null => {
+    if (!dateStr || typeof dateStr !== "string" || dateStr.trim() === "") return null
+    
+    if (dateStr.includes("/")) {
+      const dateParts = dateStr.split("/")
+      if (dateParts.length === 3) {
+        const [day, month, year] = dateParts
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+      }
+    } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateStr
+    }
+    return null
+  }
+
   // Auto-load transactions on mount
   useEffect(() => {
     const autoLoad = async () => {
@@ -117,37 +132,53 @@ export function EconomySection() {
           transactions.map((t) => `${t.date}-${t.category}-${t.amount}`),
         )
 
-        for (const row of data) {
-          let category, amount, dateStr
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          let category, amount, dateStr, week
           
           // Handle array format [week, category, amount, date]
           if (Array.isArray(row)) {
-            category = row[1]
+            week = row[0]
+            category = (row[1] || "").trim()
             amount = row[2]
             dateStr = row[3]
           } else {
-            category = row.columnB || row[1]
-            amount = row.columnC || row[2]
-            dateStr = row.columnD || row[3]
+            week = row.columnA
+            category = (row.columnB || "").trim()
+            amount = row.columnC
+            dateStr = row.columnD
           }
 
           // Skip headers
-          if (!category || typeof category !== "string" || category.includes("WEEK") || category.includes("TOTAL")) {
+          if (!category || category === "Category" || category === "Week" || category.includes("WEEK") || category.includes("TOTAL")) {
             continue
           }
 
           const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
-          if (typeof category !== "string" || isNaN(amountNum) || !dateStr) {
+          if (typeof category !== "string" || isNaN(amountNum)) {
             continue
           }
 
-          const dateParts = dateStr.toString().split("/")
-          if (dateParts.length !== 3) {
-            continue
+          // Parse date
+          let isoDate = parseDate(dateStr)
+
+          // If no date, try to find date from nearby rows in same week
+          if (!isoDate && typeof week === "number") {
+            for (let j = Math.max(0, i - 10); j < Math.min(data.length, i + 10); j++) {
+              const checkRow = Array.isArray(data[j]) ? data[j] : null
+              if (checkRow && checkRow[0] === week) {
+                const foundDate = parseDate(checkRow[3])
+                if (foundDate) {
+                  isoDate = foundDate
+                  break
+                }
+              }
+            }
           }
 
-          const [day, month, year] = dateParts
-          const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          // Skip if no date found
+          if (!isoDate) continue
+
           const key = `${isoDate}-${category}-${amountNum}`
 
           if (!existingKeys.has(key)) {
@@ -175,37 +206,53 @@ export function EconomySection() {
           transactions.map((t) => `${t.date}-${t.category}-${t.amount}`),
         )
 
-        for (const row of data) {
-          let category, amount, dateStr
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i]
+          let category, amount, dateStr, week
           
           // Handle array format [week, category, amount, date]
           if (Array.isArray(row)) {
-            category = row[1]
+            week = row[0]
+            category = (row[1] || "").trim()
             amount = row[2]
             dateStr = row[3]
           } else {
-            category = row.columnB || row[1]
-            amount = row.columnC || row[2]
-            dateStr = row.columnD || row[3]
+            week = row.columnA
+            category = (row.columnB || "").trim()
+            amount = row.columnC
+            dateStr = row.columnD
           }
 
           // Skip headers
-          if (!category || typeof category !== "string" || category.includes("WEEK") || category.includes("TOTAL")) {
+          if (!category || category === "Category" || category === "Week" || category.includes("WEEK") || category.includes("TOTAL")) {
             continue
           }
 
           const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
-          if (typeof category !== "string" || isNaN(amountNum) || !dateStr) {
+          if (typeof category !== "string" || isNaN(amountNum)) {
             continue
           }
 
-          const dateParts = dateStr.toString().split("/")
-          if (dateParts.length !== 3) {
-            continue
+          // Parse date
+          let isoDate = parseDate(dateStr)
+
+          // If no date, try to find date from nearby rows in same week
+          if (!isoDate && typeof week === "number") {
+            for (let j = Math.max(0, i - 10); j < Math.min(data.length, i + 10); j++) {
+              const checkRow = Array.isArray(data[j]) ? data[j] : null
+              if (checkRow && checkRow[0] === week) {
+                const foundDate = parseDate(checkRow[3])
+                if (foundDate) {
+                  isoDate = foundDate
+                  break
+                }
+              }
+            }
           }
 
-          const [day, month, year] = dateParts
-          const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          // Skip if no date found
+          if (!isoDate) continue
+
           const key = `${isoDate}-${category}-${amountNum}`
 
           if (!existingKeys.has(key)) {
@@ -235,10 +282,6 @@ export function EconomySection() {
   const ingresos = monthTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
-
-  // Weekly food spending
-  const weekMeals = data.meals.filter((m) => m.date >= weekStart)
-  const weekFoodSpending = weekMeals.reduce((s, m) => s + m.totalCost, 0)
 
   // Filtered list by tab
   const filtered = useMemo(() => {
@@ -347,7 +390,7 @@ export function EconomySection() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard
           icon={TrendingUp}
           label="Ingresos"
@@ -368,13 +411,6 @@ export function EconomySection() {
           value={`$${Math.abs(ahorro).toFixed(2)}`}
           sub={ahorro >= 0 ? "Positivo" : "Déficit"}
           accent={ahorro >= 0 ? "green" : "red"}
-        />
-        <StatCard
-          icon={Wallet}
-          label="Comida esta semana"
-          value={`$${weekFoodSpending.toFixed(2)}`}
-          sub="Gasto semanal"
-          accent="blue"
         />
       </div>
 

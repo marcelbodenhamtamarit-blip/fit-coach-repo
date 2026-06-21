@@ -48,6 +48,37 @@ export function SettingsSection() {
       let importedCount = 0
       let skippedCount = 0
 
+      // Helper to parse date from string
+      const parseDate = (dateStr: string | undefined): string | null => {
+        if (!dateStr || typeof dateStr !== "string" || dateStr.trim() === "") return null
+        
+        if (dateStr.includes("/")) {
+          const dateParts = dateStr.split("/")
+          if (dateParts.length === 3) {
+            const [day, month, year] = dateParts
+            return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          }
+        } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr
+        }
+        return null
+      }
+
+      // Helper to find date from nearby rows in same week
+      const findDateInWeek = (weekNum: number, startIdx: number): string | null => {
+        // Look forward and backward from current position to find a date in the same week
+        for (let j = Math.max(0, startIdx - 10); j < Math.min(fetchedData.length, startIdx + 10); j++) {
+          const checkRow = fetchedData[j]
+          if (!Array.isArray(checkRow)) continue
+          const checkWeek = checkRow[0]
+          const checkDate = parseDate(checkRow[3])
+          if (checkWeek === weekNum && checkDate) {
+            return checkDate
+          }
+        }
+        return null
+      }
+
       for (let i = 0; i < fetchedData.length; i++) {
         const row = fetchedData[i]
         
@@ -57,6 +88,7 @@ export function SettingsSection() {
         }
 
         // Array format: [week, category, amount, date, ...]
+        const week = row[0]
         const category = (row[1] || "").trim()
         const amount = row[2]
         const dateStr = row[3]
@@ -82,32 +114,18 @@ export function SettingsSection() {
           continue
         }
 
-        // Parse date - try multiple formats
-        let isoDate = ""
-        let dateFormatValid = false
-
-        if (dateStr && typeof dateStr === "string" && dateStr.trim() !== "") {
-          // Try DD/MM/YYYY format
-          if (dateStr.includes("/")) {
-            const dateParts = dateStr.split("/")
-            if (dateParts.length === 3) {
-              const [day, month, year] = dateParts
-              isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-              dateFormatValid = true
-            }
-          }
-          // Try YYYY-MM-DD format
-          else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            isoDate = dateStr
-            dateFormatValid = true
-          }
+        // Parse date - try row's date first, then look for date in same week
+        let isoDate = parseDate(dateStr)
+        
+        if (!isoDate && typeof week === "number") {
+          // Try to find date from nearby rows in the same week
+          isoDate = findDateInWeek(week, i)
         }
 
-        if (!dateFormatValid) {
-          // If no valid date, use current date as fallback
-          const today = new Date().toISOString().split('T')[0]
-          isoDate = today
-          dateFormatValid = true
+        // If still no date, skip this row (don't use current date as fallback)
+        if (!isoDate) {
+          skippedCount++
+          continue
         }
 
         // Check for duplicates
