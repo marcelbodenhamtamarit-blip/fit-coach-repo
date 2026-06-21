@@ -96,13 +96,6 @@ export function EconomySection() {
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toastError, setToastError] = useState<string | null>(null)
-
-  // form state
-  const [desc, setDesc] = useState("")
-  const [amount, setAmount] = useState("")
-  const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
-  const [date, setDate] = useState(todayISO())
-  const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
 
@@ -168,22 +161,33 @@ export function EconomySection() {
           // Parse date
           let isoDate = parseDate(dateStr)
 
-          // If no date, try to find date from nearby rows in same week
-          if (!isoDate && typeof week === "number") {
-            for (let j = Math.max(0, i - 10); j < Math.min(data.length, i + 10); j++) {
-              const checkRow = Array.isArray(data[j]) ? data[j] : null
-              if (checkRow && checkRow[0] === week) {
-                const foundDate = parseDate(checkRow[3])
-                if (foundDate) {
-                  isoDate = foundDate
-                  break
-                }
+          // If no date and week number exists, calculate Sunday of that week
+          if (!isoDate && typeof week === "number" && week > 0) {
+            try {
+              const year = 2026
+              const firstDay = new Date(Date.UTC(year, 0, 1))
+              let firstSunday = new Date(firstDay)
+              firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
+              if (firstDay.getUTCDay() !== 0) {
+                firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
               }
+              
+              const sundayOfWeek = new Date(firstSunday)
+              sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (week - 1) * 7)
+              
+              const day = String(sundayOfWeek.getUTCDate()).padStart(2, "0")
+              const month = String(sundayOfWeek.getUTCMonth() + 1).padStart(2, "0")
+              const y = sundayOfWeek.getUTCFullYear()
+              isoDate = `${y}-${month}-${day}`
+            } catch (err) {
+              // Silent fail
             }
           }
 
           // Skip if no date found
-          if (!isoDate) continue
+          if (!isoDate) {
+            continue
+          }
 
           const key = `${isoDate}-${mappedCategory}-${amountNum}`
 
@@ -248,17 +252,26 @@ export function EconomySection() {
           // Parse date
           let isoDate = parseDate(dateStr)
 
-          // If no date, try to find date from nearby rows in same week
-          if (!isoDate && typeof week === "number") {
-            for (let j = Math.max(0, i - 10); j < Math.min(data.length, i + 10); j++) {
-              const checkRow = Array.isArray(data[j]) ? data[j] : null
-              if (checkRow && checkRow[0] === week) {
-                const foundDate = parseDate(checkRow[3])
-                if (foundDate) {
-                  isoDate = foundDate
-                  break
-                }
+          // If no date and week number exists, calculate Sunday of that week
+          if (!isoDate && typeof week === "number" && week > 0) {
+            try {
+              const year = 2026
+              const firstDay = new Date(Date.UTC(year, 0, 1))
+              let firstSunday = new Date(firstDay)
+              firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
+              if (firstDay.getUTCDay() !== 0) {
+                firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
               }
+              
+              const sundayOfWeek = new Date(firstSunday)
+              sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (week - 1) * 7)
+              
+              const day = String(sundayOfWeek.getUTCDate()).padStart(2, "0")
+              const month = String(sundayOfWeek.getUTCMonth() + 1).padStart(2, "0")
+              const y = sundayOfWeek.getUTCFullYear()
+              isoDate = `${y}-${month}-${day}`
+            } catch (err) {
+              // Silent fail
             }
           }
 
