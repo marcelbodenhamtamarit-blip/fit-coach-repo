@@ -4,10 +4,6 @@ import { useState } from "react"
 import {
   Activity,
   UtensilsCrossed,
-  Moon,
-  Scale,
-  Heart,
-  Zap,
   Settings,
   Dumbbell,
   Wallet,
@@ -16,13 +12,8 @@ import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { NutritionSection } from "@/components/sections/nutrition-section"
-import { SleepSection } from "@/components/sections/sleep-section"
-import { MetricsSection } from "@/components/sections/metrics-section"
-import { DailyMetricsSection } from "@/components/sections/daily-metrics-section"
 import { EconomySection } from "@/components/sections/economy-section"
-import { FitnessSection } from "@/components/sections/fitness-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-import { SyncButton } from "@/components/sync-button"
 
 type Tab = {
   id: string
@@ -32,26 +23,15 @@ type Tab = {
 
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
+  { id: "nutrition", label: "Comida", icon: UtensilsCrossed },
   { id: "economy", label: "Economía", icon: Wallet },
-  { id: "fitness", label: "Fitness", icon: Zap },
-  { id: "nutrition", label: "Nutrición", icon: UtensilsCrossed },
-  { id: "sleep", label: "Sueño", icon: Moon },
-  { id: "daily", label: "Diario", icon: Heart },
-  { id: "metrics", label: "Cuerpo", icon: Scale },
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
 
-// Mobile nav shows a subset (max 5 for readability); Fitness moves to sidebar-only
-const MOBILE_TABS = ["overview", "economy", "nutrition", "sleep", "settings"]
-
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
+  nutrition: "Comida",
   economy: "Economía",
-  fitness: "Fitness",
-  nutrition: "Nutrición",
-  sleep: "Sueño",
-  daily: "Métricas diarias",
-  metrics: "Métricas corporales",
   settings: "Ajustes",
 }
 
@@ -111,7 +91,7 @@ export function Dashboard() {
 
       {/* Main */}
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
           <div>
             <h1 className="text-balance text-lg font-semibold sm:text-xl">
               {TAB_TITLES[active] ?? active}
@@ -120,7 +100,6 @@ export function Dashboard() {
               {greeting()}, {data.profile.name}. Sigamos con la racha.
             </p>
           </div>
-          <SyncButton />
         </header>
 
         <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">
@@ -133,14 +112,8 @@ export function Dashboard() {
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {active === "economy" && <EconomySection />}
-              {active === "fitness" && (
-                <FitnessSection onSettings={() => setActive("settings")} />
-              )}
               {active === "nutrition" && <NutritionSection />}
-              {active === "sleep" && <SleepSection />}
-              {active === "daily" && <DailyMetricsSection />}
-              {active === "metrics" && <MetricsSection />}
+              {active === "economy" && <EconomySection />}
               {active === "settings" && <SettingsSection />}
             </>
           )}
@@ -149,7 +122,7 @@ export function Dashboard() {
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
-        {TABS.filter((tab) => MOBILE_TABS.includes(tab.id)).map((tab) => {
+        {TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (
@@ -173,7 +146,7 @@ export function Dashboard() {
 
 function greeting() {
   const h = new Date().getHours()
-  if (h < 12) return "Buenos días, Marcel"
-  if (h < 18) return "Buenas tardes, Marcel"
-  return "Buenas noches, Marcel"
+  if (h < 12) return "Buenos días"
+  if (h < 18) return "Buenas tardes"
+  return "Buenas noches"
 }

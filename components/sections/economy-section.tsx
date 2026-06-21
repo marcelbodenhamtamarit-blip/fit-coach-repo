@@ -10,6 +10,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  RotateCw,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,15 +20,61 @@ import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
 
-const GOOGLE_SHEETS_URL =
+const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbzZN7UFMDOaHjPrYe6x4C9Q9EPytiaPq6Wmw5oWx5kAYbI7Z4O_oj-fWK149KCvgqeT/exec"
 
 type TabId = "diario" | "semanal" | "mensual"
 
+// Calculate week number using Sunday-Saturday format (CommBank Australia)
 function getWeekNumber(dateStr: string): number {
-  const d = new Date(dateStr)
-  const oneJan = new Date(d.getFullYear(), 0, 1)
-  return Math.ceil(((d.getTime() - oneJan.getTime()) / 86400000 + oneJan.getDay() + 1) / 7)
+  const date = new Date(dateStr + "T00:00:00Z")
+  const year = date.getUTCFullYear()
+  const firstDay = new Date(Date.UTC(year, 0, 1))
+  
+  // Find first Sunday of the year
+  let firstSunday = new Date(firstDay)
+  firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
+  
+  // If first day is Sunday, use it; otherwise next Sunday is first Sunday
+  if (firstDay.getUTCDay() !== 0) {
+    firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
+  }
+  
+  // If date is before first Sunday, it's week 0 or belongs to previous year
+  if (date < firstSunday) {
+    return 1
+  }
+  
+  const weeksDiff = Math.floor((date.getTime() - firstSunday.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  return weeksDiff + 1
+}
+
+// Get Sunday and Saturday of a given week number
+function getWeekDateRange(dateStr: string): { sunday: string; saturday: string } {
+  const date = new Date(dateStr + "T00:00:00Z")
+  const year = date.getUTCFullYear()
+  const firstDay = new Date(Date.UTC(year, 0, 1))
+  
+  let firstSunday = new Date(firstDay)
+  firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
+  if (firstDay.getUTCDay() !== 0) {
+    firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
+  }
+  
+  const weekNum = getWeekNumber(dateStr)
+  const sundayDate = new Date(firstSunday)
+  sundayDate.setUTCDate(firstSunday.getUTCDate() + (weekNum - 1) * 7)
+  
+  const saturdayDate = new Date(sundayDate)
+  saturdayDate.setUTCDate(sundayDate.getUTCDate() + 6)
+  
+  const fmt = (d: Date) => {
+    const day = String(d.getUTCDate()).padStart(2, "0")
+    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]
+    return `${day} ${month}`
+  }
+  
+  return { sunday: fmt(sundayDate), saturday: fmt(saturdayDate) }
 }
 
 function startOfWeekISO(): string {
@@ -50,6 +97,7 @@ export function EconomySection() {
   const [tab, setTab] = useState<TabId>("diario")
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [toastError, setToastError] = useState<string | null>(null)
 
   // form state
   const [desc, setDesc] = useState("")
@@ -68,6 +116,10 @@ export function EconomySection() {
   const ingresos = monthTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
+
+  // Weekly food spending
+  const weekMeals = data.meals.filter((m) => m.date >= weekStart)
+  const weekFoodSpending = weekMeals.reduce((s, m) => s + m.totalCost, 0)
 
   // Filtered list by tab
   const filtered = useMemo(() => {
@@ -89,23 +141,54 @@ export function EconomySection() {
       date,
     }
 
+    // Save locally first
     addTransaction(tx)
 
-    // Fire-and-forget to Google Sheets
+    // Sync to Google Sheets in background
     try {
-      await fetch(GOOGLE_SHEETS_URL, {
+      const weekNum = getWeekNumber(date)
+      const { sunday, saturday } = getWeekDateRange(date)
+      
+      // First, check if week header exists by trying to fetch
+      const headerCheckRes = await fetch(GOOGLE_SHEETS_WEBHOOK + `?week=${weekNum}`, {
+        method: "GET",
+      }).catch(() => null)
+      
+      // If no header exists, create it
+      if (!headerCheckRes?.ok) {
+        try {
+          await fetch(GOOGLE_SHEETS_WEBHOOK, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              week: `WEEK ${weekNum} (${sunday} - ${saturday})`,
+              category: "",
+              amount: "",
+              date: "",
+            }),
+          })
+        } catch {
+          // no-cors always throws but request still goes through
+        }
+      }
+      
+      // Then send the actual transaction
+      await fetch(GOOGLE_SHEETS_WEBHOOK, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          week: getWeekNumber(date),
+          week: weekNum,
           category: tx.category,
           amount: tx.amount,
-          date: tx.date,
+          date: tx.date.split("-").reverse().join("/"), // "YYYY-MM-DD" -> "DD/MM/YYYY"
         }),
       })
     } catch {
-      // no-cors mode will always throw a network error; the request still goes through
+      // Webhook errors don't prevent local save; show silent error
+      setToastError("No se pudo sincronizar con Google Sheets")
+      setTimeout(() => setToastError(null), 3000)
     }
 
     // reset form
@@ -125,8 +208,29 @@ export function EconomySection() {
 
   return (
     <div className="space-y-5">
+      {/* Error toast */}
+      {toastError && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+          <X className="h-4 w-4 shrink-0" />
+          <span>{toastError}</span>
+        </div>
+      )}
+
+      {/* Add transaction button - moved to top */}
+      <div className="flex gap-2">
+        {!showForm && (
+          <Button onClick={() => setShowForm(true)} className="flex-1">
+            <Plus className="mr-2 size-4" />
+            Añadir gasto
+          </Button>
+        )}
+        <Button onClick={() => window.location.reload()} variant="outline" size="icon">
+          <RotateCw className="size-4" />
+        </Button>
+      </div>
+
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={TrendingUp}
           label="Ingresos"
@@ -147,6 +251,13 @@ export function EconomySection() {
           value={`$${Math.abs(ahorro).toFixed(2)}`}
           sub={ahorro >= 0 ? "Positivo" : "Déficit"}
           accent={ahorro >= 0 ? "green" : "red"}
+        />
+        <StatCard
+          icon={Wallet}
+          label="Comida esta semana"
+          value={`$${weekFoodSpending.toFixed(2)}`}
+          sub="Gasto semanal"
+          accent="blue"
         />
       </div>
 
@@ -222,16 +333,8 @@ export function EconomySection() {
         )}
       </Card>
 
-      {/* Add transaction button / form */}
-      {!showForm ? (
-        <Button
-          onClick={() => setShowForm(true)}
-          className="w-full"
-        >
-          <Plus className="mr-2 size-4" />
-          Añadir gasto
-        </Button>
-      ) : (
+      {/* Add transaction form */}
+      {showForm && (
         <Card className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Nueva transacción</h2>
