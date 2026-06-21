@@ -109,19 +109,41 @@ export function parseGoogleSheetsDate(dateStr: string | number): string | null {
   return null
 }
 
-// Get date fallback for week number
-export function getWeekDateFallback(week: number): string {
-  const fallbacks: Record<number, string> = {
-    1: "2026-04-16",   // 16/04/2026
-    13: "2026-06-28",  // 28/06/2026
-    10: "2026-06-10",  // 10/06/2026 for Bali
+// Get date fallback for week number - calculate Sunday of each week in 2026
+export function getWeekDateFallback(week: number): string | null {
+  if (!week || week <= 0) return null
+  
+  // Special cases with explicit fallbacks
+  const specialFallbacks: Record<number, string> = {
+    1: "2026-04-16",   // Week 1: 16/04/2026
+    10: "2026-06-10",  // Week 10: For Bali row
   }
   
-  if (week in fallbacks) {
-    return fallbacks[week]
+  if (week in specialFallbacks) {
+    return specialFallbacks[week]
   }
   
-  return null as any
+  // Calculate Sunday of the given week in 2026
+  try {
+    const year = 2026
+    const firstDay = new Date(Date.UTC(year, 0, 1))
+    let firstSunday = new Date(firstDay)
+    firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
+    if (firstDay.getUTCDay() !== 0) {
+      firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
+    }
+    
+    const sundayOfWeek = new Date(firstSunday)
+    sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (week - 1) * 7)
+    
+    const day = String(sundayOfWeek.getUTCDate()).padStart(2, "0")
+    const month = String(sundayOfWeek.getUTCMonth() + 1).padStart(2, "0")
+    const y = sundayOfWeek.getUTCFullYear()
+    
+    return `${y}-${month}-${day}`
+  } catch (err) {
+    return null
+  }
 }
 
 export async function fetchWebhookData(sheet?: string): Promise<any[]> {

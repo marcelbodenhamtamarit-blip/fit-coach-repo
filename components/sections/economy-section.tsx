@@ -103,6 +103,7 @@ export function EconomySection() {
     ingresos: number
     gastos: number
     ahorro: number
+    breakdown: Array<{ category: string; count: number; total: number }>
   } | null>(null)
 
   // Helper to parse date from string
@@ -128,6 +129,7 @@ export function EconomySection() {
       let loadedCount = 0
       let totalIngresos = 0
       let totalGastos = 0
+      const categoryBreakdown: Record<string, { count: number; total: number }> = {}
       
       if (data && Array.isArray(data)) {
         const existingKeys = new Set(
@@ -176,9 +178,14 @@ export function EconomySection() {
           // Parse date from DD/MM/YYYY format
           let isoDate = parseGoogleSheetsDate(dateStr)
 
-          // If no date, use week-based fallback
+          // If no date, try to use week-based fallback
           if (!isoDate && typeof week === "number" && week > 0) {
             isoDate = getWeekDateFallback(week)
+          }
+          
+          // Special case: Bali row with no week number, assign to week 10
+          if (!isoDate && category.toUpperCase() === "BALI") {
+            isoDate = getWeekDateFallback(10)
           }
 
           // Skip if still no date found
@@ -198,25 +205,39 @@ export function EconomySection() {
             existingKeys.add(key)
             loadedCount++
             
-            // Track totals
+            // Track totals and breakdown
             if (amountNum > 0) {
               totalIngresos += amountNum
             } else {
               totalGastos += Math.abs(amountNum)
             }
+            
+            // Track by category
+            if (!categoryBreakdown[mappedCategory]) {
+              categoryBreakdown[mappedCategory] = { count: 0, total: 0 }
+            }
+            categoryBreakdown[mappedCategory].count++
+            categoryBreakdown[mappedCategory].total += amountNum
           }
         }
         
         // Show import statistics
         if (loadedCount > 0) {
           const ahorro = totalIngresos - totalGastos
+          const breakdown = Object.entries(categoryBreakdown).map(([cat, data]) => ({
+            category: cat,
+            count: data.count,
+            total: data.total,
+          }))
+          
           setImportStats({
             total: loadedCount,
             ingresos: totalIngresos,
             gastos: totalGastos,
             ahorro,
+            breakdown,
           })
-          setTimeout(() => setImportStats(null), 5000)
+          setTimeout(() => setImportStats(null), 6000)
         }
       }
     }
@@ -229,6 +250,7 @@ export function EconomySection() {
     let loadedCount = 0
     let totalIngresos = 0
     let totalGastos = 0
+    const categoryBreakdown: Record<string, { count: number; total: number }> = {}
     try {
       const data = await fetchWebhookData()
       
@@ -279,9 +301,14 @@ export function EconomySection() {
           // Parse date from DD/MM/YYYY format
           let isoDate = parseGoogleSheetsDate(dateStr)
 
-          // If no date, use week-based fallback
+          // If no date, try to use week-based fallback
           if (!isoDate && typeof week === "number" && week > 0) {
             isoDate = getWeekDateFallback(week)
+          }
+          
+          // Special case: Bali row with no week number, assign to week 10
+          if (!isoDate && category.toUpperCase() === "BALI") {
+            isoDate = getWeekDateFallback(10)
           }
 
           // Skip if still no date found
@@ -299,12 +326,19 @@ export function EconomySection() {
             existingKeys.add(key)
             loadedCount++
             
-            // Track totals
+            // Track totals and breakdown
             if (amountNum > 0) {
               totalIngresos += amountNum
             } else {
               totalGastos += Math.abs(amountNum)
             }
+            
+            // Track by category
+            if (!categoryBreakdown[mappedCategory]) {
+              categoryBreakdown[mappedCategory] = { count: 0, total: 0 }
+            }
+            categoryBreakdown[mappedCategory].count++
+            categoryBreakdown[mappedCategory].total += amountNum
           }
         }
       }
@@ -312,13 +346,20 @@ export function EconomySection() {
       // Show import statistics
       if (loadedCount > 0) {
         const ahorro = totalIngresos - totalGastos
+        const breakdown = Object.entries(categoryBreakdown).map(([cat, data]) => ({
+          category: cat,
+          count: data.count,
+          total: data.total,
+        }))
+        
         setImportStats({
           total: loadedCount,
           ingresos: totalIngresos,
           gastos: totalGastos,
           ahorro,
+          breakdown,
         })
-        setTimeout(() => setImportStats(null), 5000)
+        setTimeout(() => setImportStats(null), 6000)
       }
       
       // Switch to semanal tab to show all imported transactions grouped by week
@@ -500,27 +541,42 @@ export function EconomySection() {
 
   return (
     <div className="space-y-5">
-      {/* Import statistics */}
+      {/* Import statistics with breakdown */}
       {importStats && (
-        <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950">
-          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
+        <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 space-y-3">
+          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
             {importStats.total} transacciones cargadas
           </p>
-          <div className="grid grid-cols-3 gap-3 text-xs">
+          
+          {/* Main totals */}
+          <div className="grid grid-cols-3 gap-3 text-xs border-b border-blue-200 dark:border-blue-800 pb-3">
             <div>
-              <p className="text-blue-700 dark:text-blue-300">Ingresos</p>
+              <p className="text-blue-700 dark:text-blue-300 text-xs">Ingresos</p>
               <p className="font-semibold text-emerald-600 dark:text-emerald-400">${importStats.ingresos.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-blue-700 dark:text-blue-300">Gastos</p>
+              <p className="text-blue-700 dark:text-blue-300 text-xs">Gastos</p>
               <p className="font-semibold text-red-600 dark:text-red-400">-${importStats.gastos.toFixed(2)}</p>
             </div>
             <div>
-              <p className="text-blue-700 dark:text-blue-300">Ahorro</p>
+              <p className="text-blue-700 dark:text-blue-300 text-xs">Ahorro</p>
               <p className={`font-semibold ${importStats.ahorro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                 ${importStats.ahorro.toFixed(2)}
               </p>
             </div>
+          </div>
+          
+          {/* Category breakdown */}
+          <div className="text-xs space-y-1.5">
+            <p className="font-semibold text-blue-900 dark:text-blue-100 text-xs">Desglose por categoría:</p>
+            {importStats.breakdown.map((item) => (
+              <div key={item.category} className="flex justify-between items-center text-blue-800 dark:text-blue-200">
+                <span>{item.category} ({item.count})</span>
+                <span className={item.total > 0 ? "text-emerald-600" : "text-red-600"}>
+                  {item.total > 0 ? "+" : ""}{item.total.toFixed(2)}
+                </span>
+              </div>
+            ))}
           </div>
         </Card>
       )}
