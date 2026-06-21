@@ -93,7 +93,8 @@ type StoreContextType = {
   addTransaction: (t: Omit<Transaction, "id">) => void
   deleteTransaction: (id: string) => void
   addPantryItem: (item: Omit<PantryItem, "id" | "dateAdded">) => void
-  removePantryItem: (id: string, quantityUsed: number) => void
+  updatePantryItem: (id: string, updates: Partial<PantryItem>) => void
+  deletePantryItem: (id: string) => void
   updateProfileGoals: (goals: Partial<Profile>) => void
 }
 
@@ -171,24 +172,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }
 
-  const removePantryItem = (id: string, quantityUsed: number) => {
-    setData((d) => {
-      const item = (d.pantry ?? []).find((p) => p.id === id)
-      if (!item) return d
-      const remaining = item.quantityGrams - quantityUsed
-      if (remaining <= 0) {
-        return {
-          ...d,
-          pantry: (d.pantry ?? []).filter((p) => p.id !== id),
-        }
-      }
-      return {
-        ...d,
-        pantry: (d.pantry ?? []).map((p) =>
-          p.id === id ? { ...p, quantityGrams: remaining } : p,
-        ),
-      }
-    })
+  const updatePantryItem = (id: string, updates: Partial<PantryItem>) => {
+    setData((d) => ({
+      ...d,
+      pantry: (d.pantry ?? []).map((p) =>
+        p.id === id ? { ...p, ...updates } : p,
+      ),
+    }))
+  }
+
+  const deletePantryItem = (id: string) => {
+    setData((d) => ({
+      ...d,
+      pantry: (d.pantry ?? []).filter((p) => p.id !== id),
+    }))
   }
 
   const updateProfileGoals = (goals: Partial<Profile>) => {
@@ -208,7 +205,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addTransaction,
         deleteTransaction,
         addPantryItem,
-        removePantryItem,
+        updatePantryItem,
+        deletePantryItem,
         updateProfileGoals,
       }}
     >

@@ -11,14 +11,12 @@ export function SettingsSection() {
   const { data, updateProfileGoals } = useStore()
   const [calorieGoal, setCalorieGoal] = useState(String(data.profile.calorieGoal))
   const [proteinGoal, setProteinGoal] = useState(String(data.profile.proteinGoal))
-  const [weightGoal, setWeightGoal] = useState(String(data.profile.weightGoal))
   const [saved, setSaved] = useState(false)
 
   const handleSave = () => {
     updateProfileGoals({
-      calorieGoal: Math.max(1000, parseInt(calorieGoal) || 2400),
-      proteinGoal: Math.max(0, parseInt(proteinGoal) || 170),
-      weightGoal: Math.max(0, parseFloat(weightGoal) || 80),
+      calorieGoal: Math.max(1000, parseInt(calorieGoal) || 2200),
+      proteinGoal: Math.max(0, parseInt(proteinGoal) || 180),
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -28,7 +26,7 @@ export function SettingsSection() {
     <div className="max-w-2xl space-y-6">
       <Card className="p-6">
         <h2 className="mb-1 text-lg font-semibold">Mis objetivos</h2>
-        <p className="mb-5 text-sm text-muted-foreground">Actualiza tus objetivos diarios de nutrición y peso</p>
+        <p className="mb-5 text-sm text-muted-foreground">Actualiza tus objetivos diarios de nutrición</p>
 
         <div className="space-y-4">
           <div>
@@ -58,21 +56,6 @@ export function SettingsSection() {
               step="5"
               value={proteinGoal}
               onChange={(e) => setProteinGoal(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="weight-goal" className="text-sm font-medium">
-              Objetivo de peso (kg)
-            </Label>
-            <p className="mb-2 text-xs text-muted-foreground">Tu peso objetivo</p>
-            <Input
-              id="weight-goal"
-              type="number"
-              min="0"
-              step="0.1"
-              value={weightGoal}
-              onChange={(e) => setWeightGoal(e.target.value)}
             />
           </div>
         </div>

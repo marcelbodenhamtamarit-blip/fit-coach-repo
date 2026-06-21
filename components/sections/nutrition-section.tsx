@@ -1,42 +1,31 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Trash2, Flame, Edit2, Check, X } from "lucide-react"
+import { Plus, Trash2, Edit2, Check, X, Loader2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { useStore } from "@/lib/store"
 import { todayISO, uid } from "@/lib/types"
-import type { Ingredient } from "@/lib/types"
-
-// Common food nutrition data (per 100g from Woolworths)
-const FOOD_DATABASE: Record<string, Ingredient> = {
-  arroz: { id: uid(), name: "Arroz blanco", quantity: 100, caloriesPer100g: 130, proteinPer100g: 2.7, carbsPer100g: 28, fatPer100g: 0.3, pricePerKg: 3.5 },
-  pollo: { id: uid(), name: "Pechuga de pollo", quantity: 100, caloriesPer100g: 165, proteinPer100g: 31, carbsPer100g: 0, fatPer100g: 3.6, pricePerKg: 12 },
-  tomate: { id: uid(), name: "Tomate", quantity: 100, caloriesPer100g: 18, proteinPer100g: 0.9, carbsPer100g: 3.9, fatPer100g: 0.2, pricePerKg: 4 },
-  huevo: { id: uid(), name: "Huevo", quantity: 100, caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, pricePerKg: 8 },
-  papa: { id: uid(), name: "Papa", quantity: 100, caloriesPer100g: 77, proteinPer100g: 2, carbsPer100g: 17, fatPer100g: 0.1, pricePerKg: 2 },
-  pan: { id: uid(), name: "Pan integral", quantity: 100, caloriesPer100g: 265, proteinPer100g: 9, carbsPer100g: 49, fatPer100g: 3.3, pricePerKg: 5 },
-  queso: { id: uid(), name: "Queso cheddar", quantity: 100, caloriesPer100g: 402, proteinPer100g: 25, carbsPer100g: 1.3, fatPer100g: 33, pricePerKg: 18 },
-  leche: { id: uid(), name: "Leche descremada", quantity: 100, caloriesPer100g: 35, proteinPer100g: 3.6, carbsPer100g: 5, fatPer100g: 0.1, pricePerKg: 2 },
-  pescado: { id: uid(), name: "Salmón", quantity: 100, caloriesPer100g: 208, proteinPer100g: 20, carbsPer100g: 0, fatPer100g: 13, pricePerKg: 25 },
-  carne: { id: uid(), name: "Carne vacuna", quantity: 100, caloriesPer100g: 250, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 15, pricePerKg: 15 },
-  platano: { id: uid(), name: "Plátano", quantity: 100, caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 23, fatPer100g: 0.3, pricePerKg: 3 },
-  manzana: { id: uid(), name: "Manzana", quantity: 100, caloriesPer100g: 52, proteinPer100g: 0.3, carbsPer100g: 14, fatPer100g: 0.2, pricePerKg: 4 },
-}
+import type { Ingredient, Meal } from "@/lib/types"
 
 export function NutritionSection() {
   const { data, addMeal } = useStore()
   const today = todayISO()
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
-  const [input, setInput] = useState("")
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editPrice, setEditPrice] = useState("")
+  const [toastError, setToastError] = useState<string | null>(null)
 
   const todaysMeals = data.meals.filter((m) => m.date === today)
 
-  // Calculate totals from all today's meals
+  // Totals from all today's meals
   const mealsTotals = todaysMeals.reduce(
     (acc, m) => ({
       calories: acc.calories + m.totalCalories,
@@ -48,7 +37,7 @@ export function NutritionSection() {
     { calories: 0, protein: 0, carbs: 0, fat: 0, cost: 0 },
   )
 
-  // Calculate totals from current ingredients being added
+  // Totals from current ingredients being added
   const ingredientsTotals = {
     calories: ingredients.reduce((s, i) => s + (i.caloriesPer100g * i.quantity) / 100, 0),
     protein: ingredients.reduce((s, i) => s + (i.proteinPer100g * i.quantity) / 100, 0),
@@ -73,59 +62,10 @@ export function NutritionSection() {
     Math.round((totals.protein / data.profile.proteinGoal) * 100),
   )
 
-  const handleAddIngredient = () => {
-    if (!input.trim()) return
-
-    // Parse input like "300g arroz" or "200 pollo" or "2 tomates"
-    const match = input.match(/^(\d+(?:\.\d+)?)\s*(g|kg)?\s+(.+)$/i)
-    if (!match) {
-      alert("Formato: 300g arroz o 200 pollo")
-      return
-    }
-
-    let quantity = parseFloat(match[1])
-    if (match[2]?.toLowerCase() === "kg") quantity *= 1000
-
-    const itemName = match[3].toLowerCase()
-    const foodKey = Object.keys(FOOD_DATABASE).find((k) =>
-      itemName.includes(k) || FOOD_DATABASE[k].name.toLowerCase().includes(itemName),
-    )
-
-    if (!foodKey) {
-      alert(`No encontré datos para "${match[3]}". Ingredientes disponibles: ${Object.values(FOOD_DATABASE).map((f) => f.name).join(", ")}`)
-      return
-    }
-
-    const template = FOOD_DATABASE[foodKey]
-    const newIngredient: Ingredient = {
-      id: uid(),
-      name: template.name,
-      quantity,
-      caloriesPer100g: template.caloriesPer100g,
-      proteinPer100g: template.proteinPer100g,
-      carbsPer100g: template.carbsPer100g,
-      fatPer100g: template.fatPer100g,
-      pricePerKg: template.pricePerKg,
-    }
-
-    setIngredients((prev) => [...prev, newIngredient])
-    setInput("")
-  }
-
-  const handleUpdatePrice = (id: string, newPrice: number) => {
-    setIngredients((prev) =>
-      prev.map((ing) => (ing.id === id ? { ...ing, pricePerKg: newPrice } : ing)),
-    )
-    setEditingId(null)
-  }
-
-  const handleDeleteIngredient = (id: string) => {
-    setIngredients((prev) => prev.filter((ing) => ing.id !== id))
-  }
-
   const handleSaveMeal = () => {
     if (ingredients.length === 0) {
-      alert("Añade al menos un ingrediente")
+      setToastError("Añade al menos un ingrediente")
+      setTimeout(() => setToastError(null), 3000)
       return
     }
 
@@ -140,34 +80,34 @@ export function NutritionSection() {
     })
 
     setIngredients([])
-    alert("Comida guardada")
+  }
+
+  const handleDeleteIngredient = (id: string) => {
+    setIngredients((prev) => prev.filter((ing) => ing.id !== id))
   }
 
   return (
     <div className="space-y-5">
-      {/* Input form */}
-      <Card className="p-5">
-        <h2 className="mb-3 text-sm font-semibold">Registrar comida</h2>
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="300g arroz, 200g pollo..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddIngredient()
-            }}
-          />
-          <Button onClick={handleAddIngredient} size="sm">
-            <Plus className="h-4 w-4" />
-          </Button>
+      {/* Error toast */}
+      {toastError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          {toastError}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Ej: 300g arroz, 200g pollo, 2 tomates</p>
-      </Card>
+      )}
 
-      {/* Ingredients added */}
+      {/* Add ingredient form */}
+      <AddIngredientForm
+        onAdd={(ing) => setIngredients((prev) => [...prev, ing])}
+        onError={(msg) => {
+          setToastError(msg)
+          setTimeout(() => setToastError(null), 3000)
+        }}
+      />
+
+      {/* Current ingredients */}
       {ingredients.length > 0 && (
         <Card className="p-5">
-          <h3 className="mb-3 text-sm font-semibold">Ingredientes</h3>
+          <h3 className="mb-4 text-sm font-semibold">Ingredientes en esta comida</h3>
           <div className="space-y-2">
             {ingredients.map((ing) => {
               const ingCals = (ing.caloriesPer100g * ing.quantity) / 100
@@ -185,64 +125,21 @@ export function NutritionSection() {
                     <p className="font-medium">{ing.name}</p>
                     <p className="text-muted-foreground">{ing.quantity}g</p>
                   </div>
-                  <div className="grid grid-cols-4 gap-1 text-right font-mono">
-                    <span>{ingCals.toFixed(0)}</span>
-                    <span>{ingProt.toFixed(1)}</span>
-                    <span>{ingCarbs.toFixed(1)}</span>
-                    <span>{ingFat.toFixed(1)}</span>
+                  <div className="grid grid-cols-4 gap-1 text-right font-mono text-xs">
+                    <span title="Calorías">{ingCals.toFixed(0)}</span>
+                    <span title="Proteína">{ingProt.toFixed(1)}g</span>
+                    <span title="Carbos">{ingCarbs.toFixed(1)}g</span>
+                    <span title="Grasas">{ingFat.toFixed(1)}g</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {editingId === ing.id ? (
-                      <>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={editPrice}
-                          onChange={(e) => setEditPrice(e.target.value)}
-                          className="h-7 w-16 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={() => handleUpdatePrice(ing.id, parseFloat(editPrice))}
-                        >
-                          <Check className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={() => setEditingId(null)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="w-12 text-right">${ingCost.toFixed(2)}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={() => {
-                            setEditingId(ing.id)
-                            setEditPrice(ing.pricePerKg.toString())
-                          }}
-                        >
-                          <Edit2 className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 text-destructive"
-                          onClick={() => handleDeleteIngredient(ing.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  <span className="w-12 text-right font-mono text-xs">${ingCost.toFixed(2)}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-destructive"
+                    onClick={() => handleDeleteIngredient(ing.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
               )
             })}
@@ -289,34 +186,35 @@ export function NutritionSection() {
 
       {/* Daily summary */}
       <Card className="p-5">
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Flame className="h-4 w-4" />
-          Consumo de hoy
-        </h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Calorías</span>
-            <span className="font-mono">
-              {totals.calories.toFixed(0)} / {data.profile.calorieGoal} kcal
-            </span>
+        <h3 className="mb-3 text-sm font-semibold">Consumo de hoy</h3>
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="text-muted-foreground">Calorías</span>
+              <span className="tabular-nums">
+                {totals.calories.toFixed(0)} / {data.profile.calorieGoal}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${calPct}%` }}
+              />
+            </div>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${calPct}%` }}
-            />
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-muted-foreground">Proteína</span>
-            <span className="font-mono">
-              {totals.protein.toFixed(1)} / {data.profile.proteinGoal}g
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${proteinPct}%` }}
-            />
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="text-muted-foreground">Proteína</span>
+              <span className="tabular-nums">
+                {totals.protein.toFixed(1)} / {data.profile.proteinGoal}g
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${proteinPct}%` }}
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -327,8 +225,8 @@ export function NutritionSection() {
           <h3 className="mb-3 text-sm font-semibold">Comidas registradas</h3>
           <div className="space-y-2">
             {todaysMeals.map((meal) => (
-              <div key={meal.id} className="rounded-lg border border-border p-3 text-xs">
-                <div className="grid grid-cols-4 gap-1">
+              <div key={meal.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-3">
+                <div className="flex-1 grid grid-cols-4 gap-1 text-xs">
                   <div>
                     <p className="text-muted-foreground">Cal</p>
                     <p className="font-bold">{meal.totalCalories.toFixed(0)}</p>
@@ -346,11 +244,235 @@ export function NutritionSection() {
                     <p className="font-bold">{meal.totalFat.toFixed(1)}</p>
                   </div>
                 </div>
+                <span className="font-mono text-xs">${meal.totalCost.toFixed(2)}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0"
+                  disabled
+                  title="Editar funcionalidad en desarrollo"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
               </div>
             ))}
           </div>
         </Card>
       )}
     </div>
+  )
+}
+
+function AddIngredientForm({
+  onAdd,
+  onError,
+}: {
+  onAdd: (ing: Ingredient) => void
+  onError: (msg: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [quantity, setQuantity] = useState("")
+  const [price, setPrice] = useState("")
+  const [priceOverride, setPriceOverride] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [results, setResults] = useState<any[]>([])
+  const [selected, setSelected] = useState<any | null>(null)
+  const [editingPrice, setEditingPrice] = useState(false)
+
+  const handleSearch = async (term: string) => {
+    if (!term.trim() || term.length < 2) {
+      setResults([])
+      return
+    }
+
+    setSearching(true)
+    try {
+      const res = await fetch(
+        `https://www.woolworths.com.au/apis/ui/Search/products?searchTerm=${encodeURIComponent(term)}&pageNumber=1&pageSize=5`,
+      )
+      const data = await res.json()
+      setResults(data.products || [])
+    } catch {
+      onError("No se pudo buscar en Woolworths")
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleSelectProduct = (product: any) => {
+    setSelected(product)
+    setSearch("")
+    setResults([])
+    setPrice(product.price?.toFixed(2) || "")
+    setPriceOverride("")
+    setEditingPrice(false)
+  }
+
+  const handleAdd = () => {
+    if (!selected || !quantity) {
+      onError("Completa ingrediente y cantidad")
+      return
+    }
+
+    const qty = parseFloat(quantity)
+    const pricePerKg = parseFloat(priceOverride || price || "0")
+
+    if (!pricePerKg) {
+      onError("Se requiere precio por kg")
+      return
+    }
+
+    const ing: Ingredient = {
+      id: uid(),
+      name: selected.name,
+      quantity: qty,
+      caloriesPer100g: selected.caloriesPer100g || 0,
+      proteinPer100g: selected.proteinPer100g || 0,
+      carbsPer100g: selected.carbsPer100g || 0,
+      fatPer100g: selected.fatPer100g || 0,
+      pricePerKg,
+    }
+
+    onAdd(ing)
+    setSelected(null)
+    setQuantity("")
+    setPrice("")
+    setPriceOverride("")
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Card className="flex cursor-pointer items-center justify-between p-4 border-dashed hover:bg-muted/50">
+          <span className="text-sm text-muted-foreground">Añadir ingrediente...</span>
+          <Plus className="h-5 w-5 text-muted-foreground" />
+        </Card>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {selected ? selected.name : "Buscar ingrediente"}
+          </DialogTitle>
+        </DialogHeader>
+
+        {!selected ? (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="search">Buscar producto Woolworths</Label>
+              <Input
+                id="search"
+                placeholder="Arroz, pollo, aceite..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  handleSearch(e.target.value)
+                }}
+                disabled={searching}
+              />
+            </div>
+
+            {searching && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <div className="max-h-48 space-y-1 overflow-y-auto">
+                {results.map((product) => (
+                  <button
+                    key={product.code}
+                    onClick={() => handleSelectProduct(product)}
+                    className="w-full rounded-lg border border-border p-2 text-left hover:bg-accent"
+                  >
+                    <div className="text-sm font-medium">{product.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      ${product.price?.toFixed(2) || "N/A"} - {product.weight || ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-sm font-semibold">{selected.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selected.weight || ""} - ${selected.price?.toFixed(2) || "N/A"}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="quantity">Cantidad (gramos)</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="100"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Precio por kg</Label>
+                {!editingPrice && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 w-5 p-0"
+                    onClick={() => setEditingPrice(true)}
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              {editingPrice ? (
+                <div className="flex gap-1">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={priceOverride}
+                    onChange={(e) => setPriceOverride(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-10 w-10 p-0"
+                    onClick={() => setEditingPrice(false)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+                  ${parseFloat(priceOverride || price || "0").toFixed(2)}/kg
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelected(null)
+                  setQuantity("")
+                  setEditingPrice(false)
+                }}
+              >
+                Volver
+              </Button>
+              <Button onClick={handleAdd} className="flex-1">
+                Añadir
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

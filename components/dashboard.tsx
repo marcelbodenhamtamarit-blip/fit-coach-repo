@@ -7,11 +7,13 @@ import {
   Settings,
   Dumbbell,
   Wallet,
+  PackageOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { NutritionSection } from "@/components/sections/nutrition-section"
+import { PantrySection } from "@/components/sections/pantry-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 
@@ -24,6 +26,7 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
   { id: "nutrition", label: "Comida", icon: UtensilsCrossed },
+  { id: "pantry", label: "Despensa", icon: PackageOpen },
   { id: "economy", label: "Economía", icon: Wallet },
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
@@ -31,6 +34,7 @@ const TABS: Tab[] = [
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
   nutrition: "Comida",
+  pantry: "Despensa",
   economy: "Economía",
   settings: "Ajustes",
 }
@@ -113,6 +117,7 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} />
               )}
               {active === "nutrition" && <NutritionSection />}
+              {active === "pantry" && <PantrySection />}
               {active === "economy" && <EconomySection />}
               {active === "settings" && <SettingsSection />}
             </>

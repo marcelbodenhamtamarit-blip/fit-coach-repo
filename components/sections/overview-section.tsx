@@ -50,6 +50,11 @@ export function OverviewSection({
   const weekExpenses = weekTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const weekSavings = weekIncome - weekExpenses
 
+  // Weekly supermarket spending
+  const weekSupermarket = weekTx
+    .filter((t) => t.category === "Supermercado" && t.amount < 0)
+    .reduce((s, t) => s + Math.abs(t.amount), 0)
+
   return (
     <div className="space-y-5">
       {/* Top 4 stat cards */}
@@ -71,20 +76,20 @@ export function OverviewSection({
           accent="primary"
         />
         <StatCard
-          icon={Scale}
-          label="Peso actual"
-          value={latestWeight.toFixed(1)}
-          unit="kg"
-          sub={`Objetivo: ${data.profile.weightGoal}kg`}
-          accent="teal"
-        />
-        <StatCard
           icon={PiggyBank}
           label="Ahorro semanal"
           value={`$${Math.abs(weekSavings).toFixed(2)}`}
           unit="AUD"
           sub={weekSavings >= 0 ? "Esta semana" : "Déficit"}
           accent={weekSavings >= 0 ? "green" : "red"}
+        />
+        <StatCard
+          icon={PiggyBank}
+          label="Supermercado esta semana"
+          value={`$${weekSupermarket.toFixed(2)}`}
+          unit="AUD"
+          sub="Gasto semanal"
+          accent="blue"
         />
       </div>
 
