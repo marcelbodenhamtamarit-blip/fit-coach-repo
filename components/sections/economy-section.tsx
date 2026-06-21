@@ -107,50 +107,117 @@ export function EconomySection() {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
 
+  // Auto-load transactions on mount
+  useEffect(() => {
+    const autoLoad = async () => {
+      const data = await fetchWebhookData()
+      
+      if (data && Array.isArray(data)) {
+        const existingKeys = new Set(
+          transactions.map((t) => `${t.date}-${t.category}-${t.amount}`),
+        )
+
+        for (const row of data) {
+          let category, amount, dateStr
+          
+          // Handle array format [week, category, amount, date]
+          if (Array.isArray(row)) {
+            category = row[1]
+            amount = row[2]
+            dateStr = row[3]
+          } else {
+            category = row.columnB || row[1]
+            amount = row.columnC || row[2]
+            dateStr = row.columnD || row[3]
+          }
+
+          // Skip headers
+          if (!category || typeof category !== "string" || category.includes("WEEK") || category.includes("TOTAL")) {
+            continue
+          }
+
+          const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
+          if (typeof category !== "string" || isNaN(amountNum) || !dateStr) {
+            continue
+          }
+
+          const dateParts = dateStr.toString().split("/")
+          if (dateParts.length !== 3) {
+            continue
+          }
+
+          const [day, month, year] = dateParts
+          const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          const key = `${isoDate}-${category}-${amountNum}`
+
+          if (!existingKeys.has(key)) {
+            addTransaction({
+              description: category,
+              amount: amountNum,
+              category: category as Transaction["category"],
+              date: isoDate,
+            })
+          }
+        }
+      }
+    }
+
+    autoLoad()
+  }, [])
+
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
       const data = await fetchWebhookData()
+      
       if (data && Array.isArray(data)) {
-        // Import transactions from webhook
+        const existingKeys = new Set(
+          transactions.map((t) => `${t.date}-${t.category}-${t.amount}`),
+        )
+
         for (const row of data) {
-          if (
-            row.columnB &&
-            typeof row.columnB === "string" &&
-            !row.columnB.includes("WEEK") &&
-            !row.columnB.includes("TOTAL")
-          ) {
-            const week = parseFloat(row.columnA)
-            const category = row.columnB
-            const amount = parseFloat(row.columnC)
-            const dateStr = row.columnD
+          let category, amount, dateStr
+          
+          // Handle array format [week, category, amount, date]
+          if (Array.isArray(row)) {
+            category = row[1]
+            amount = row[2]
+            dateStr = row[3]
+          } else {
+            category = row.columnB || row[1]
+            amount = row.columnC || row[2]
+            dateStr = row.columnD || row[3]
+          }
 
-            if (!isNaN(week) && category && !isNaN(amount) && dateStr) {
-              const [day, month, year] = dateStr.split("/")
-              const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          // Skip headers
+          if (!category || typeof category !== "string" || category.includes("WEEK") || category.includes("TOTAL")) {
+            continue
+          }
 
-              // Check if already exists
-              const exists = transactions.some(
-                (t) =>
-                  t.date === isoDate &&
-                  t.category === category &&
-                  t.amount === amount,
-              )
+          const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
+          if (typeof category !== "string" || isNaN(amountNum) || !dateStr) {
+            continue
+          }
 
-              if (!exists) {
-                addTransaction({
-                  description: `Importado: ${category}`,
-                  amount,
-                  category: category as Transaction["category"],
-                  date: isoDate,
-                })
-              }
-            }
+          const dateParts = dateStr.toString().split("/")
+          if (dateParts.length !== 3) {
+            continue
+          }
+
+          const [day, month, year] = dateParts
+          const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          const key = `${isoDate}-${category}-${amountNum}`
+
+          if (!existingKeys.has(key)) {
+            addTransaction({
+              description: category,
+              amount: amountNum,
+              category: category as Transaction["category"],
+              date: isoDate,
+            })
           }
         }
       }
-    } catch (err) {
-      console.log("[v0] Refresh error:", err)
     } finally {
       setRefreshing(false)
       setRefreshToast(true)

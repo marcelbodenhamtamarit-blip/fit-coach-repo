@@ -1,7 +1,7 @@
 export const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
 
-export async function fetchWebhookData(sheet?: string): Promise<any> {
+export async function fetchWebhookData(sheet?: string): Promise<any[]> {
   try {
     const url = sheet
       ? `${GOOGLE_SHEETS_WEBHOOK}?sheet=${encodeURIComponent(sheet)}`
@@ -9,24 +9,31 @@ export async function fetchWebhookData(sheet?: string): Promise<any> {
 
     const response = await fetch(url, {
       method: "GET",
-      mode: "no-cors",
+      headers: {
+        "Accept": "application/json",
+      },
     })
 
-    // Try to parse response text
-    try {
-      const text = await response.text()
-      if (text) {
-        return JSON.parse(text)
-      }
-    } catch {
-      // If parsing fails, return null
-      return null
+    const text = await response.text()
+
+    if (!text) {
+      return []
     }
 
-    return null
+    try {
+      const parsed = JSON.parse(text)
+      
+      if (Array.isArray(parsed)) {
+        return parsed
+      } else if (parsed && typeof parsed === "object") {
+        return [parsed]
+      }
+      return []
+    } catch (parseErr) {
+      return []
+    }
   } catch (err) {
-    console.log("[v0] Webhook fetch error:", err)
-    return null
+    return []
   }
 }
 

@@ -46,66 +46,104 @@ export function SettingsSection() {
         (data.transactions || []).map((t: Transaction) => `${t.date}-${t.category}-${t.amount}`),
       )
       let importedCount = 0
+      let skippedCount = 0
 
-      for (const row of fetchedData) {
-        // Skip header rows: column B is empty, contains "WEEK", or contains "TOTAL"
+      for (let i = 0; i < fetchedData.length; i++) {
+        const row = fetchedData[i]
+        
+        if (!Array.isArray(row)) {
+          skippedCount++
+          continue
+        }
+
+        // Array format: [week, category, amount, date, ...]
+        const category = (row[1] || "").trim()
+        const amount = row[2]
+        const dateStr = row[3]
+
+        // Skip header rows: category is empty, "Week", "Category", "WEEK", "TOTAL", or "SUMMARY"
         if (
-          !row.columnB ||
-          typeof row.columnB !== "string" ||
-          row.columnB.includes("WEEK") ||
-          row.columnB.includes("TOTAL")
+          !category ||
+          category === "Category" ||
+          category === "Week" ||
+          category.includes("WEEK") ||
+          category.includes("TOTAL") ||
+          category.includes("SUMMARY")
         ) {
+          skippedCount++
           continue
         }
 
-        // Validate: column A is a number, column B is category, column C is amount, column D is date
-        const week = parseFloat(row.columnA)
-        const category = row.columnB
-        const amount = parseFloat(row.columnC)
-        const dateStr = row.columnD
-
-        if (isNaN(week) || !category || isNaN(amount) || !dateStr) {
+        // Validate: amount must be a number
+        const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
+        
+        if (isNaN(amountNum)) {
+          skippedCount++
           continue
         }
 
-        // Convert date from DD/MM/YYYY to YYYY-MM-DD
-        const [day, month, year] = dateStr.split("/")
-        const isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+        // Parse date - try multiple formats
+        let isoDate = ""
+        let dateFormatValid = false
+
+        if (dateStr && typeof dateStr === "string" && dateStr.trim() !== "") {
+          // Try DD/MM/YYYY format
+          if (dateStr.includes("/")) {
+            const dateParts = dateStr.split("/")
+            if (dateParts.length === 3) {
+              const [day, month, year] = dateParts
+              isoDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+              dateFormatValid = true
+            }
+          }
+          // Try YYYY-MM-DD format
+          else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            isoDate = dateStr
+            dateFormatValid = true
+          }
+        }
+
+        if (!dateFormatValid) {
+          // If no valid date, use current date as fallback
+          const today = new Date().toISOString().split('T')[0]
+          isoDate = today
+          dateFormatValid = true
+        }
 
         // Check for duplicates
-        const transactionKey = `${isoDate}-${category}-${amount}`
+        const transactionKey = `${isoDate}-${category.trim()}-${amountNum}`
         if (existingDates.has(transactionKey)) {
+          skippedCount++
           continue
         }
 
         // Add transaction
         try {
           addTransaction({
-            description: `Importado: ${category}`,
-            amount,
-            category: category as Transaction["category"],
+            description: category.trim(),
+            amount: amountNum,
+            category: category.trim() as Transaction["category"],
             date: isoDate,
           })
           importedCount++
           existingDates.add(transactionKey)
-        } catch {
-          // Skip on error and continue with next row
+        } catch (err) {
+          skippedCount++
         }
       }
 
       setImportMessage({
-        text: `Se importaron ${importedCount} transacciones correctamente`,
+        text: `Se encontraron ${fetchedData.length} filas. Importadas: ${importedCount}, Saltadas: ${skippedCount}`,
         type: "success",
       })
     } catch (err) {
-      console.log("[v0] Import error:", err)
       setImportMessage({
         text: "Error al importar historial. Verifica tu conexión.",
         type: "error",
       })
     } finally {
       setImporting(false)
-      setTimeout(() => setImportMessage(null), 4000)
+      setTimeout(() => setImportMessage(null), 5000)
     }
   }
 
