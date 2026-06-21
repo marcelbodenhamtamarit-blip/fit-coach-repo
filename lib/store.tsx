@@ -10,17 +10,14 @@ import {
 import type {
   AppData,
   BodyMetric,
-  DailyMetric,
   Meal,
+  PantryItem,
   Profile,
-  Routine,
-  SleepEntry,
   Transaction,
-  Workout,
 } from "./types"
 import { todayISO, uid } from "./types"
 
-const STORAGE_KEY = "marcel-fit-coach:v1"
+const STORAGE_KEY = "marcel-fit-coach:v2"
 
 function seedData(): AppData {
   const day = (offset: number) => {
@@ -34,312 +31,190 @@ function seedData(): AppData {
       name: "Marcel",
       calorieGoal: 2400,
       proteinGoal: 170,
-      sleepGoal: 8,
       weightGoal: 80,
     },
-    routines: [
-      {
-        id: uid(),
-        name: "Push Day",
-        focus: "Chest, Shoulders, Triceps",
-        exercises: [
-          { id: uid(), name: "Bench Press", sets: 4, reps: 8 },
-          { id: uid(), name: "Overhead Press", sets: 3, reps: 10 },
-          { id: uid(), name: "Incline Dumbbell Press", sets: 3, reps: 12 },
-          { id: uid(), name: "Tricep Pushdown", sets: 3, reps: 15 },
-        ],
-      },
-      {
-        id: uid(),
-        name: "Pull Day",
-        focus: "Back, Biceps",
-        exercises: [
-          { id: uid(), name: "Deadlift", sets: 4, reps: 6 },
-          { id: uid(), name: "Pull Ups", sets: 4, reps: 10 },
-          { id: uid(), name: "Barbell Row", sets: 3, reps: 10 },
-          { id: uid(), name: "Bicep Curl", sets: 3, reps: 12 },
-        ],
-      },
-      {
-        id: uid(),
-        name: "Leg Day",
-        focus: "Quads, Hamstrings, Glutes",
-        exercises: [
-          { id: uid(), name: "Back Squat", sets: 4, reps: 8 },
-          { id: uid(), name: "Romanian Deadlift", sets: 3, reps: 10 },
-          { id: uid(), name: "Leg Press", sets: 3, reps: 12 },
-          { id: uid(), name: "Calf Raise", sets: 4, reps: 15 },
-        ],
-      },
-    ],
-    workouts: [
-      {
-        id: uid(),
-        date: day(1),
-        name: "Push Day",
-        durationMin: 62,
-        exercises: [
-          {
-            id: uid(),
-            name: "Bench Press",
-            sets: [
-              { reps: 8, weight: 80 },
-              { reps: 8, weight: 80 },
-              { reps: 7, weight: 82.5 },
-            ],
-          },
-        ],
-      },
-      {
-        id: uid(),
-        date: day(3),
-        name: "Leg Day",
-        durationMin: 70,
-        exercises: [
-          {
-            id: uid(),
-            name: "Back Squat",
-            sets: [
-              { reps: 8, weight: 100 },
-              { reps: 8, weight: 100 },
-            ],
-          },
-        ],
-      },
-    ],
     meals: [
       {
         id: uid(),
-        date: todayISO(),
-        name: "Oatmeal & Eggs",
-        mealType: "breakfast",
-        calories: 520,
-        protein: 32,
-        carbs: 55,
-        fat: 16,
+        date: day(0),
+        ingredients: [
+          {
+            id: uid(),
+            name: "Arroz blanco",
+            quantity: 300,
+            caloriesPer100g: 130,
+            proteinPer100g: 2.7,
+            carbsPer100g: 28,
+            fatPer100g: 0.3,
+            pricePerKg: 3.5,
+          },
+        ],
+        totalCalories: 390,
+        totalProtein: 8.1,
+        totalCarbs: 84,
+        totalFat: 0.9,
+        totalCost: 1.05,
+      },
+    ],
+    metrics: [
+      {
+        id: uid(),
+        date: day(0),
+        weight: 83.5,
+        bodyFat: 18,
+        waist: 90,
       },
       {
         id: uid(),
-        date: todayISO(),
-        name: "Chicken & Rice",
-        mealType: "lunch",
-        calories: 680,
-        protein: 55,
-        carbs: 70,
-        fat: 14,
+        date: day(1),
+        weight: 83.3,
+        bodyFat: 17.8,
+        waist: 89.5,
       },
     ],
-    sleep: [
-      { id: uid(), date: day(0), hours: 7.5, quality: 4, bedtime: "23:15", wakeTime: "06:45" },
-      { id: uid(), date: day(1), hours: 6.8, quality: 3, bedtime: "23:50", wakeTime: "06:38" },
-      { id: uid(), date: day(2), hours: 8.1, quality: 5, bedtime: "22:40", wakeTime: "06:46" },
-      { id: uid(), date: day(3), hours: 7.2, quality: 4, bedtime: "23:30", wakeTime: "06:42" },
-      { id: uid(), date: day(4), hours: 6.5, quality: 3, bedtime: "00:10", wakeTime: "06:40" },
-      { id: uid(), date: day(5), hours: 7.9, quality: 4, bedtime: "22:55", wakeTime: "06:48" },
-      { id: uid(), date: day(6), hours: 8.3, quality: 5, bedtime: "22:30", wakeTime: "06:48" },
+    pantry: [],
+    transactions: [
+      {
+        id: uid(),
+        date: day(0),
+        description: "Compra semanal Woolworths",
+        category: "Supermercado",
+        amount: -250,
+      },
     ],
-    metrics: [
-      { id: uid(), date: day(28), weight: 86.4, bodyFat: 19.5, waist: 88 },
-      { id: uid(), date: day(21), weight: 85.6, bodyFat: 19, waist: 87 },
-      { id: uid(), date: day(14), weight: 84.9, bodyFat: 18.4, waist: 86 },
-      { id: uid(), date: day(7), weight: 84.1, bodyFat: 17.9, waist: 85 },
-      { id: uid(), date: day(0), weight: 83.5, bodyFat: 17.4, waist: 84.5 },
-    ],
-    dailyMetrics: [],
-    transactions: [],
   }
 }
 
-type StoreContextValue = {
+type StoreContextType = {
   data: AppData
   ready: boolean
-  updateProfile: (p: Partial<Profile>) => void
-  addWorkout: (w: Omit<Workout, "id">) => void
-  deleteWorkout: (id: string) => void
-  addRoutine: (r: Omit<Routine, "id">) => void
-  deleteRoutine: (id: string) => void
-  addMeal: (m: Omit<Meal, "id">) => void
-  deleteMeal: (id: string) => void
-  addSleep: (s: Omit<SleepEntry, "id">) => void
-  deleteSleep: (id: string) => void
-  addMetric: (m: Omit<BodyMetric, "id">) => void
-  deleteMetric: (id: string) => void
-  importFromIntervals: (payload: IntervalsPayload) => { workouts: number; sleep: number; weights: number }
+  addMeal: (meal: Omit<Meal, "id">) => void
+  updateMetric: (metric: Omit<BodyMetric, "id">) => void
   addTransaction: (t: Omit<Transaction, "id">) => void
   deleteTransaction: (id: string) => void
-  importTransactions: (rows: Omit<Transaction, "id">[]) => number
+  addPantryItem: (item: Omit<PantryItem, "id" | "dateAdded">) => void
+  removePantryItem: (id: string, quantityUsed: number) => void
+  updateProfileGoals: (goals: Partial<Profile>) => void
 }
 
-type IntervalsPayload = {
-  workouts?: Array<{
-    id: string
-    date: string
-    name: string
-    type?: string
-    durationMin: number
-    calories?: number | null
-    distanceKm?: number | null
-    heartRateAvg?: number | null
-    heartRateMax?: number | null
-    elevation?: number | null
-  }>
-  sleep?: Array<{ id: string; date: string; hours: number | null; score?: number | null }>
-  weights?: Array<{ id: string; date: string; weightKg: number }>
-  dailyMetrics?: Array<{
-    id: string
-    date: string
-    steps?: number | null
-    restingHeartRate?: number | null
-    temperature?: number | null
-    comment?: string | null
-  }>
-}
-
-const StoreContext = createContext<StoreContextValue | null>(null)
+const StoreContext = createContext<StoreContextType | undefined>(undefined)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(seedData)
+  const [data, setData] = useState<AppData>(seedData())
   const [ready, setReady] = useState(false)
 
+  // Load from localStorage on mount
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) setData(JSON.parse(raw))
-    } catch {
-      // ignore corrupt storage
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      try {
+        setData(JSON.parse(stored))
+      } catch {
+        setData(seedData())
+      }
     }
     setReady(true)
   }, [])
 
+  // Persist to localStorage whenever data changes
   useEffect(() => {
-    if (!ready) return
-    try {
+    if (ready) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    } catch {
-      // ignore quota errors
     }
   }, [data, ready])
 
-  const value: StoreContextValue = {
-    data,
-    ready,
-    updateProfile: (p) =>
-      setData((d) => ({ ...d, profile: { ...d.profile, ...p } })),
-    addWorkout: (w) =>
-      setData((d) => ({ ...d, workouts: [{ ...w, id: uid() }, ...d.workouts] })),
-    deleteWorkout: (id) =>
-      setData((d) => ({ ...d, workouts: d.workouts.filter((x) => x.id !== id) })),
-    addRoutine: (r) =>
-      setData((d) => ({ ...d, routines: [{ ...r, id: uid() }, ...d.routines] })),
-    deleteRoutine: (id) =>
-      setData((d) => ({ ...d, routines: d.routines.filter((x) => x.id !== id) })),
-    addMeal: (m) =>
-      setData((d) => ({ ...d, meals: [{ ...m, id: uid() }, ...d.meals] })),
-    deleteMeal: (id) =>
-      setData((d) => ({ ...d, meals: d.meals.filter((x) => x.id !== id) })),
-    addSleep: (s) =>
-      setData((d) => ({ ...d, sleep: [{ ...s, id: uid() }, ...d.sleep] })),
-    deleteSleep: (id) =>
-      setData((d) => ({ ...d, sleep: d.sleep.filter((x) => x.id !== id) })),
-    addMetric: (m) =>
-      setData((d) => ({ ...d, metrics: [{ ...m, id: uid() }, ...d.metrics] })),
-    deleteMetric: (id) =>
-      setData((d) => ({ ...d, metrics: d.metrics.filter((x) => x.id !== id) })),
-    addTransaction: (t) =>
-      setData((d) => ({
-        ...d,
-        transactions: [{ ...t, id: uid() }, ...(d.transactions ?? [])].sort(
-          (a, b) => b.date.localeCompare(a.date),
-        ),
-      })),
-    deleteTransaction: (id) =>
-      setData((d) => ({
-        ...d,
-        transactions: (d.transactions ?? []).filter((x) => x.id !== id),
-      })),
-    importTransactions: (rows) => {
-      let count = 0
-      setData((d) => {
-        const existing = new Set((d.transactions ?? []).map((t) => `${t.date}|${t.category}|${t.amount}`))
-        const toAdd: Transaction[] = rows
-          .filter((r) => !existing.has(`${r.date}|${r.category}|${r.amount}`))
-          .map((r) => ({ ...r, id: uid() }))
-        count = toAdd.length
-        return {
-          ...d,
-          transactions: [...toAdd, ...(d.transactions ?? [])].sort(
-            (a, b) => b.date.localeCompare(a.date),
-          ),
-        }
-      })
-      return count
-    },
-    importFromIntervals: (payload) => {
-      const counts = { workouts: 0, sleep: 0, weights: 0 }
-      setData((d) => {
-        // Workouts: REPLACE local with intervals data
-        const importedWorkouts: Workout[] = (payload.workouts || [])
-          .filter((w) => w.date)
-          .map((w) => ({
-            id: w.id,
-            date: w.date,
-            name: w.name,
-            durationMin: w.durationMin || 0,
-            exercises: [],
-            distanceKm: w.distanceKm || undefined,
-            calories: w.calories || undefined,
-            type: w.type || undefined,
-            heartRateAvg: w.heartRateAvg || undefined,
-            heartRateMax: w.heartRateMax || undefined,
-            elevation: w.elevation || undefined,
-          }))
-        counts.workouts = importedWorkouts.length
-
-        // Sleep: dedupe by date
-        const existingSleepDates = new Set(d.sleep.map((s) => s.date))
-        const newSleep: SleepEntry[] = (payload.sleep || [])
-          .filter((s) => s.date && s.hours != null && !existingSleepDates.has(s.date))
-          .map((s) => ({
-            id: s.id,
-            date: s.date,
-            hours: s.hours as number,
-            quality: s.score != null ? Math.max(1, Math.min(5, Math.round((s.score / 100) * 5))) : 3,
-            bedtime: "",
-            wakeTime: "",
-          }))
-        counts.sleep = newSleep.length
-
-        // Weights -> metrics: dedupe by date
-        const existingMetricDates = new Set(d.metrics.map((m) => m.date))
-        const newMetrics: BodyMetric[] = (payload.weights || [])
-          .filter((w) => w.date && !existingMetricDates.has(w.date))
-          .map((w) => ({
-            id: w.id,
-            date: w.date,
-            weight: w.weightKg,
-            bodyFat: 0,
-            waist: 0,
-          }))
-        counts.weights = newMetrics.length
-
-        // Daily metrics: dedupe by date
-        const existingDailyDates = new Set(d.dailyMetrics.map((m) => m.date))
-        const newDailyMetrics: DailyMetric[] = (payload.dailyMetrics || [])
-          .filter((m) => m.date && !existingDailyDates.has(m.date))
-
-        return {
-          ...d,
-          workouts: importedWorkouts.sort((a, b) => b.date.localeCompare(a.date)),
-          sleep: [...newSleep, ...d.sleep].sort((a, b) => b.date.localeCompare(a.date)),
-          metrics: [...newMetrics, ...d.metrics].sort((a, b) => b.date.localeCompare(a.date)),
-          dailyMetrics: [...newDailyMetrics, ...d.dailyMetrics].sort((a, b) => b.date.localeCompare(a.date)),
-        }
-      })
-      return counts
-    },
+  const addMeal = (meal: Omit<Meal, "id">) => {
+    setData((d) => ({
+      ...d,
+      meals: [{ ...meal, id: uid() }, ...(d.meals ?? [])],
+    }))
   }
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  const updateMetric = (metric: Omit<BodyMetric, "id">) => {
+    setData((d) => {
+      const today = todayISO()
+      const existingIndex = (d.metrics ?? []).findIndex((m) => m.date === today)
+      let updated: BodyMetric[]
+      if (existingIndex >= 0) {
+        updated = [...(d.metrics ?? [])]
+        updated[existingIndex] = { ...metric, id: d.metrics![existingIndex].id }
+      } else {
+        updated = [{ ...metric, id: uid() }, ...(d.metrics ?? [])]
+      }
+      return { ...d, metrics: updated }
+    })
+  }
+
+  const addTransaction = (t: Omit<Transaction, "id">) => {
+    setData((d) => ({
+      ...d,
+      transactions: [{ ...t, id: uid() }, ...(d.transactions ?? [])].sort(
+        (a, b) => b.date.localeCompare(a.date),
+      ),
+    }))
+  }
+
+  const deleteTransaction = (id: string) => {
+    setData((d) => ({
+      ...d,
+      transactions: (d.transactions ?? []).filter((x) => x.id !== id),
+    }))
+  }
+
+  const addPantryItem = (item: Omit<PantryItem, "id" | "dateAdded">) => {
+    setData((d) => ({
+      ...d,
+      pantry: [
+        { ...item, id: uid(), dateAdded: todayISO() },
+        ...(d.pantry ?? []),
+      ],
+    }))
+  }
+
+  const removePantryItem = (id: string, quantityUsed: number) => {
+    setData((d) => {
+      const item = (d.pantry ?? []).find((p) => p.id === id)
+      if (!item) return d
+      const remaining = item.quantityGrams - quantityUsed
+      if (remaining <= 0) {
+        return {
+          ...d,
+          pantry: (d.pantry ?? []).filter((p) => p.id !== id),
+        }
+      }
+      return {
+        ...d,
+        pantry: (d.pantry ?? []).map((p) =>
+          p.id === id ? { ...p, quantityGrams: remaining } : p,
+        ),
+      }
+    })
+  }
+
+  const updateProfileGoals = (goals: Partial<Profile>) => {
+    setData((d) => ({
+      ...d,
+      profile: { ...d.profile, ...goals },
+    }))
+  }
+
+  return (
+    <StoreContext.Provider
+      value={{
+        data,
+        ready,
+        addMeal,
+        updateMetric,
+        addTransaction,
+        deleteTransaction,
+        addPantryItem,
+        removePantryItem,
+        updateProfileGoals,
+      }}
+    >
+      {children}
+    </StoreContext.Provider>
+  )
 }
 
 export function useStore() {

@@ -117,6 +117,10 @@ export function EconomySection() {
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
 
+  // Weekly food spending
+  const weekMeals = data.meals.filter((m) => m.date >= weekStart)
+  const weekFoodSpending = weekMeals.reduce((s, m) => s + m.totalCost, 0)
+
   // Filtered list by tab
   const filtered = useMemo(() => {
     if (tab === "diario") return transactions.filter((t) => t.date === today)
@@ -226,7 +230,7 @@ export function EconomySection() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={TrendingUp}
           label="Ingresos"
@@ -247,6 +251,13 @@ export function EconomySection() {
           value={`$${Math.abs(ahorro).toFixed(2)}`}
           sub={ahorro >= 0 ? "Positivo" : "Déficit"}
           accent={ahorro >= 0 ? "green" : "red"}
+        />
+        <StatCard
+          icon={Wallet}
+          label="Comida esta semana"
+          value={`$${weekFoodSpending.toFixed(2)}`}
+          sub="Gasto semanal"
+          accent="blue"
         />
       </div>
 

@@ -51,15 +51,40 @@ export type Routine = {
   exercises: RoutineExercise[]
 }
 
+export type Ingredient = {
+  id: string
+  name: string
+  quantity: number // grams
+  caloriesPer100g: number
+  proteinPer100g: number
+  carbsPer100g: number
+  fatPer100g: number
+  pricePerKg: number // AUD
+  woolworthsUrl?: string
+}
+
 export type Meal = {
   id: string
   date: string // ISO date (yyyy-mm-dd)
+  ingredients: Ingredient[]
+  totalCalories: number
+  totalProtein: number
+  totalCarbs: number
+  totalFat: number
+  totalCost: number // AUD
+}
+
+export type PantryItem = {
+  id: string
   name: string
-  mealType: "breakfast" | "lunch" | "dinner" | "snack"
-  calories: number
-  protein: number
-  carbs: number
-  fat: number
+  quantityGrams: number
+  caloriesPer100g: number
+  proteinPer100g: number
+  carbsPer100g: number
+  fatPer100g: number
+  pricePerKg: number
+  dateAdded: string
+  woolworthsUrl?: string
 }
 
 export type SleepEntry = {
@@ -83,7 +108,6 @@ export type Profile = {
   name: string
   calorieGoal: number
   proteinGoal: number
-  sleepGoal: number
   weightGoal: number
 }
 
@@ -111,12 +135,9 @@ export type Transaction = {
 
 export type AppData = {
   profile: Profile
-  workouts: Workout[]
-  routines: Routine[]
   meals: Meal[]
-  sleep: SleepEntry[]
   metrics: BodyMetric[]
-  dailyMetrics: DailyMetric[]
+  pantry: PantryItem[]
   transactions: Transaction[]
 }
 
