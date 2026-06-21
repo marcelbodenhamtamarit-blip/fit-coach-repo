@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
-import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData, mapCategory } from "@/lib/webhook"
+import { GOOGLE_SHEETS_WEBHOOK, fetchWebhookData, postWebhookData, mapCategory, parseAmount, parseGoogleSheetsDate, getWeekDateFallback } from "@/lib/webhook"
 
 type TabId = "diario" | "semanal" | "mensual"
 
@@ -98,7 +98,12 @@ export function EconomySection() {
   const [toastError, setToastError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshToast, setRefreshToast] = useState(false)
-  const [loadingCount, setLoadingCount] = useState(0)
+  const [importStats, setImportStats] = useState<{
+    total: number
+    ingresos: number
+    gastos: number
+    ahorro: number
+  } | null>(null)
 
   // Helper to parse date from string
   const parseDate = (dateStr: string | undefined): string | null => {
@@ -121,6 +126,8 @@ export function EconomySection() {
     const autoLoad = async () => {
       const data = await fetchWebhookData()
       let loadedCount = 0
+      let totalIngresos = 0
+      let totalGastos = 0
       
       if (data && Array.isArray(data)) {
         const existingKeys = new Set(
@@ -129,28 +136,34 @@ export function EconomySection() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          let category, amount, dateStr, week
+          let category, amountRaw, dateStr, week
           
           // Handle array format [week, category, amount, date]
           if (Array.isArray(row)) {
             week = row[0]
             category = (row[1] || "").trim()
-            amount = row[2]
+            amountRaw = row[2]
             dateStr = row[3]
           } else {
             week = row.columnA
             category = (row.columnB || "").trim()
-            amount = row.columnC
+            amountRaw = row.columnC
             dateStr = row.columnD
           }
 
-          // Skip headers
-          if (!category || category === "Category" || category === "Week" || category.includes("WEEK") || category.includes("TOTAL")) {
+          // Skip headers and total rows
+          if (!category || category.includes("WEEK") || category.includes("TOTAL")) {
+            continue
+          }
+          
+          // Skip empty categories
+          if (!category || typeof category !== "string") {
             continue
           }
 
-          const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
-          if (typeof category !== "string" || isNaN(amountNum)) {
+          // Parse amount with comma-to-dot conversion
+          const amountNum = parseAmount(amountRaw)
+          if (amountNum === null) {
             continue
           }
 
@@ -160,33 +173,15 @@ export function EconomySection() {
             continue
           }
 
-          // Parse date
-          let isoDate = parseDate(dateStr)
+          // Parse date from DD/MM/YYYY format
+          let isoDate = parseGoogleSheetsDate(dateStr)
 
-          // If no date and week number exists, calculate Sunday of that week
+          // If no date, use week-based fallback
           if (!isoDate && typeof week === "number" && week > 0) {
-            try {
-              const year = 2026
-              const firstDay = new Date(Date.UTC(year, 0, 1))
-              let firstSunday = new Date(firstDay)
-              firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
-              if (firstDay.getUTCDay() !== 0) {
-                firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
-              }
-              
-              const sundayOfWeek = new Date(firstSunday)
-              sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (week - 1) * 7)
-              
-              const day = String(sundayOfWeek.getUTCDate()).padStart(2, "0")
-              const month = String(sundayOfWeek.getUTCMonth() + 1).padStart(2, "0")
-              const y = sundayOfWeek.getUTCFullYear()
-              isoDate = `${y}-${month}-${day}`
-            } catch (err) {
-              // Silent fail
-            }
+            isoDate = getWeekDateFallback(week)
           }
 
-          // Skip if no date found
+          // Skip if still no date found
           if (!isoDate) {
             continue
           }
@@ -200,13 +195,28 @@ export function EconomySection() {
               category: mappedCategory as Transaction["category"],
               date: isoDate,
             })
+            existingKeys.add(key)
             loadedCount++
+            
+            // Track totals
+            if (amountNum > 0) {
+              totalIngresos += amountNum
+            } else {
+              totalGastos += Math.abs(amountNum)
+            }
           }
         }
         
+        // Show import statistics
         if (loadedCount > 0) {
-          setLoadingCount(loadedCount)
-          setTimeout(() => setLoadingCount(0), 3000)
+          const ahorro = totalIngresos - totalGastos
+          setImportStats({
+            total: loadedCount,
+            ingresos: totalIngresos,
+            gastos: totalGastos,
+            ahorro,
+          })
+          setTimeout(() => setImportStats(null), 5000)
         }
       }
     }
@@ -217,6 +227,8 @@ export function EconomySection() {
   const handleRefresh = async () => {
     setRefreshing(true)
     let loadedCount = 0
+    let totalIngresos = 0
+    let totalGastos = 0
     try {
       const data = await fetchWebhookData()
       
@@ -227,28 +239,34 @@ export function EconomySection() {
 
         for (let i = 0; i < data.length; i++) {
           const row = data[i]
-          let category, amount, dateStr, week
+          let category, amountRaw, dateStr, week
           
           // Handle array format [week, category, amount, date]
           if (Array.isArray(row)) {
             week = row[0]
             category = (row[1] || "").trim()
-            amount = row[2]
+            amountRaw = row[2]
             dateStr = row[3]
           } else {
             week = row.columnA
             category = (row.columnB || "").trim()
-            amount = row.columnC
+            amountRaw = row.columnC
             dateStr = row.columnD
           }
 
-          // Skip headers
-          if (!category || category === "Category" || category === "Week" || category.includes("WEEK") || category.includes("TOTAL")) {
+          // Skip headers and total rows
+          if (!category || category.includes("WEEK") || category.includes("TOTAL")) {
+            continue
+          }
+          
+          // Skip empty categories
+          if (!category || typeof category !== "string") {
             continue
           }
 
-          const amountNum = typeof amount === "number" ? amount : parseFloat(amount)
-          if (typeof category !== "string" || isNaN(amountNum)) {
+          // Parse amount with comma-to-dot conversion
+          const amountNum = parseAmount(amountRaw)
+          if (amountNum === null) {
             continue
           }
 
@@ -258,33 +276,15 @@ export function EconomySection() {
             continue
           }
 
-          // Parse date
-          let isoDate = parseDate(dateStr)
+          // Parse date from DD/MM/YYYY format
+          let isoDate = parseGoogleSheetsDate(dateStr)
 
-          // If no date and week number exists, calculate Sunday of that week
+          // If no date, use week-based fallback
           if (!isoDate && typeof week === "number" && week > 0) {
-            try {
-              const year = 2026
-              const firstDay = new Date(Date.UTC(year, 0, 1))
-              let firstSunday = new Date(firstDay)
-              firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
-              if (firstDay.getUTCDay() !== 0) {
-                firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
-              }
-              
-              const sundayOfWeek = new Date(firstSunday)
-              sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (week - 1) * 7)
-              
-              const day = String(sundayOfWeek.getUTCDate()).padStart(2, "0")
-              const month = String(sundayOfWeek.getUTCMonth() + 1).padStart(2, "0")
-              const y = sundayOfWeek.getUTCFullYear()
-              isoDate = `${y}-${month}-${day}`
-            } catch (err) {
-              // Silent fail
-            }
+            isoDate = getWeekDateFallback(week)
           }
 
-          // Skip if no date found
+          // Skip if still no date found
           if (!isoDate) continue
 
           const key = `${isoDate}-${mappedCategory}-${amountNum}`
@@ -298,13 +298,27 @@ export function EconomySection() {
             })
             existingKeys.add(key)
             loadedCount++
+            
+            // Track totals
+            if (amountNum > 0) {
+              totalIngresos += amountNum
+            } else {
+              totalGastos += Math.abs(amountNum)
+            }
           }
         }
       }
       
+      // Show import statistics
       if (loadedCount > 0) {
-        setLoadingCount(loadedCount)
-        setTimeout(() => setLoadingCount(0), 3000)
+        const ahorro = totalIngresos - totalGastos
+        setImportStats({
+          total: loadedCount,
+          ingresos: totalIngresos,
+          gastos: totalGastos,
+          ahorro,
+        })
+        setTimeout(() => setImportStats(null), 5000)
       }
       
       // Switch to semanal tab to show all imported transactions grouped by week
@@ -486,11 +500,29 @@ export function EconomySection() {
 
   return (
     <div className="space-y-5">
-      {/* Loading count toast */}
-      {loadingCount > 0 && (
-        <div className="flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
-          {loadingCount} transacciones cargadas
-        </div>
+      {/* Import statistics */}
+      {importStats && (
+        <Card className="p-4 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950">
+          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
+            {importStats.total} transacciones cargadas
+          </p>
+          <div className="grid grid-cols-3 gap-3 text-xs">
+            <div>
+              <p className="text-blue-700 dark:text-blue-300">Ingresos</p>
+              <p className="font-semibold text-emerald-600 dark:text-emerald-400">${importStats.ingresos.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-blue-700 dark:text-blue-300">Gastos</p>
+              <p className="font-semibold text-red-600 dark:text-red-400">-${importStats.gastos.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-blue-700 dark:text-blue-300">Ahorro</p>
+              <p className={`font-semibold ${importStats.ahorro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                ${importStats.ahorro.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* Refresh toast */}

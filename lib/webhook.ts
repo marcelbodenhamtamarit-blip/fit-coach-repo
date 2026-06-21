@@ -3,28 +3,46 @@ export const GOOGLE_SHEETS_WEBHOOK =
 
 // Map Catalan and Spanish variants to canonical category names
 const CATEGORY_MAPPING: Record<string, string> = {
-  "TRANSPORT": "Transporte",
+  // Transporte
   "TRANSPORTE": "Transporte",
+  "TRANSPORT": "Transporte",
   "UBER": "Transporte",
-  "COMIDA FUERA": "Comida fuera",
-  "MENJAR FORA": "Comida fuera",
-  "MENJAR": "Comida fuera",
-  "COMIDA": "Comida fuera",
+  
+  // Compras / Shopping
+  "GADGETS": "Compras",
+  "CARGADOR MVL": "Compras",
+  "SHOPPING": "Compras",
+  "COMPRAS": "Compras",
+  "COMPRES": "Compras",
+  
+  // Supermercado / Comida
+  "COMIDA": "Supermercado",
+  "MENJAR": "Supermercado",
   "MENJAR SUPER": "Supermercado",
+  "MENJAR FORA": "Comida fuera",
+  "COMIDA FUERA": "Comida fuera",
   "COMIDA SUPER": "Supermercado",
   "SUPER": "Supermercado",
+  
+  // Necesidades
   "NECESSITATS": "Necesidades",
-  "NECESITATS": "Necesidades",
+  "NECESIDADES": "Necesidades",
+  "WHITE CARD": "Necesidades",
+  "CHEMIST": "Necesidades",
+  "PANTALONES FEINA": "Necesidades",
+  
+  // Alojamiento
   "HOSTEL": "Alojamiento",
-  "SHOPPING": "Compras",
-  "COMPRES": "Compras",
-  "ROBA": "Compras",
-  "CHEMIST": "Compras",
-  "PELU": "Otros",
-  "Nomina": "Salario",
+  
+  // Salario
   "NOMINA": "Salario",
-  "Pagament mes": "Salario",
-  "GADGETS": "Compras",
+  "PAGAMENT MES": "Salario",
+  
+  // Ocio
+  "ENTRETENIMIENTO": "Ocio",
+  
+  // Otros
+  "BALI": "Otros",
 }
 
 export function mapCategory(rawCategory: string): string | null {
@@ -33,13 +51,6 @@ export function mapCategory(rawCategory: string): string | null {
   // Check direct mapping
   if (CATEGORY_MAPPING[trimmed]) {
     return CATEGORY_MAPPING[trimmed]
-  }
-  
-  // Check case-insensitive match for original mapping
-  for (const [key, value] of Object.entries(CATEGORY_MAPPING)) {
-    if (key.toUpperCase() === trimmed) {
-      return value
-    }
   }
   
   // If already matches a valid category, return as-is
@@ -55,11 +66,62 @@ export function mapCategory(rawCategory: string): string | null {
     "Otros",
   ]
   
-  if (validCategories.includes(rawCategory.trim())) {
-    return rawCategory.trim()
+  const trimmedOriginal = rawCategory.trim()
+  if (validCategories.includes(trimmedOriginal)) {
+    return trimmedOriginal
   }
   
   return null
+}
+
+// Parse amount with comma as decimal separator
+export function parseAmount(amountStr: string | number): number | null {
+  if (typeof amountStr === "number") {
+    return isNaN(amountStr) ? null : amountStr
+  }
+  
+  const str = String(amountStr).trim()
+  if (!str) return null
+  
+  // Replace comma with dot for decimal parsing
+  const normalized = str.replace(",", ".")
+  const num = parseFloat(normalized)
+  
+  return isNaN(num) ? null : num
+}
+
+// Parse date from DD/MM/YYYY format to YYYY-MM-DD
+export function parseGoogleSheetsDate(dateStr: string | number): string | null {
+  if (!dateStr) return null
+  
+  const str = String(dateStr).trim()
+  if (!str) return null
+  
+  // Try DD/MM/YYYY format
+  const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (match) {
+    const [, day, month, year] = match
+    const d = String(day).padStart(2, "0")
+    const m = String(month).padStart(2, "0")
+    return `${year}-${m}-${d}`
+  }
+  
+  return null
+}
+
+// Get date fallback for week number
+export function getWeekDateFallback(week: number): string {
+  const fallbacks: Record<number, string> = {
+    1: "2026-04-16",   // 16/04/2026
+    13: "2026-06-28",  // 28/06/2026
+    10: "2026-06-10",  // 10/06/2026 for Bali
+  }
+  
+  if (week in fallbacks) {
+    return fallbacks[week]
+  }
+  
+  return null as any
 }
 
 export async function fetchWebhookData(sheet?: string): Promise<any[]> {
