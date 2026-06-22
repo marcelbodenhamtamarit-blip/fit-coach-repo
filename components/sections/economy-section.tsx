@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import {
-  Wallet,
   TrendingUp,
   TrendingDown,
   PiggyBank,
@@ -10,7 +9,6 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  RotateCw,
   Download,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -131,10 +129,6 @@ export function EconomySection() {
   const ingresos = monthTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
-
-  // Weekly food spending
-  const weekMeals = data.meals.filter((m) => m.date >= weekStart)
-  const weekFoodSpending = weekMeals.reduce((s, m) => s + m.totalCost, 0)
 
   // Filtered list by tab
   const filtered = useMemo(() => {
@@ -330,7 +324,11 @@ export function EconomySection() {
       <div className="flex gap-2">
         {!showForm && (
           <>
-            <Button onClick={() => setShowForm(true)} className="flex-1">
+            <Button
+              onClick={() => setShowForm(true)}
+              className="flex-1"
+              style={{ backgroundColor: "#7c6fff" }}
+            >
               <Plus className="mr-2 size-4" />
               Añadir gasto
             </Button>
@@ -345,13 +343,10 @@ export function EconomySection() {
             </Button>
           </>
         )}
-        <Button onClick={() => window.location.reload()} variant="outline" size="icon">
-          <RotateCw className="size-4" />
-        </Button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3">
         <StatCard
           icon={TrendingUp}
           label="Ingresos (mes)"
@@ -372,13 +367,6 @@ export function EconomySection() {
           value={`$${Math.abs(ahorro).toFixed(2)}`}
           sub={ahorro >= 0 ? "Positivo" : "Déficit"}
           accent={ahorro >= 0 ? "green" : "red"}
-        />
-        <StatCard
-          icon={Wallet}
-          label="Comida esta semana"
-          value={`$${weekFoodSpending.toFixed(2)}`}
-          sub="Gasto semanal"
-          accent="blue"
         />
       </div>
 

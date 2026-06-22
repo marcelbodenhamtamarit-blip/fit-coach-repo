@@ -7,6 +7,8 @@ import {
   Settings,
   Dumbbell,
   Wallet,
+  Refrigerator,
+  RotateCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -14,6 +16,7 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { NutritionSection } from "@/components/sections/nutrition-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
+import { PantrySection } from "@/components/sections/pantry-section"
 
 type Tab = {
   id: string
@@ -24,6 +27,7 @@ type Tab = {
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
   { id: "nutrition", label: "Comida", icon: UtensilsCrossed },
+  { id: "pantry", label: "Despensa", icon: Refrigerator },
   { id: "economy", label: "Economía", icon: Wallet },
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
@@ -31,6 +35,7 @@ const TABS: Tab[] = [
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
   nutrition: "Comida",
+  pantry: "Despensa",
   economy: "Economía",
   settings: "Ajustes",
 }
@@ -92,13 +97,22 @@ export function Dashboard() {
       {/* Main */}
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
-          <div>
-            <h1 className="text-balance text-lg font-semibold sm:text-xl">
-              {TAB_TITLES[active] ?? active}
-            </h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              {greeting()}, {data.profile.name}. Sigamos con la racha.
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-balance text-lg font-semibold sm:text-xl">
+                {TAB_TITLES[active] ?? active}
+              </h1>
+              <p className="hidden text-xs text-muted-foreground sm:block">
+                {greeting()}, {data.profile.name}. Sigamos con la racha.
+              </p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Recargar"
+            >
+              <RotateCw className="size-4" />
+            </button>
           </div>
         </header>
 
@@ -113,6 +127,7 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} />
               )}
               {active === "nutrition" && <NutritionSection />}
+              {active === "pantry" && <PantrySection />}
               {active === "economy" && <EconomySection />}
               {active === "settings" && <SettingsSection />}
             </>
