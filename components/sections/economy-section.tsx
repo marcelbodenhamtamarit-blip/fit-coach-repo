@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCw,
+  Download,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -91,13 +92,20 @@ function fmt(amount: number): string {
 }
 
 export function EconomySection() {
-  const { data, addTransaction, deleteTransaction } = useStore()
+  const { data, addTransaction, importTransactions, clearTransactions, deleteTransaction } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
 
   const [tab, setTab] = useState<TabId>("diario")
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toastError, setToastError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importSummary, setImportSummary] = useState<{
+    totalIncome: number
+    totalExpenses: number
+    savings: number
+    count: number
+  } | null>(null)
 
   // form state
   const [desc, setDesc] = useState("")
@@ -111,7 +119,14 @@ export function EconomySection() {
   const currentMonth = today.slice(0, 7) // "yyyy-mm"
   const weekStart = startOfWeekISO()
 
-  // Top summary — current month
+  // Top summary — all time (shown after import)
+  const allIncome = transactions.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const allExpenses = transactions.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const allSavings = allIncome - allExpenses
+  const incomeCount = transactions.filter((t) => t.amount > 0).length
+  const expenseCount = transactions.filter((t) => t.amount < 0).length
+
+  // Monthly summary
   const monthTx = transactions.filter((t) => t.date.startsWith(currentMonth))
   const ingresos = monthTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
@@ -128,6 +143,48 @@ export function EconomySection() {
     // mensual
     return transactions.filter((t) => t.date.startsWith(currentMonth))
   }, [transactions, tab, today, weekStart, currentMonth])
+
+  // Import from Google Sheets
+  const handleImport = async () => {
+    setImporting(true)
+    setToastError(null)
+    setImportSummary(null)
+
+    try {
+      const res = await fetch("/api/sheets")
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Failed to import")
+      }
+      const data = await res.json()
+
+      // Clear existing and import new transactions
+      clearTransactions()
+      const importedTx = data.transactions.map((t: any) => ({
+        description: t.description || t.category,
+        category: t.category,
+        amount: t.amount,
+        date: t.date,
+      }))
+      importTransactions(importedTx)
+
+      // Show summary
+      setImportSummary({
+        totalIncome: data.summary.totalIncome,
+        totalExpenses: data.summary.totalExpenses,
+        savings: data.summary.savings,
+        count: data.summary.transactionCount,
+      })
+
+      // Auto-hide summary after 10 seconds
+      setTimeout(() => setImportSummary(null), 10000)
+    } catch (err: any) {
+      setToastError(err.message || "Error al importar")
+      setTimeout(() => setToastError(null), 5000)
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const handleSave = async () => {
     const num = parseFloat(amount)
@@ -216,13 +273,77 @@ export function EconomySection() {
         </div>
       )}
 
+      {/* Import summary */}
+      {importSummary && (
+        <Card className="border-green-500/50 bg-green-500/10 p-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-semibold text-green-600 dark:text-green-400">
+                Import successful
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Imported {importSummary.count} transactions
+              </p>
+            </div>
+            <button onClick={() => setImportSummary(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Total Income</p>
+              <p className="text-lg font-bold text-emerald-500">${importSummary.totalIncome.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Expenses</p>
+              <p className="text-lg font-bold text-red-400">${importSummary.totalExpenses.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Savings</p>
+              <p className={`text-lg font-bold ${importSummary.savings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                ${importSummary.savings.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Setup instructions when no sheet configured */}
+      {transactions.length === 0 && (
+        <Card className="border-amber-500/50 bg-amber-500/10 p-4">
+          <p className="font-semibold text-amber-600 dark:text-amber-400">
+            Google Sheets no configurado
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Para importar todos tus datos, configura <code className="rounded bg-muted px-1 py-0.5">GOOGLE_SHEET_CSV_URL</code> en <code className="rounded bg-muted px-1 py-0.5">.env</code>
+          </p>
+          <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <li>1. Abre tu Google Sheet</li>
+            <li>2. Archivo → Compartir → Publicar en la web</li>
+            <li>3. Selecciona la hoja y formato CSV</li>
+            <li>4. Copia la URL y pégala en .env</li>
+          </ol>
+        </Card>
+      )}
+
       {/* Add transaction button - moved to top */}
       <div className="flex gap-2">
         {!showForm && (
-          <Button onClick={() => setShowForm(true)} className="flex-1">
-            <Plus className="mr-2 size-4" />
-            Añadir gasto
-          </Button>
+          <>
+            <Button onClick={() => setShowForm(true)} className="flex-1">
+              <Plus className="mr-2 size-4" />
+              Añadir gasto
+            </Button>
+            <Button
+              onClick={handleImport}
+              variant="outline"
+              disabled={importing}
+              className="flex-1"
+            >
+              <Download className="mr-2 size-4" />
+              {importing ? "Importing..." : "Import from Sheets"}
+            </Button>
+          </>
         )}
         <Button onClick={() => window.location.reload()} variant="outline" size="icon">
           <RotateCw className="size-4" />
@@ -233,21 +354,21 @@ export function EconomySection() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           icon={TrendingUp}
-          label="Ingresos"
+          label="Ingresos (mes)"
           value={`$${ingresos.toFixed(2)}`}
           sub={now.toLocaleString("es-ES", { month: "long" })}
           accent="green"
         />
         <StatCard
           icon={TrendingDown}
-          label="Gastos"
+          label="Gastos (mes)"
           value={`$${gastos.toFixed(2)}`}
           sub={now.toLocaleString("es-ES", { month: "long" })}
           accent="red"
         />
         <StatCard
           icon={PiggyBank}
-          label="Ahorro"
+          label="Ahorro (mes)"
           value={`$${Math.abs(ahorro).toFixed(2)}`}
           sub={ahorro >= 0 ? "Positivo" : "Déficit"}
           accent={ahorro >= 0 ? "green" : "red"}
@@ -260,6 +381,32 @@ export function EconomySection() {
           accent="blue"
         />
       </div>
+
+      {/* All-time summary - show when data exists */}
+      {transactions.length > 0 && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-medium text-muted-foreground">Resumen total (histórico)</p>
+            <p className="text-xs text-muted-foreground">{transactions.length} transacciones</p>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Ingresos ({incomeCount})</p>
+              <p className="text-xl font-bold text-emerald-500">${allIncome.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Gastos ({expenseCount})</p>
+              <p className="text-xl font-bold text-red-400">${allExpenses.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Ahorros</p>
+              <p className={`text-xl font-bold ${allSavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                ${allSavings.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">

@@ -91,6 +91,8 @@ type StoreContextType = {
   addMeal: (meal: Omit<Meal, "id">) => void
   updateMetric: (metric: Omit<BodyMetric, "id">) => void
   addTransaction: (t: Omit<Transaction, "id">) => void
+  importTransactions: (txs: Omit<Transaction, "id">[]) => void
+  clearTransactions: () => void
   deleteTransaction: (id: string) => void
   addPantryItem: (item: Omit<PantryItem, "id" | "dateAdded">) => void
   removePantryItem: (id: string, quantityUsed: number) => void
@@ -154,6 +156,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }
 
+  const importTransactions = (txs: Omit<Transaction, "id">[]) => {
+    setData((d) => {
+      const newTransactions = txs.map((t) => ({ ...t, id: uid() }))
+      const allTransactions = [...newTransactions, ...(d.transactions ?? [])]
+      // Deduplicate by date + category + amount
+      const seen = new Set<string>()
+      const unique: Transaction[] = []
+      for (const t of allTransactions) {
+        const key = `${t.date}-${t.category}-${t.amount}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          unique.push(t)
+        }
+      }
+      return {
+        ...d,
+        transactions: unique.sort((a, b) => b.date.localeCompare(a.date)),
+      }
+    })
+  }
+
+  const clearTransactions = () => {
+    setData((d) => ({
+      ...d,
+      transactions: [],
+    }))
+  }
+
   const deleteTransaction = (id: string) => {
     setData((d) => ({
       ...d,
@@ -206,6 +236,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addMeal,
         updateMetric,
         addTransaction,
+        importTransactions,
+        clearTransactions,
         deleteTransaction,
         addPantryItem,
         removePantryItem,
