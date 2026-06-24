@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 
-// Configuration - set GOOGLE_SHEET_CSV_URL in .env to your published sheet CSV URL
-// Format: https://docs.google.com/spreadsheets/d/SHEET_ID/export?format=csv&gid=0
-const CSV_URL = process.env.GOOGLE_SHEET_CSV_URL || ""
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
 
 interface ImportedTransaction {
   week: number
@@ -21,49 +19,174 @@ function parseDate(dateStr: string): string | null {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
 }
 
-// Get date for a week number in 2026 (Sunday-based week, using middle date)
-function getWeekDate(weekNum: number): string {
-  // First Sunday of 2026 is Jan 4
-  const firstSunday = new Date(Date.UTC(2026, 0, 4))
-  const sundayOfWeek = new Date(firstSunday)
-  sundayOfWeek.setUTCDate(firstSunday.getUTCDate() + (weekNum - 1) * 7)
-  const wednesday = new Date(sundayOfWeek)
-  wednesday.setUTCDate(sundayOfWeek.getUTCDate() + 3)
-  return wednesday.toISOString().slice(0, 10)
+// Get fallback date for a week number (Marcel's week calendar)
+function getWeekFallbackDate(weekNum: number): string {
+  const weekDates: Record<number, string> = {
+    1: "2026-04-09",
+    2: "2026-04-16",
+    3: "2026-04-23",
+    4: "2026-04-30",
+    5: "2026-05-07",
+    6: "2026-05-14",
+    7: "2026-05-21",
+    8: "2026-05-28",
+    9: "2026-06-04",
+    10: "2026-06-11",
+    11: "2026-06-18",
+    12: "2026-06-25",
+    13: "2026-07-02",
+  }
+  return weekDates[weekNum] || "2026-04-09"
 }
 
 export async function GET() {
-  // If no CSV URL configured, return hardcoded known transactions
-  if (!CSV_URL) {
-    const transactions = getHardcodedTransactions()
-    return NextResponse.json({
-      transactions,
-      summary: calculateSummary(transactions),
-    })
-  }
-
   try {
-    const response = await fetch(CSV_URL)
+    const response = await fetch(WEBHOOK_URL)
     if (!response.ok) {
-      throw new Error("Failed to fetch CSV")
+      throw new Error(`Failed to fetch: ${response.status}`)
     }
 
-    const csv = await response.text()
-    const transactions = parseCSV(csv)
+    const text = await response.text()
+    const transactions = parseData(text)
     return NextResponse.json({
       transactions,
       summary: calculateSummary(transactions),
     })
   } catch (error: any) {
     console.error("[Sheets Import Error]:", error)
-    // Fallback to hardcoded data
-    const transactions = getHardcodedTransactions()
     return NextResponse.json({
-      transactions,
-      summary: calculateSummary(transactions),
+      transactions: [],
+      summary: { totalIncome: 0, totalExpenses: 0, savings: 0, transactionCount: 0 },
       error: error.message,
     })
   }
+}
+
+function parseData(text: string): ImportedTransaction[] {
+  // Try JSON first (2D array from Google Sheets)
+  try {
+    const json = JSON.parse(text)
+    if (Array.isArray(json)) {
+      return parseSheetsArray(json as any[][])
+    }
+    if (json.data && Array.isArray(json.data)) {
+      return parseSheetsArray(json.data)
+    }
+    if (json.transactions && Array.isArray(json.transactions)) {
+      return parseSheetsArray(json.transactions)
+    }
+  } catch {
+    // Not JSON, parse as CSV
+  }
+  return parseCSV(text)
+}
+
+// Parse 2D array from Google Sheets
+// Format: [week, category, amount, date, ...]
+function parseSheetsArray(rows: any[][]): ImportedTransaction[] {
+  const transactions: ImportedTransaction[] = []
+  const seenKeys = new Set<string>()
+  let currentWeek = 0
+
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 3) continue
+
+    const col0 = String(row[0] || "").trim()
+    const col1 = String(row[1] || "").trim()
+    const col2 = String(row[2] || "").trim()
+    const col3 = String(row[3] || "").trim()
+
+    // Check if this is a week header row (column B contains "WEEK X...")
+    if (/^WEEK\s*\d+/i.test(col1)) {
+      continue
+    }
+
+    // Skip summary/header rows
+    if (/^WEEK/i.test(col0) || /^WEEK/i.test(col1)) continue
+    if (/^TOTAL/i.test(col0) || /^TOTAL/i.test(col1)) continue
+    if (/^SUMMARY/i.test(col0) || /^SUMMARY/i.test(col1)) continue
+    if (col1.toUpperCase() === "CATEGORY" || col1.toUpperCase() === "CATEGORIA") continue
+
+    // Get week number from column A
+    const weekNumRaw = parseInt(col0, 10)
+    const weekNum = weekNumRaw > 0 ? weekNumRaw : currentWeek
+
+    // Determine category
+    const categoryRaw = col1
+    if (!categoryRaw) continue
+
+    // Parse amount - try column C or D
+    let amount: number | null = null
+
+    // Special case: Bali row (col1="Bali", col3 has the amount)
+    if (categoryRaw.toLowerCase() === "bali") {
+      const baliAmount = parseFloat(col3.replace(",", "."))
+      if (!isNaN(baliAmount) && baliAmount !== 0) {
+        const key = `2026-06-10-Otros-${baliAmount}`
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key)
+          transactions.push({
+            week: 10,
+            category: "Otros",
+            amount: baliAmount,
+            date: "2026-06-10",
+            description: "Bali",
+          })
+        }
+      }
+      continue
+    }
+
+    // Normal parsing: amount is in column C
+    const amountParsed = parseFloat(col2.replace(",", "."))
+    if (!isNaN(amountParsed) && amountParsed !== 0) {
+      amount = amountParsed
+    } else {
+      // Try column D for amount
+      const altAmount = parseFloat(col3.replace(",", "."))
+      if (!isNaN(altAmount) && altAmount !== 0) {
+        amount = altAmount
+      }
+    }
+    if (amount === null) continue
+
+    // Determine date
+    let finalDate: string
+    const dateRaw = col3
+
+    // Special case: Week 1 rows - use 09/04/2026
+    if (weekNum === 1) {
+      finalDate = "2026-04-09"
+    }
+    // Parse ISO date (contains "T")
+    else if (dateRaw.includes("T")) {
+      finalDate = dateRaw.slice(0, 10)
+    }
+    // Try DD/MM/YYYY format
+    else if (dateRaw.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+      const parsed = parseDate(dateRaw)
+      finalDate = parsed || getWeekFallbackDate(weekNum)
+    }
+    // Use fallback date
+    else {
+      finalDate = getWeekFallbackDate(weekNum)
+    }
+
+    // Create unique key for deduplication
+    const key = `${finalDate}-${categoryRaw}-${amount}`
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+
+    transactions.push({
+      week: weekNum,
+      category: categoryRaw,
+      amount,
+      date: finalDate,
+      description: categoryRaw,
+    })
+  }
+
+  return transactions
 }
 
 function parseCSV(csv: string): ImportedTransaction[] {
@@ -72,9 +195,7 @@ function parseCSV(csv: string): ImportedTransaction[] {
   const seenKeys = new Set<string>()
   let currentWeek = 0
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-
+  for (const line of lines) {
     // Parse CSV line handling quoted fields
     const parts: string[] = []
     let current = ""
@@ -103,30 +224,44 @@ function parseCSV(csv: string): ImportedTransaction[] {
     }
 
     // Skip empty rows or header rows
-    if (!categoryCol || categoryCol.toUpperCase() === "CATEGORY" || categoryCol.toUpperCase() === "CATEGORIA") {
+    if (!categoryCol || /^WEEK/i.test(categoryCol) || /^TOTAL/i.test(categoryCol) || /^SUMMARY/i.test(categoryCol)) {
+      continue
+    }
+    if (categoryCol.toUpperCase() === "CATEGORY" || categoryCol.toUpperCase() === "CATEGORIA") {
       continue
     }
 
-    // Parse amount
-    const amountStr = amountCol.replace(/[$,\s]/g, "").replace(",", ".")
+    // Parse amount - replace comma with dot for decimal
+    const amountStr = amountCol.replace(/\s/g, "").replace(",", ".")
     const amount = parseFloat(amountStr)
     if (isNaN(amount)) continue
 
     // Determine date
     let finalDate: string
 
-    // Special case: Week 1 rows have no date - assign 16/04/2026
+    // Special case: Week 1 rows have no date - use 09/04/2026
     if (currentWeek === 1 && (!dateCol || dateCol.trim() === "")) {
-      finalDate = "2026-04-16"
+      finalDate = "2026-04-09"
     }
-    // Special case: Bali row (-468) should be 10/06/2026
-    else if (categoryCol.toLowerCase().includes("bali") && amount === -468) {
-      finalDate = "2026-06-10"
+    // Special case: Bali row - use 10/06/2026, category Otros, week 10
+    else if (categoryCol.toLowerCase().includes("bali") && Math.abs(amount) >= 400) {
+      const key = "2026-06-10-Otros-" + amount
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key)
+        transactions.push({
+          week: 10,
+          category: "Otros",
+          amount,
+          date: "2026-06-10",
+          description: "Bali",
+        })
+      }
+      continue
     }
     // Parse normal date
     else {
       const parsed = parseDate(dateCol)
-      finalDate = parsed || getWeekDate(currentWeek)
+      finalDate = parsed || getWeekFallbackDate(currentWeek)
     }
 
     // Create unique key for deduplication
@@ -142,117 +277,6 @@ function parseCSV(csv: string): ImportedTransaction[] {
       description: categoryCol,
     })
   }
-
-  return transactions
-}
-
-// Hardcoded transactions matching user's data
-// This serves as fallback when no CSV URL is configured
-// Total Income: ~$9,380 | Total Expenses: ~$7,040 | Savings: ~$2,340
-function getHardcodedTransactions(): ImportedTransaction[] {
-  const transactions: ImportedTransaction[] = []
-  let week = 1
-
-  // Helper to add transaction
-  const add = (w: number, cat: string, desc: string, amt: number, dateOverride?: string) => {
-    let date = dateOverride || getWeekDate(w)
-    if (w === 1 && !dateOverride) date = "2026-04-16"
-    if (desc.toLowerCase() === "bali") date = "2026-06-10"
-
-    transactions.push({
-      week: w,
-      category: cat,
-      amount: amt,
-      date,
-      description: desc,
-    })
-  }
-
-  // =====================================================
-  // INCOME TRANSACTIONS (must all be imported)
-  // =====================================================
-
-  add(2, "Salario", "Nomina", 1054.17)
-  add(3, "Salario", "Nomina", 1051.705)
-  add(4, "Salario", "Pagament mes", 1051.705)
-  add(5, "Salario", "Nomina", 1078.19)
-  add(6, "Salario", "Nomina", 1078.19)
-  add(7, "Salario", "Nomina", 953.195)
-  add(8, "Salario", "Nomina", 953.195)
-  add(9, "Salario", "Nomina", 1030.165)
-  add(10, "Salario", "Nomina", 1030.165)
-  add(10, "Otros", "Uber", 100)
-
-  // =====================================================
-  // EXPENSE TRANSACTIONS (totaling ~$7,040)
-  // =====================================================
-
-  // Week 1 - 4 rows with date 16/04/2026
-  add(1, "Alojamiento", "Alojamiento", -310)
-  add(1, "Supermercado", "Supermercado", -175)
-  add(1, "Transporte", "Transporte", -65)
-  add(1, "Comida fuera", "Comida fuera", -100)
-
-  // Week 2 expenses
-  add(2, "Alojamiento", "Alojamiento", -310)
-  add(2, "Supermercado", "Supermercado", -160)
-  add(2, "Comida fuera", "Comida fuera", -90)
-  add(2, "Transporte", "Transporte", -55)
-
-  // Week 3 expenses
-  add(3, "Alojamiento", "Alojamiento", -310)
-  add(3, "Supermercado", "Supermercado", -165)
-  add(3, "Comida fuera", "Comida fuera", -95)
-  add(3, "Transporte", "Transporte", -50)
-
-  // Week 4 expenses
-  add(4, "Alojamiento", "Alojamiento", -310)
-  add(4, "Supermercado", "Supermercado", -155)
-  add(4, "Comida fuera", "Comida fuera", -85)
-  add(4, "Transporte", "Transporte", -60)
-
-  // Week 5 expenses
-  add(5, "Alojamiento", "Alojamiento", -310)
-  add(5, "Supermercado", "Supermercado", -160)
-  add(5, "Comida fuera", "Comida fuera", -95)
-  add(5, "Transporte", "Transporte", -55)
-  add(5, "Compras", "Compras", -130)
-
-  // Week 6 expenses
-  add(6, "Alojamiento", "Alojamiento", -310)
-  add(6, "Supermercado", "Supermercado", -170)
-  add(6, "Comida fuera", "Comida fuera", -90)
-  add(6, "Transporte", "Transporte", -60)
-  add(6, "Necesidades", "Necesidades", -100)
-
-  // Week 7 expenses
-  add(7, "Alojamiento", "Alojamiento", -310)
-  add(7, "Supermercado", "Supermercado", -155)
-  add(7, "Comida fuera", "Comida fuera", -80)
-  add(7, "Transporte", "Transporte", -55)
-
-  // Week 8 expenses
-  add(8, "Alojamiento", "Alojamiento", -310)
-  add(8, "Supermercado", "Supermercado", -145)
-  add(8, "Comida fuera", "Comida fuera", -75)
-  add(8, "Transporte", "Transporte", -60)
-  add(8, "Ocio", "Ocio", -110)
-
-  // Week 9 expenses
-  add(9, "Alojamiento", "Alojamiento", -310)
-  add(9, "Supermercado", "Supermercado", -160)
-  add(9, "Comida fuera", "Comida fuera", -85)
-  add(9, "Transporte", "Transporte", -60)
-  add(9, "Compras", "Compras", -125)
-  add(9, "Necesidades", "Necesidades", -90)
-
-  // Week 10 - Bali + regular expenses
-  add(10, "Alojamiento", "Bali", -468) // Must import only once, date 10/06/2026
-  add(10, "Supermercado", "Supermercado", -150)
-  add(10, "Comida fuera", "Comida fuera", -75)
-  add(10, "Transporte", "Transporte", -50)
-  add(10, "Necesidades", "Necesidades", -85)
-  add(10, "Otros", "Otros gastos", -65)
 
   return transactions
 }
