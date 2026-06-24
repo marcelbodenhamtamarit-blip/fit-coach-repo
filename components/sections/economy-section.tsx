@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Download,
 } from "lucide-react"
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -144,6 +145,35 @@ export function EconomySection() {
   const ingresos = monthTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
+
+  // Weekly savings chart data
+  const weeklySavingsData = useMemo(() => {
+    const groups = new Map<number, { income: number; expenses: number }>()
+    transactions.forEach((t) => {
+      const weekNum = getWeekNumberFromISO(t.date)
+      if (!groups.has(weekNum)) groups.set(weekNum, { income: 0, expenses: 0 })
+      const week = groups.get(weekNum)!
+      if (t.amount > 0) week.income += t.amount
+      else week.expenses += Math.abs(t.amount)
+    })
+    // Build data for weeks 1-13
+    const data = []
+    for (let w = 1; w <= 13; w++) {
+      const week = groups.get(w) || { income: 0, expenses: 0 }
+      data.push({
+        week: w,
+        label: `W${w}`,
+        savings: week.income - week.expenses,
+        income: week.income,
+        expenses: week.expenses,
+      })
+    }
+    return data
+  }, [transactions])
+
+  const bestWeek = weeklySavingsData.reduce((best, w) => w.savings > best.savings ? w : best, weeklySavingsData[0])
+  const worstWeek = weeklySavingsData.reduce((worst, w) => w.savings < worst.savings ? w : worst, weeklySavingsData[0])
+  const avgWeeklySavings = weeklySavingsData.reduce((sum, w) => sum + w.savings, 0) / weeklySavingsData.filter(w => w.income > 0 || w.expenses > 0).length || 0
 
   // Group transactions by tab
   const groupedData = useMemo((): GroupedData[] => {
@@ -351,28 +381,94 @@ export function EconomySection() {
       </div>
 
       {transactions.length > 0 && (
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Resumen total (histórico)</p>
-            <p className="text-xs text-muted-foreground">{transactions.length} transacciones</p>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Ingresos ({incomeCount})</p>
-              <p className="text-xl font-bold text-emerald-500">${allIncome.toFixed(2)}</p>
+        <>
+          <Card className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Resumen total (histórico)</p>
+              <p className="text-xs text-muted-foreground">{transactions.length} transacciones</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Gastos ({expenseCount})</p>
-              <p className="text-xl font-bold text-red-400">${allExpenses.toFixed(2)}</p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-xs text-muted-foreground">Ingresos ({incomeCount})</p>
+                <p className="text-xl font-bold text-emerald-500">${allIncome.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Gastos ({expenseCount})</p>
+                <p className="text-xl font-bold text-red-400">${allExpenses.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Ahorros</p>
+                <p className={`text-xl font-bold ${allSavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                  ${allSavings.toFixed(2)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Ahorros</p>
-              <p className={`text-xl font-bold ${allSavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                ${allSavings.toFixed(2)}
-              </p>
+          </Card>
+
+          {/* Weekly Savings Chart */}
+          <Card className="p-4">
+            <p className="mb-3 text-xs font-medium text-muted-foreground">Ahorro semanal</p>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={weeklySavingsData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#888", fontSize: 10 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#888", fontSize: 10 }}
+                    tickFormatter={(v) => `$${v}`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1a1a1d",
+                      border: "1px solid #333",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                    }}
+                    labelStyle={{ color: "#888" }}
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
+                    labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="savings"
+                    stroke="#7c6fff"
+                    strokeWidth={2}
+                    fill="#7c6fff"
+                    fillOpacity={0.2}
+                    dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
+                    activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-        </Card>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+              <div>
+                <p className="text-muted-foreground">Mejor semana</p>
+                <p className="mt-1 font-medium text-emerald-500">
+                  WEEK {bestWeek.week} — ${bestWeek.savings.toFixed(2)} AUD
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Peor semana</p>
+                <p className="mt-1 font-medium text-red-400">
+                  WEEK {worstWeek.week} — ${worstWeek.savings.toFixed(2)} AUD
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Promedio semanal</p>
+                <p className={`mt-1 font-medium ${avgWeeklySavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                  ${avgWeeklySavings.toFixed(2)} AUD
+                </p>
+              </div>
+            </div>
+          </Card>
+        </>
       )}
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
