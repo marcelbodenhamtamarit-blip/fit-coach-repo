@@ -135,42 +135,12 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
     setSearching(true)
     searchTimeout.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `https://www.woolworths.com.au/apis/ui/Search/products?searchTerm=${encodeURIComponent(searchQuery)}&pageNumber=1&pageSize=5`
-        )
+        const res = await fetch(`/api/woolworths?searchTerm=${encodeURIComponent(searchQuery)}`)
         if (res.ok) {
           const data = await res.json()
-          const products: WooProduct[] = []
-          if (data.Products && Array.isArray(data.Products)) {
-            for (const p of data.Products.slice(0, 5)) {
-              const product = p.Products ? p.Products[0] : p
-              if (product) {
-                const priceVal = product.Price || product.ProductPrice || 0
-                const packageSize = product.PackageSize || product.PackageSizeDisplay || ""
-                const nameVal = product.Name || product.DisplayName || ""
-
-                // Calculate price per kg if possible
-                let pricePerKg: number | undefined
-                const sizeMatch = packageSize.match(/(\d+(?:\.\d+)?)\s*(g|kg|ml|l)/i)
-                if (sizeMatch) {
-                  const sizeVal = parseFloat(sizeMatch[1])
-                  const unit = sizeMatch[2].toLowerCase()
-                  let grams = unit === "kg" ? sizeVal * 1000 : unit === "l" ? sizeVal * 1000 : unit === "ml" ? sizeVal : sizeVal
-                  if (grams > 0) {
-                    pricePerKg = (priceVal / grams) * 1000
-                  }
-                }
-
-                products.push({
-                  name: nameVal,
-                  price: priceVal,
-                  packageSize,
-                  pricePerKg,
-                })
-              }
-            }
-          }
-          setSearchResults(products)
+          setSearchResults(data.products || [])
+        } else {
+          setSearchResults([])
         }
       } catch {
         setSearchResults([])
@@ -297,6 +267,12 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
                   </button>
                 ))}
               </div>
+            )}
+            {/* No results message */}
+            {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                No se encontraron productos en Woolworths
+              </p>
             )}
           </div>
 

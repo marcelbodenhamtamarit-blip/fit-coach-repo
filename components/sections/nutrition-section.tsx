@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Trash2, Flame, Edit2, Check, X } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Plus, Trash2, Flame, CreditCard as Edit2, Check, X, Search, Loader } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,20 +10,11 @@ import { useStore } from "@/lib/store"
 import { todayISO, uid } from "@/lib/types"
 import type { Ingredient } from "@/lib/types"
 
-// Common food nutrition data (per 100g from Woolworths)
-const FOOD_DATABASE: Record<string, Ingredient> = {
-  arroz: { id: uid(), name: "Arroz blanco", quantity: 100, caloriesPer100g: 130, proteinPer100g: 2.7, carbsPer100g: 28, fatPer100g: 0.3, pricePerKg: 3.5 },
-  pollo: { id: uid(), name: "Pechuga de pollo", quantity: 100, caloriesPer100g: 165, proteinPer100g: 31, carbsPer100g: 0, fatPer100g: 3.6, pricePerKg: 12 },
-  tomate: { id: uid(), name: "Tomate", quantity: 100, caloriesPer100g: 18, proteinPer100g: 0.9, carbsPer100g: 3.9, fatPer100g: 0.2, pricePerKg: 4 },
-  huevo: { id: uid(), name: "Huevo", quantity: 100, caloriesPer100g: 155, proteinPer100g: 13, carbsPer100g: 1.1, fatPer100g: 11, pricePerKg: 8 },
-  papa: { id: uid(), name: "Papa", quantity: 100, caloriesPer100g: 77, proteinPer100g: 2, carbsPer100g: 17, fatPer100g: 0.1, pricePerKg: 2 },
-  pan: { id: uid(), name: "Pan integral", quantity: 100, caloriesPer100g: 265, proteinPer100g: 9, carbsPer100g: 49, fatPer100g: 3.3, pricePerKg: 5 },
-  queso: { id: uid(), name: "Queso cheddar", quantity: 100, caloriesPer100g: 402, proteinPer100g: 25, carbsPer100g: 1.3, fatPer100g: 33, pricePerKg: 18 },
-  leche: { id: uid(), name: "Leche descremada", quantity: 100, caloriesPer100g: 35, proteinPer100g: 3.6, carbsPer100g: 5, fatPer100g: 0.1, pricePerKg: 2 },
-  pescado: { id: uid(), name: "Salmón", quantity: 100, caloriesPer100g: 208, proteinPer100g: 20, carbsPer100g: 0, fatPer100g: 13, pricePerKg: 25 },
-  carne: { id: uid(), name: "Carne vacuna", quantity: 100, caloriesPer100g: 250, proteinPer100g: 26, carbsPer100g: 0, fatPer100g: 15, pricePerKg: 15 },
-  platano: { id: uid(), name: "Plátano", quantity: 100, caloriesPer100g: 89, proteinPer100g: 1.1, carbsPer100g: 23, fatPer100g: 0.3, pricePerKg: 3 },
-  manzana: { id: uid(), name: "Manzana", quantity: 100, caloriesPer100g: 52, proteinPer100g: 0.3, carbsPer100g: 14, fatPer100g: 0.2, pricePerKg: 4 },
+interface WooProduct {
+  name: string
+  price: number
+  packageSize: string
+  pricePerKg?: number
 }
 
 export function NutritionSection() {
@@ -33,8 +24,49 @@ export function NutritionSection() {
   const [input, setInput] = useState("")
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPrice, setEditPrice] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<WooProduct[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<WooProduct | null>(null)
+  const [showSearch, setShowSearch] = useState(false)
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const todaysMeals = data.meals.filter((m) => m.date === today)
+
+  // Search Woolworths products when user types
+  useEffect(() => {
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current)
+    }
+
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setSearching(true)
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/woolworths?searchTerm=${encodeURIComponent(searchQuery)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(data.products || [])
+        } else {
+          setSearchResults([])
+        }
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 400)
+
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current)
+      }
+    }
+  }, [searchQuery])
 
   // Calculate totals from all today's meals
   const mealsTotals = todaysMeals.reduce(
@@ -73,43 +105,44 @@ export function NutritionSection() {
     Math.round((totals.protein / data.profile.proteinGoal) * 100),
   )
 
+  const selectProduct = (product: WooProduct) => {
+    setSelectedProduct(product)
+    setInput(product.name)
+    setSearchQuery("")
+    setSearchResults([])
+    setShowSearch(false)
+  }
+
   const handleAddIngredient = () => {
     if (!input.trim()) return
 
     // Parse input like "300g arroz" or "200 pollo" or "2 tomates"
     const match = input.match(/^(\d+(?:\.\d+)?)\s*(g|kg)?\s+(.+)$/i)
-    if (!match) {
-      alert("Formato: 300g arroz o 200 pollo")
-      return
+
+    let quantity = 100
+    let productName = input.trim()
+
+    if (match) {
+      quantity = parseFloat(match[1])
+      if (match[2]?.toLowerCase() === "kg") quantity *= 1000
+      productName = match[3]
     }
 
-    let quantity = parseFloat(match[1])
-    if (match[2]?.toLowerCase() === "kg") quantity *= 1000
-
-    const itemName = match[3].toLowerCase()
-    const foodKey = Object.keys(FOOD_DATABASE).find((k) =>
-      itemName.includes(k) || FOOD_DATABASE[k].name.toLowerCase().includes(itemName),
-    )
-
-    if (!foodKey) {
-      alert(`No encontré datos para "${match[3]}". Ingredientes disponibles: ${Object.values(FOOD_DATABASE).map((f) => f.name).join(", ")}`)
-      return
-    }
-
-    const template = FOOD_DATABASE[foodKey]
+    // Use selected product or create manual entry
     const newIngredient: Ingredient = {
       id: uid(),
-      name: template.name,
+      name: selectedProduct?.name || productName,
       quantity,
-      caloriesPer100g: template.caloriesPer100g,
-      proteinPer100g: template.proteinPer100g,
-      carbsPer100g: template.carbsPer100g,
-      fatPer100g: template.fatPer100g,
-      pricePerKg: template.pricePerKg,
+      caloriesPer100g: 0,
+      proteinPer100g: 0,
+      carbsPer100g: 0,
+      fatPer100g: 0,
+      pricePerKg: selectedProduct?.pricePerKg || selectedProduct?.price || 0,
     }
 
     setIngredients((prev) => [...prev, newIngredient])
     setInput("")
+    setSelectedProduct(null)
   }
 
   const handleUpdatePrice = (id: string, newPrice: number) => {
@@ -148,6 +181,51 @@ export function NutritionSection() {
       {/* Input form */}
       <Card className="p-5">
         <h2 className="mb-3 text-sm font-semibold">Registrar comida</h2>
+
+        {/* Woolworths search */}
+        <div className="space-y-1.5 mb-3">
+          <Label>Buscar en Woolworths</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="pasta, arroz, pollo, leche..."
+              className="pl-9"
+            />
+            {searching && (
+              <Loader className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          {/* Search results dropdown */}
+          {searchResults.length > 0 && (
+            <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+              {searchResults.map((product, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => selectProduct(product)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.packageSize}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">${product.price.toFixed(2)}</p>
+                    {product.pricePerKg && (
+                      <p className="text-xs text-muted-foreground">${product.pricePerKg.toFixed(2)}/kg</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* No results message */}
+          {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+            <p className="text-xs text-muted-foreground">No se encontraron productos en Woolworths</p>
+          )}
+        </div>
+
         <div className="flex gap-2">
           <Input
             value={input}
