@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, Trash2, Refrigerator, CreditCard as Edit2, Check, X } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Plus, Trash2, Refrigerator, CreditCard as Edit2, Check, X, Search, Loader as Loader2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,16 @@ import {
 import { useStore } from "@/lib/store"
 import { todayISO, uid } from "@/lib/types"
 import type { PantryItem } from "@/lib/types"
+
+const GOOGLE_SHEETS_WEBHOOK =
+  "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
+
+interface WooProduct {
+  name: string
+  price: number
+  packageSize: string
+  pricePerKg?: number
+}
 
 export function PantrySection() {
   const { data, addPantryItem, removePantryItem } = useStore()
@@ -98,24 +108,129 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [quantity, setQuantity] = useState("")
+  const [quantityUnit, setQuantityUnit] = useState<"g" | "kg">("g")
   const [calories, setCalories] = useState("")
   const [protein, setProtein] = useState("")
   const [carbs, setCarbs] = useState("")
   const [fat, setFat] = useState("")
   const [price, setPrice] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<WooProduct[]>([])
+  const [searching, setSearching] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<WooProduct | null>(null)
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const submit = () => {
+  // Search Woolworths products when user types
+  useEffect(() => {
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current)
+    }
+
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setSearching(true)
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://www.woolworths.com.au/apis/ui/Search/products?searchTerm=${encodeURIComponent(searchQuery)}&pageNumber=1&pageSize=5`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          const products: WooProduct[] = []
+          if (data.Products && Array.isArray(data.Products)) {
+            for (const p of data.Products.slice(0, 5)) {
+              const product = p.Products ? p.Products[0] : p
+              if (product) {
+                const priceVal = product.Price || product.ProductPrice || 0
+                const packageSize = product.PackageSize || product.PackageSizeDisplay || ""
+                const nameVal = product.Name || product.DisplayName || ""
+
+                // Calculate price per kg if possible
+                let pricePerKg: number | undefined
+                const sizeMatch = packageSize.match(/(\d+(?:\.\d+)?)\s*(g|kg|ml|l)/i)
+                if (sizeMatch) {
+                  const sizeVal = parseFloat(sizeMatch[1])
+                  const unit = sizeMatch[2].toLowerCase()
+                  let grams = unit === "kg" ? sizeVal * 1000 : unit === "l" ? sizeVal * 1000 : unit === "ml" ? sizeVal : sizeVal
+                  if (grams > 0) {
+                    pricePerKg = (priceVal / grams) * 1000
+                  }
+                }
+
+                products.push({
+                  name: nameVal,
+                  price: priceVal,
+                  packageSize,
+                  pricePerKg,
+                })
+              }
+            }
+          }
+          setSearchResults(products)
+        }
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 400)
+
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current)
+      }
+    }
+  }, [searchQuery])
+
+  const selectProduct = (product: WooProduct) => {
+    setSelectedProduct(product)
+    setName(product.name)
+    setSearchQuery("")
+    setSearchResults([])
+    if (product.pricePerKg) {
+      setPrice(product.pricePerKg.toFixed(2))
+    } else if (product.price) {
+      setPrice(product.price.toFixed(2))
+    }
+  }
+
+  const submit = async () => {
     if (!name.trim() || !quantity) return
+
+    const quantityGrams = quantityUnit === "kg" ? Number(quantity) * 1000 : Number(quantity) || 0
 
     onAdd({
       name: name.trim(),
-      quantityGrams: Number(quantity) || 0,
+      quantityGrams,
       caloriesPer100g: Number(calories) || 0,
       proteinPer100g: Number(protein) || 0,
       carbsPer100g: Number(carbs) || 0,
       fatPer100g: Number(fat) || 0,
       pricePerKg: Number(price) || 0,
     })
+
+    // Sync to Google Sheets Despensa tab
+    try {
+      await fetch(GOOGLE_SHEETS_WEBHOOK, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sheet: "Despensa",
+          action: "compra",
+          product: name.trim(),
+          quantityGrams,
+          priceAUD: Number(price) || 0,
+          date: todayISO(),
+        }),
+      })
+    } catch {
+      // Silent fail for sync
+    }
 
     setName("")
     setQuantity("")
@@ -124,6 +239,8 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
     setCarbs("")
     setFat("")
     setPrice("")
+    setSearchQuery("")
+    setSelectedProduct(null)
     setOpen(false)
   }
 
@@ -139,24 +256,82 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
           <DialogTitle>Añadir a despensa</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {/* Product search */}
+          <div className="space-y-1.5">
+            <Label htmlFor="p-search">Buscar producto Woolworths</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="p-search"
+                placeholder="Ej: Arroz, Pollo, Tomate..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+              {searching && (
+                <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            {/* Search results dropdown */}
+            {searchResults.length > 0 && (
+              <div
+                ref={dropdownRef}
+                className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-lg"
+              >
+                {searchResults.map((product, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => selectProduct(product)}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{product.name}</p>
+                      <p className="text-xs text-muted-foreground">{product.packageSize}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">${product.price.toFixed(2)}</p>
+                      {product.pricePerKg && (
+                        <p className="text-xs text-muted-foreground">${product.pricePerKg.toFixed(2)}/kg</p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="p-name">Nombre</Label>
             <Input
               id="p-name"
               placeholder="Ej: Arroz, Pollo, Tomate"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                setSelectedProduct(null)
+              }}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="p-qty">Cantidad (gramos)</Label>
-            <Input
-              id="p-qty"
-              type="number"
-              placeholder="500"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
+            <Label htmlFor="p-qty">Cantidad</Label>
+            <div className="flex gap-2">
+              <Input
+                id="p-qty"
+                type="number"
+                placeholder="500"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="flex-1"
+              />
+              <select
+                value={quantityUnit}
+                onChange={(e) => setQuantityUnit(e.target.value as "g" | "kg")}
+                className="flex h-9 w-20 rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+              >
+                <option value="g">g</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -211,6 +386,11 @@ function AddPantryDialog({ onAdd }: { onAdd: (item: Omit<PantryItem, "id" | "dat
               value={price}
               onChange={(e) => setPrice(e.target.value)}
             />
+            {selectedProduct && selectedProduct.pricePerKg && (
+              <p className="text-xs text-muted-foreground">
+                Precio Woolworths: ${selectedProduct.pricePerKg.toFixed(2)}/kg (editable)
+              </p>
+            )}
           </div>
         </div>
         <DialogFooter>

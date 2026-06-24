@@ -359,6 +359,51 @@ export function EconomySection() {
         </Card>
       )}
 
+      {/* Add expense form at top with slide animation */}
+      {showForm && (
+        <Card
+          className="p-5 animate-in slide-in-from-top-4 duration-300"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Nueva transacción</h2>
+            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-desc">Descripción</Label>
+              <Input id="tx-desc" placeholder="Ej: Compra semanal" value={desc} onChange={(e) => setDesc(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-amount">Cantidad en AUD</Label>
+              <Input id="tx-amount" type="number" placeholder="Negativo = gasto, positivo = ingreso" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Ej: -45.50 para un gasto, +2500 para un ingreso</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-category">Categoría</Label>
+              <select
+                id="tx-category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {TRANSACTION_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-date">Fecha</Label>
+              <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <Button onClick={handleSave} disabled={saving || !desc.trim() || !amount} className="w-full">
+              {saving ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="flex gap-2">
         {!showForm && (
           <>
@@ -542,48 +587,6 @@ export function EconomySection() {
             </Card>
           ))}
         </div>
-      )}
-
-      {showForm && (
-        <Card className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Nueva transacción</h2>
-            <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
-              <X className="size-4" />
-            </button>
-          </div>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-desc">Descripción</Label>
-              <Input id="tx-desc" placeholder="Ej: Compra semanal" value={desc} onChange={(e) => setDesc(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-amount">Cantidad en AUD</Label>
-              <Input id="tx-amount" type="number" placeholder="Negativo = gasto, positivo = ingreso" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Ej: -45.50 para un gasto, +2500 para un ingreso</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-category">Categoría</Label>
-              <select
-                id="tx-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {TRANSACTION_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tx-date">Fecha</Label>
-              <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <Button onClick={handleSave} disabled={saving || !desc.trim() || !amount} className="w-full">
-              {saving ? "Guardando..." : "Guardar"}
-            </Button>
-          </div>
-        </Card>
       )}
     </div>
   )
