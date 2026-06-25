@@ -22,19 +22,19 @@ function parseDate(dateStr: string): string | null {
 // Get fallback date for a week number (Marcel's week calendar)
 function getWeekFallbackDate(weekNum: number): string {
   const weekDates: Record<number, string> = {
-    1: "2026-04-09",
-    2: "2026-04-16",
-    3: "2026-04-23",
-    4: "2026-04-30",
-    5: "2026-05-07",
-    6: "2026-05-14",
-    7: "2026-05-21",
-    8: "2026-05-28",
-    9: "2026-06-04",
-    10: "2026-06-11",
-    11: "2026-06-18",
-    12: "2026-06-25",
-    13: "2026-07-02",
+    15: "2026-04-09",
+    16: "2026-04-16",
+    17: "2026-04-23",
+    18: "2026-04-30",
+    19: "2026-05-07",
+    20: "2026-05-14",
+    21: "2026-05-21",
+    22: "2026-05-28",
+    23: "2026-06-04",
+    24: "2026-06-11",
+    25: "2026-06-18",
+    26: "2026-06-25",
+    27: "2026-07-02",
   }
   return weekDates[weekNum] || "2026-04-09"
 }
@@ -126,7 +126,7 @@ function parseSheetsArray(rows: any[][]): ImportedTransaction[] {
         if (!seenKeys.has(key)) {
           seenKeys.add(key)
           transactions.push({
-            week: 10,
+            week: 24,
             category: "Otros",
             amount: baliAmount,
             date: "2026-06-10",
@@ -154,8 +154,8 @@ function parseSheetsArray(rows: any[][]): ImportedTransaction[] {
     let finalDate: string
     const dateRaw = col3
 
-    // Special case: Week 1 rows - use 09/04/2026
-    if (weekNum === 1) {
+    // Special case: Week 15 rows - use 09/04/2026
+    if (weekNum === 15) {
       finalDate = "2026-04-09"
     }
     // Parse ISO date (contains "T")
@@ -239,17 +239,17 @@ function parseCSV(csv: string): ImportedTransaction[] {
     // Determine date
     let finalDate: string
 
-    // Special case: Week 1 rows have no date - use 09/04/2026
-    if (currentWeek === 1 && (!dateCol || dateCol.trim() === "")) {
+    // Special case: Week 15 rows have no date - use 09/04/2026
+    if (currentWeek === 15 && (!dateCol || dateCol.trim() === "")) {
       finalDate = "2026-04-09"
     }
-    // Special case: Bali row - use 10/06/2026, category Otros, week 10
+    // Special case: Bali row - use 10/06/2026, category Otros, week 24
     else if (categoryCol.toLowerCase().includes("bali") && Math.abs(amount) >= 400) {
       const key = "2026-06-10-Otros-" + amount
       if (!seenKeys.has(key)) {
         seenKeys.add(key)
         transactions.push({
-          week: 10,
+          week: 24,
           category: "Otros",
           amount,
           date: "2026-06-10",

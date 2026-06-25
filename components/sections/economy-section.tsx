@@ -31,16 +31,23 @@ function getMonthName(monthNum: number): string {
   return months[monthNum - 1] || ""
 }
 
-// Get week number from date (Sunday-based)
+// Marcel's week calendar: weeks 15-27, starting April 5, 2026
+// Get calendar week number from date
 function getWeekNumberFromISO(dateStr: string): number {
   const date = new Date(dateStr + "T00:00:00Z")
-  const year = date.getUTCFullYear()
-  const firstSunday = new Date(Date.UTC(year, 0, 4)) // First Sunday of 2026 is Jan 4
-  const weeksDiff = Math.floor((date.getTime() - firstSunday.getTime()) / (7 * 24 * 60 * 60 * 1000))
-  return weeksDiff + 1
+  // Use ISO week number (calendar week)
+  const jan4 = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
+  const dayOfWeek = jan4.getUTCDay()
+  const week1Start = new Date(jan4)
+  week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek)
+
+  const diffDays = Math.floor((date.getTime() - week1Start.getTime()) / (24 * 60 * 60 * 1000))
+  return 1 + Math.floor(diffDays / 7)
 }
 
 function getWeekDateRangeFromNum(weekNum: number): { sunday: string; saturday: string } {
+  // Week 15 starts on Easter Sunday April 5, 2026
+  // First Sunday of 2026 is Jan 4, so week 15 = Jan 4 + 14 weeks = April 5
   const firstSunday = new Date(Date.UTC(2026, 0, 4))
   const sundayDate = new Date(firstSunday)
   sundayDate.setUTCDate(firstSunday.getUTCDate() + (weekNum - 1) * 7)
@@ -56,41 +63,12 @@ function getWeekDateRangeFromNum(weekNum: number): { sunday: string; saturday: s
 }
 
 function getWeekNumber(dateStr: string): number {
-  const date = new Date(dateStr + "T00:00:00Z")
-  const year = date.getUTCFullYear()
-  const firstDay = new Date(Date.UTC(year, 0, 1))
-  let firstSunday = new Date(firstDay)
-  firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
-  if (firstDay.getUTCDay() !== 0) {
-    firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
-  }
-  if (date < firstSunday) {
-    return 1
-  }
-  const weeksDiff = Math.floor((date.getTime() - firstSunday.getTime()) / (7 * 24 * 60 * 60 * 1000))
-  return weeksDiff + 1
+  return getWeekNumberFromISO(dateStr)
 }
 
 function getWeekDateRange(dateStr: string): { sunday: string; saturday: string } {
-  const date = new Date(dateStr + "T00:00:00Z")
-  const year = date.getUTCFullYear()
-  const firstDay = new Date(Date.UTC(year, 0, 1))
-  let firstSunday = new Date(firstDay)
-  firstSunday.setUTCDate(firstDay.getUTCDate() - firstDay.getUTCDay())
-  if (firstDay.getUTCDay() !== 0) {
-    firstSunday.setUTCDate(firstSunday.getUTCDate() + 7)
-  }
-  const weekNum = getWeekNumber(dateStr)
-  const sundayDate = new Date(firstSunday)
-  sundayDate.setUTCDate(firstSunday.getUTCDate() + (weekNum - 1) * 7)
-  const saturdayDate = new Date(sundayDate)
-  saturdayDate.setUTCDate(sundayDate.getUTCDate() + 6)
-  const fmt = (d: Date) => {
-    const day = String(d.getUTCDate()).padStart(2, "0")
-    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]
-    return `${day} ${month}`
-  }
-  return { sunday: fmt(sundayDate), saturday: fmt(saturdayDate) }
+  const weekNum = getWeekNumberFromISO(dateStr)
+  return getWeekDateRangeFromNum(weekNum)
 }
 
 function fmt(amount: number): string {
@@ -286,7 +264,8 @@ export function EconomySection() {
 
     try {
       const weekNum = getWeekNumber(date)
-      const { sunday, saturday } = getWeekDateRange(date)
+      // Format amount with comma as decimal separator for Google Sheets
+      const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
       await fetch(GOOGLE_SHEETS_WEBHOOK, {
         method: "POST",
         mode: "no-cors",
@@ -294,7 +273,7 @@ export function EconomySection() {
         body: JSON.stringify({
           week: weekNum,
           category: tx.category,
-          amount: tx.amount,
+          amount: formattedAmount,
           date: tx.date.split("-").reverse().join("/"),
         }),
       })

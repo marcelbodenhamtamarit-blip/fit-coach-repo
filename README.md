@@ -17,9 +17,9 @@ Webhook URL: https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0h
 Main sheet columns: A = week number, B = category, C = amount, D = date DD/MM/YYYY
 Despensa sheet columns: date, action (compra/uso), product, quantity grams, price AUD
 
-Week format in sheet: "WEEK X (DD Mon - DD Mon)" example "WEEK 12 (21 Jun - 27 Jun)"
+Week format in sheet: "WEEK X (DD Mon - DD Mon)" example "WEEK 26 (21 Jun - 27 Jun)"
 Week starts Sunday, ends Saturday (CommBank Australia format)
-Week numbering: Marcel's personal counter since arriving in Australia, does NOT follow calendar year
+Week numbering: Calendar week numbers (15-27 for Marcel's tracking period)
 
 ## Transaction Data
 Amount format: comma as decimal separator in Google Sheets example -71,89 = -71.89
@@ -38,26 +38,26 @@ Entretenimiento → Ocio
 Bali → Otros
 
 ## Marcel's personal week calendar (started in Australia)
-Weeks start Sunday, end Saturday.
-Week 1 = 05/04/2026 - 11/04/2026 (fallback date: 09/04/2026)
-Week 2 = 12/04/2026 - 18/04/2026 (fallback date: 16/04/2026)
-Week 3 = 19/04/2026 - 25/04/2026 (fallback date: 23/04/2026)
-Week 4 = 26/04/2026 - 02/05/2026 (fallback date: 30/04/2026)
-Week 5 = 03/05/2026 - 09/05/2026 (fallback date: 07/05/2026)
-Week 6 = 10/05/2026 - 16/05/2026 (fallback date: 14/05/2026)
-Week 7 = 17/05/2026 - 23/05/2026 (fallback date: 21/05/2026)
-Week 8 = 24/05/2026 - 30/05/2026 (fallback date: 28/05/2026)
-Week 9 = 31/05/2026 - 06/06/2026 (fallback date: 04/06/2026)
-Week 10 = 07/06/2026 - 13/06/2026 (fallback date: 11/06/2026)
-Week 11 = 14/06/2026 - 20/06/2026 (fallback date: 18/06/2026)
-Week 12 = 21/06/2026 - 27/06/2026 (fallback date: 25/06/2026)
-Week 13 = 28/06/2026 - 04/07/2026 (fallback date: 02/07/2026)
+Weeks start Sunday, end Saturday. Week numbers match calendar weeks.
+Week 15 = 05/04/2026 - 11/04/2026 (fallback date: 09/04/2026)
+Week 16 = 12/04/2026 - 18/04/2026 (fallback date: 16/04/2026)
+Week 17 = 19/04/2026 - 25/04/2026 (fallback date: 23/04/2026)
+Week 18 = 26/04/2026 - 02/05/2026 (fallback date: 30/04/2026)
+Week 19 = 03/05/2026 - 09/05/2026 (fallback date: 07/05/2026)
+Week 20 = 10/05/2026 - 16/05/2026 (fallback date: 14/05/2026)
+Week 21 = 17/05/2026 - 23/05/2026 (fallback date: 21/05/2026)
+Week 22 = 24/05/2026 - 30/05/2026 (fallback date: 28/05/2026)
+Week 23 = 31/05/2026 - 06/06/2026 (fallback date: 04/06/2026)
+Week 24 = 07/06/2026 - 13/06/2026 (fallback date: 11/06/2026)
+Week 25 = 14/06/2026 - 20/06/2026 (fallback date: 18/06/2026)
+Week 26 = 21/06/2026 - 27/06/2026 (fallback date: 25/06/2026)
+Week 27 = 28/06/2026 - 04/07/2026 (fallback date: 02/07/2026)
 
 ## Month grouping
-April = Weeks 1, 2, 3 and partial week 4
-May = Weeks 4 partial, 5, 6, 7, 8
-June = Weeks 9, 10, 11, 12
-July = Week 13
+April = Weeks 15, 16, 17 and partial week 18
+May = Weeks 18 partial, 19, 20, 21, 22
+June = Weeks 23, 24, 25, 26
+July = Week 27
 
 ## Expected totals after full import
 Total income: ~$9,380 AUD
@@ -79,6 +79,6 @@ profiles, food_logs, weight_logs, transactions
 ## Important parsing rules
 - Always replace comma with dot before parsing amounts: -71,89 → -71.89
 - If column D date is empty use week fallback date from mapping above
-- Bali row (no week number, amount -468) → assign week 10, date 10/06/2026, category Otros
+- Bali row (no week number, amount -468) → assign week 24, date 10/06/2026, category Otros
 - Skip rows where column B contains WEEK, TOTAL, SUMMARY or is empty
 - Skip rows where column C is empty or not a number
