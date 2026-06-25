@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
+import { ShoppingCart } from "lucide-react"
 
 const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
@@ -86,7 +87,7 @@ interface GroupedData {
 }
 
 export function EconomySection() {
-  const { data, addTransaction, importTransactions, clearTransactions, deleteTransaction } = useStore()
+  const { data, addTransaction, importTransactions, clearTransactions, deleteTransaction, weeklySupermarket } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
 
   const [tab, setTab] = useState<TabId>("mensual")
@@ -382,6 +383,26 @@ export function EconomySection() {
           </div>
         </Card>
       )}
+
+      {/* Weekly Supermarket Total Card */}
+      <Card className="p-4 bg-primary/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShoppingCart className="size-6 text-primary" />
+            <div>
+              <p className="text-xs text-muted-foreground">Supermercado esta semana (W{weeklySupermarket.weekNumber})</p>
+              <p className="text-xl font-bold">${weeklySupermarket.thisWeekTotal.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="text-right text-xs text-muted-foreground">
+            {weeklySupermarket.lastSubmittedWeek === weeklySupermarket.weekNumber ? (
+              <span className="text-emerald-500">Enviado</span>
+            ) : (
+              <span>Sábado 23:59 resumen</span>
+            )}
+          </div>
+        </div>
+      </Card>
 
       <div className="flex gap-2">
         {!showForm && (

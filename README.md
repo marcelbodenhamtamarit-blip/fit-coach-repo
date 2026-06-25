@@ -76,6 +76,15 @@ Total transactions: 57
 ## Supabase tables
 profiles, food_logs, weight_logs, transactions
 
+## Weekly Supermarket Total
+Every Saturday at 23:59 automatically calculate the sum of all "Supermercado" and "Comida Supermercado" transactions for the current week and add a summary row to Google Sheets with:
+- Column A = week number
+- Column B = "TOTAL SUPERMERCADO"
+- Column C = total amount as negative number
+- Column D = date of that Saturday DD/MM/YYYY
+Every Sunday at 00:01 the weekly supermarket counter resets to zero in the app.
+Categories counted: Supermercado, Comida Supermercado, MENJAR SUPER, COMIDA SUPER, Menjar super, Menjar SUPER
+
 ## Important parsing rules
 - Always replace comma with dot before parsing amounts: -71,89 → -71.89
 - If column D date is empty use week fallback date from mapping above
