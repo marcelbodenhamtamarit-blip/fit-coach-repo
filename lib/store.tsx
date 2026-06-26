@@ -17,6 +17,7 @@ import type {
   Transaction,
 } from "./types"
 import { todayISO, uid } from "./types"
+import { supabase } from "./supabase"
 
 const STORAGE_KEY = "marcel-fit-coach:v2"
 const SUPERMARKET_CATEGORIES = ["Supermercado", "Comida Supermercado", "MENJAR SUPER", "COMIDA SUPER", "Menjar super", "Menjar SUPER"]
@@ -40,7 +41,7 @@ function getWeekStart(date: Date): Date {
   return d
 }
 
-function seedData(): AppData {
+function seedData(): Omit<AppData, "transactions"> {
   const day = (offset: number) => {
     const d = new Date()
     d.setDate(d.getDate() - offset)
@@ -94,16 +95,42 @@ function seedData(): AppData {
       },
     ],
     pantry: [],
-    transactions: [
-      {
-        id: uid(),
-        date: day(0),
-        description: "Compra semanal Woolworths",
-        category: "Supermercado",
-        amount: -250,
-      },
-    ],
   }
+}
+
+// --- Supabase <-> app type mapping for transactions ---
+
+type SupabaseTransactionRow = {
+  id: string
+  date: string
+  description: string
+  category: string
+  amount: number
+  week_number: number | null
+  created_at: string
+}
+
+function rowToTransaction(row: SupabaseTransactionRow): Transaction {
+  return {
+    id: row.id,
+    date: row.date,
+    description: row.description,
+    category: row.category as Transaction["category"],
+    amount: Number(row.amount),
+  }
+}
+
+async function fetchTransactions(): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .order("date", { ascending: false })
+
+  if (error) {
+    console.error("[supabase] fetchTransactions error:", error.message)
+    return []
+  }
+  return (data ?? []).map(rowToTransaction)
 }
 
 type WeeklySupermarketState = {
@@ -127,12 +154,13 @@ type StoreContextType = {
   removePantryItem: (id: string, quantityUsed: number) => void
   updateProfileGoals: (goals: Partial<Profile>) => void
   markSupermarketSubmitted: (week: number, date: string) => void
+  refreshTransactions: () => Promise<void>
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(seedData())
+  const [data, setData] = useState<AppData>({ ...seedData(), transactions: [] })
   const [ready, setReady] = useState(false)
   const [weeklySupermarket, setWeeklySupermarket] = useState<WeeklySupermarketState>({
     thisWeekTotal: 0,
@@ -142,37 +170,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   })
   const submittedWeeksRef = useRef<Set<number>>(new Set())
 
-  // Load from localStorage on mount
+  // Load non-transaction data from localStorage, and transactions from Supabase, on mount
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
-        setData(JSON.parse(stored))
-      } catch {
-        setData(seedData())
-      }
-    }
+    let cancelled = false
 
-    // Load submitted weeks from localStorage
-    const submittedStored = localStorage.getItem("marcel-supermarket-submitted")
-    if (submittedStored) {
-      try {
-        const parsed = JSON.parse(submittedStored)
-        if (Array.isArray(parsed)) {
-          submittedWeeksRef.current = new Set(parsed)
+    async function load() {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      let baseData: AppData = { ...seedData(), transactions: [] }
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          baseData = { ...baseData, ...parsed }
+        } catch {
+          // keep defaults
         }
-      } catch {}
+      }
+
+      const transactions = await fetchTransactions()
+      if (cancelled) return
+
+      setData({ ...baseData, transactions })
+
+      const submittedStored = localStorage.getItem("marcel-supermarket-submitted")
+      if (submittedStored) {
+        try {
+          const parsed = JSON.parse(submittedStored)
+          if (Array.isArray(parsed)) {
+            submittedWeeksRef.current = new Set(parsed)
+          }
+        } catch {}
+      }
+
+      setReady(true)
     }
 
-    setReady(true)
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  // Persist to localStorage whenever data changes
+  // Persist non-transaction data to localStorage whenever it changes
+  // (transactions now live in Supabase, not localStorage)
   useEffect(() => {
     if (ready) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      const { transactions, ...rest } = data
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
     }
-  }, [data, ready])
+  }, [data.profile, data.meals, data.metrics, data.pantry, ready])
+
+  const refreshTransactions = async () => {
+    const transactions = await fetchTransactions()
+    setData((d) => ({ ...d, transactions }))
+  }
 
   // Calculate weekly supermarket total and handle Saturday summary
   useEffect(() => {
@@ -183,7 +233,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const weekStart = getWeekStart(now)
       const weekNumber = getWeekNumber(now)
 
-      // Filter transactions for this week that are supermarket categories
       const weekTransactions = (data.transactions ?? []).filter((t) => {
         const txDate = new Date(t.date + "T00:00:00")
         return txDate >= weekStart && SUPERMARKET_CATEGORIES.some((cat) =>
@@ -204,20 +253,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     calculateWeeklyTotal()
 
-    // Check every minute for Saturday 23:45-23:59
     const interval = setInterval(() => {
       const now = new Date()
-      const dayOfWeek = now.getDay() // 0 = Sunday, 6 = Saturday
+      const dayOfWeek = now.getDay()
       const hours = now.getHours()
       const minutes = now.getMinutes()
 
-      // Saturday between 23:45 and 23:59
       if (dayOfWeek === 6 && hours === 23 && minutes >= 45 && minutes <= 59) {
         const { total, weekNumber } = calculateWeeklyTotal()
 
-        // Check if already submitted for this week
         if (!submittedWeeksRef.current.has(weekNumber) && total > 0) {
-          // Send to Google Sheets
           const saturdayDate = todayISO()
           const formattedDate = saturdayDate.split("-").reverse().join("/")
           const formattedAmount = (-total).toFixed(2).replace(".", ",")
@@ -234,7 +279,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }),
           }).catch(() => {})
 
-          // Mark as submitted
           submittedWeeksRef.current.add(weekNumber)
           localStorage.setItem("marcel-supermarket-submitted", JSON.stringify([...submittedWeeksRef.current]))
 
@@ -246,11 +290,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Sunday 00:01 - reset counter (just recalculate, it will be 0 for new week)
       if (dayOfWeek === 0 && hours === 0 && minutes === 1) {
         calculateWeeklyTotal()
       }
-    }, 60000) // Check every minute
+    }, 60000)
 
     return () => clearInterval(interval)
   }, [data.transactions, ready])
@@ -277,24 +320,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // Transactions now read/write directly to Supabase. Local state is updated
+  // optimistically and then reconciled with what Supabase actually has.
+
   const addTransaction = (t: Omit<Transaction, "id">) => {
+    const optimisticId = uid()
     setData((d) => ({
       ...d,
-      transactions: [{ ...t, id: uid() }, ...(d.transactions ?? [])].sort(
+      transactions: [{ ...t, id: optimisticId }, ...(d.transactions ?? [])].sort(
         (a, b) => b.date.localeCompare(a.date),
       ),
     }))
+
+    supabase
+      .from("transactions")
+      .insert({
+        date: t.date,
+        description: t.description,
+        category: t.category,
+        amount: t.amount,
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] addTransaction error:", error.message)
+        }
+        refreshTransactions()
+      })
   }
 
   const importTransactions = (txs: Omit<Transaction, "id">[]) => {
+    if (txs.length === 0) return
+
+    // Optimistic local update with client-side de-dup (date+category+amount)
     setData((d) => {
       const newTransactions = txs.map((t) => ({ ...t, id: uid() }))
       const allTransactions = [...newTransactions, ...(d.transactions ?? [])]
-      // Deduplicate by date + category + amount
       const seen = new Set<string>()
       const unique: Transaction[] = []
       for (const t of allTransactions) {
-        const key = `${t.date}-${t.category}-${t.amount}`
+        const key = \`\${t.date}-\${t.category}-\${t.amount}\`
         if (!seen.has(key)) {
           seen.add(key)
           unique.push(t)
@@ -305,6 +369,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         transactions: unique.sort((a, b) => b.date.localeCompare(a.date)),
       }
     })
+
+    // Push to Supabase. We rely on fetching existing rows first to avoid
+    // inserting duplicates of transactions already stored there.
+    ;(async () => {
+      const { data: existingRows, error: fetchError } = await supabase
+        .from("transactions")
+        .select("date, category, amount")
+
+      if (fetchError) {
+        console.error("[supabase] importTransactions fetch error:", fetchError.message)
+        return
+      }
+
+      const existingKeys = new Set(
+        (existingRows ?? []).map((r) => \`\${r.date}-\${r.category}-\${Number(r.amount)}\`),
+      )
+
+      const rowsToInsert = txs
+        .filter((t) => !existingKeys.has(\`\${t.date}-\${t.category}-\${t.amount}\`))
+        .map((t) => ({
+          date: t.date,
+          description: t.description,
+          category: t.category,
+          amount: t.amount,
+        }))
+
+      if (rowsToInsert.length === 0) {
+        await refreshTransactions()
+        return
+      }
+
+      const { error: insertError } = await supabase.from("transactions").insert(rowsToInsert)
+      if (insertError) {
+        console.error("[supabase] importTransactions insert error:", insertError.message)
+      }
+      await refreshTransactions()
+    })()
   }
 
   const clearTransactions = () => {
@@ -312,6 +413,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...d,
       transactions: [],
     }))
+
+    supabase
+      .from("transactions")
+      .delete()
+      .neq("id", "00000000-0000-0000-0000-000000000000") // delete all rows
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] clearTransactions error:", error.message)
+        }
+        refreshTransactions()
+      })
   }
 
   const deleteTransaction = (id: string) => {
@@ -319,6 +431,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...d,
       transactions: (d.transactions ?? []).filter((x) => x.id !== id),
     }))
+
+    supabase
+      .from("transactions")
+      .delete()
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] deleteTransaction error:", error.message)
+        }
+        refreshTransactions()
+      })
   }
 
   const addPantryItem = (item: Omit<PantryItem, "id" | "dateAdded">) => {
@@ -384,6 +507,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         removePantryItem,
         updateProfileGoals,
         markSupermarketSubmitted,
+        refreshTransactions,
       }}
     >
       {children}
