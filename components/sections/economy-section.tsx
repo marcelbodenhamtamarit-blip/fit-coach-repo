@@ -10,7 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  from "lucide-react"
+}  from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
