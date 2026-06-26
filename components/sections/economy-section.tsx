@@ -128,20 +128,20 @@ export function EconomySection() {
       if (t.amount > 0) week.income += t.amount
       else week.expenses += Math.abs(t.amount)
     })
-    // Build data for weeks 1-13
-    const data = []
-    for (let w = 1; w <= 13; w++) {
-      const week = groups.get(w) || { income: 0, expenses: 0 }
-      data.push({
+        // Build data using the actual week numbers present in the transactions
+    const weekNumbers = Array.from(groups.keys()).sort((a, b) => a - b)
+    const data = weekNumbers.map((w) => {
+      const week = groups.get(w)!
+      return {
         week: w,
         label: `W${w}`,
         savings: week.income - week.expenses,
         income: week.income,
         expenses: week.expenses,
-      })
-    }
+      }
+    })
     return data
-  }, [transactions])
+   }, [transactions])
 
   const bestWeek = weeklySavingsData.reduce((best, w) => w.savings > best.savings ? w : best, weeklySavingsData[0])
   const worstWeek = weeklySavingsData.reduce((worst, w) => w.savings < worst.savings ? w : worst, weeklySavingsData[0])
