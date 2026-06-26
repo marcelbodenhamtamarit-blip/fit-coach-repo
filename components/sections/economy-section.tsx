@@ -9,8 +9,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Download,
-} from "lucide-react"
+  from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -94,14 +93,7 @@ export function EconomySection() {
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toastError, setToastError] = useState<string | null>(null)
-  const [importing, setImporting] = useState(false)
-  const [importSummary, setImportSummary] = useState<{
-    totalIncome: number
-    totalExpenses: number
-    savings: number
-    count: number
-  } | null>(null)
-
+  
   const [desc, setDesc] = useState("")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
@@ -212,43 +204,6 @@ export function EconomySection() {
       })
   }, [transactions, tab])
 
-  const handleImport = async () => {
-    setImporting(true)
-    setToastError(null)
-    setImportSummary(null)
-
-    try {
-      const res = await fetch("/api/sheets")
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || "Failed to import")
-      }
-      const data = await res.json()
-
-      clearTransactions()
-      const importedTx = data.transactions.map((t: any) => ({
-        description: t.description || t.category,
-        category: t.category,
-        amount: t.amount,
-        date: t.date,
-      }))
-      importTransactions(importedTx)
-
-      setImportSummary({
-        totalIncome: data.summary.totalIncome,
-        totalExpenses: data.summary.totalExpenses,
-        savings: data.summary.savings,
-        count: data.summary.transactionCount,
-      })
-      setTimeout(() => setImportSummary(null), 10000)
-    } catch (err: any) {
-      setToastError(err.message || "Error al importar")
-      setTimeout(() => setToastError(null), 5000)
-    } finally {
-      setImporting(false)
-    }
-  }
-
   const handleSave = async () => {
     const num = parseFloat(amount)
     if (!desc.trim() || isNaN(num)) return
@@ -298,36 +253,6 @@ export function EconomySection() {
           <X className="h-4 w-4 shrink-0" />
           <span>{toastError}</span>
         </div>
-      )}
-
-      {importSummary && (
-        <Card className="border-green-500/50 bg-green-500/10 p-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="font-semibold text-green-600 dark:text-green-400">Import successful</p>
-              <p className="text-sm text-muted-foreground">Imported {importSummary.count} transactions</p>
-            </div>
-            <button onClick={() => setImportSummary(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="size-4" />
-            </button>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Ingresos</p>
-              <p className="text-lg font-bold text-emerald-500">${importSummary.totalIncome.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Gastos</p>
-              <p className="text-lg font-bold text-red-400">${importSummary.totalExpenses.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Ahorros</p>
-              <p className={`text-lg font-bold ${importSummary.savings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                ${importSummary.savings.toFixed(2)}
-              </p>
-            </div>
-          </div>
-        </Card>
       )}
 
       {transactions.length === 0 && (
