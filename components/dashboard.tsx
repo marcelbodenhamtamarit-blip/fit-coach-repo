@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Activity,
   UtensilsCrossed,
@@ -42,6 +42,13 @@ const TAB_TITLES: Record<string, string> = {
 
 export function Dashboard() {
   const [active, setActive] = useState("overview")
+    useEffect(() => {
+          const stored = localStorage.getItem("marcel-fit-coach:active-tab")
+          if (stored) setActive(stored)
+    }, [])
+    useEffect(() => {
+          localStorage.setItem("marcel-fit-coach:active-tab", active)
+    }, [active])
   const { data, ready } = useStore()
 
   return (
