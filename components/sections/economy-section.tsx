@@ -334,7 +334,7 @@ export function EconomySection() {
         <Card className="border-amber-500/50 bg-amber-500/10 p-4">
           <p className="font-semibold text-amber-600 dark:text-amber-400">Sin transacciones</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Haz clic en "Import from Sheets" para cargar tus datos
+                          Añade tu primer gasto o ingreso con el botón de abajo
           </p>
         </Card>
       )}
@@ -404,20 +404,14 @@ export function EconomySection() {
         </div>
       </Card>
 
-      <div className="flex gap-2">
-        {!showForm && (
-          <>
-            <Button onClick={() => setShowForm(true)} className="flex-1" style={{ backgroundColor: "#7c6fff" }}>
-              <Plus className="mr-2 size-4" />
-              Añadir gasto
-            </Button>
-            <Button onClick={handleImport} variant="outline" disabled={importing} className="flex-1">
-              <Download className="mr-2 size-4" />
-              {importing ? "Importing..." : "Import from Sheets"}
-            </Button>
-          </>
-        )}
-      </div>
+          <div className="flex gap-2">
+            {!showForm && (
+              <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
+                <Plus className="mr-2 size-4" />
+                Añadir gasto
+              </Button>
+            )}
+          </div>
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard icon={TrendingUp} label="Ingresos (mes)" value={`$${ingresos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="green" />
