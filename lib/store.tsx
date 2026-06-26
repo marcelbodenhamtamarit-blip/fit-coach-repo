@@ -358,7 +358,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const seen = new Set<string>()
       const unique: Transaction[] = []
       for (const t of allTransactions) {
-        const key = \`\${t.date}-\${t.category}-\${t.amount}\`
+        const key = `${t.date}-${t.category}-${t.amount}`
         if (!seen.has(key)) {
           seen.add(key)
           unique.push(t)
@@ -383,11 +383,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       const existingKeys = new Set(
-        (existingRows ?? []).map((r) => \`\${r.date}-\${r.category}-\${Number(r.amount)}\`),
+        (existingRows ?? []).map((r) => `${r.date}-${r.category}-${Number(r.amount)}`),
       )
 
       const rowsToInsert = txs
-        .filter((t) => !existingKeys.has(\`\${t.date}-\${t.category}-\${t.amount}\`))
+        .filter((t) => !existingKeys.has(`${t.date}-${t.category}-${t.amount}`))
         .map((t) => ({
           date: t.date,
           description: t.description,
