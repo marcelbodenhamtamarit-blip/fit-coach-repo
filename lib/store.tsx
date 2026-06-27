@@ -236,6 +236,7 @@ type StoreContextType = {
   addMeal: (meal: Omit<Meal, "id">) => void
   updateMetric: (metric: Omit<BodyMetric, "id">) => void
   addTransaction: (t: Omit<Transaction, "id">) => void
+  updateTransaction: (id: string, updates: Partial<Omit<Transaction, "id">>) => void
   importTransactions: (txs: Omit<Transaction, "id">[]) => void
   clearTransactions: () => void
   deleteTransaction: (id: string) => void
@@ -474,6 +475,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
   }
 
+  const updateTransaction = (id: string, updates: Partial<Omit<Transaction, "id">>) => {
+    setData((d) => ({
+      ...d,
+      transactions: (d.transactions ?? [])
+        .map((t) => (t.id === id ? { ...t, ...updates } : t))
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    }))
+
+          const updatePayload: Record<string, string | number> = {}
+    if (updates.date !== undefined) updatePayload.date = updates.date
+    if (updates.description !== undefined) updatePayload.description = updates.description
+    if (updates.category !== undefined) updatePayload.category = updates.category
+    if (updates.amount !== undefined) updatePayload.amount = updates.amount
+
+    supabase
+    .from("transactions")
+    .update(updatePayload)
+    .eq("id", id)
+    .then(({ error }) => {
+      if (error) {
+        console.error("[supabase] updateTransaction error:", error.message)
+      }
+      refreshTransactions()
+    })
+  }
+
   const importTransactions = (txs: Omit<Transaction, "id">[]) => {
     if (txs.length === 0) return
 
@@ -685,6 +712,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addMeal,
         updateMetric,
         addTransaction,
+        updateTransaction,
         importTransactions,
         clearTransactions,
         deleteTransaction,
