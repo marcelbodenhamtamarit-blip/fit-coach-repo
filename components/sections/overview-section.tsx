@@ -6,6 +6,8 @@ import { Progress } from "@/components/ui/progress"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
+import useSWR from 'swr'
+import { Activity } from 'lucide-react'
 
 export function OverviewSection({
   onNavigate,
@@ -116,6 +118,15 @@ export function OverviewSection({
           </p>
         </Card>
       </div>
+      <Card className="p-5">
+    <p className="text-sm font-semibold mb-3">Forma fisica (Garmin)</p>
+        {!hasFitness && (
+      <p className="text-sm text-muted-foreground">Conecta Garmin con Intervals.icu en Ajustes.</p>
+      )}
+        {hasFitness && (
+      <div className="flex gap-6 text-sm"><span>CTL: {wellness.ctl ?? '-'}</span>span><span>ATL: {wellness.atl ?? '-'}</span>span><span>TSB: {wellness.tsb ?? '-'}</span>span></div>
+      )}
+      </Card>
     </div>
   )
 }
