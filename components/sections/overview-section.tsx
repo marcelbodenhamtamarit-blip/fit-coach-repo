@@ -6,6 +6,8 @@ import { Progress } from "@/components/ui/progress"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
+import useSWR from 'swr'
+import { Activity } from 'lucide-react'
 
 export function OverviewSection({
   onNavigate,
@@ -49,6 +51,10 @@ export function OverviewSection({
   const weekIncome = weekTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const weekExpenses = weekTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const weekSavings = weekIncome - weekExpenses
+  const fetcher = (u) => fetch(u).then((r) => r.json())
+  const fitnessSWR = useSWR('/api/intervals', fetcher)
+  const wellness = fitnessSWR.data && fitnessSWR.data.wellness ? fitnessSWR.data.wellness : {}
+  const hasFitness = !!(fitnessSWR.data && !fitnessSWR.data.error && fitnessSWR.data.wellness)
 
   return (
     <div className="space-y-5">
@@ -116,6 +122,15 @@ export function OverviewSection({
           </p>
         </Card>
       </div>
+      <Card className="p-5">
+    <p className="text-sm font-semibold mb-3">Forma fisica (Garmin)</p>
+        {!hasFitness && (
+      <p className="text-sm text-muted-foreground">Conecta Garmin con Intervals.icu en Ajustes.</p>
+      )}
+        {hasFitness && (
+      <div className="flex gap-6 text-sm">CTL {wellness.ctl ?? '-'} / ATL {wellness.atl ?? '-'} / TSB {wellness.tsb ?? '-'}</div>
+      )}
+      </Card>
     </div>
   )
 }
