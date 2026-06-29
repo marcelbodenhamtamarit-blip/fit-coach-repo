@@ -51,6 +51,10 @@ export function OverviewSection({
   const weekIncome = weekTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const weekExpenses = weekTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const weekSavings = weekIncome - weekExpenses
+  const fetcher = (u) => fetch(u).then((r) => r.json())
+  const fitnessSWR = useSWR('/api/intervals', fetcher)
+  const wellness = fitnessSWR.data && fitnessSWR.data.wellness ? fitnessSWR.data.wellness : {}
+  const hasFitness = !!(fitnessSWR.data && !fitnessSWR.data.error && fitnessSWR.data.wellness)
 
   return (
     <div className="space-y-5">
