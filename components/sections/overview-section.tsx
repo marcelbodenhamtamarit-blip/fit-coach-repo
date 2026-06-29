@@ -128,7 +128,7 @@ export function OverviewSection({
       <p className="text-sm text-muted-foreground">Conecta Garmin con Intervals.icu en Ajustes.</p>
       )}
         {hasFitness && (
-      <div className="flex gap-6 text-sm"><span>CTL: {wellness.ctl ?? '-'}</span>span><span>ATL: {wellness.atl ?? '-'}</span>span><span>TSB: {wellness.tsb ?? '-'}</span>span></div>
+      <div className="flex gap-6 text-sm">CTL {wellness.ctl ?? '-'} / ATL {wellness.atl ?? '-'} / TSB {wellness.tsb ?? '-'}</div>
       )}
       </Card>
     </div>
