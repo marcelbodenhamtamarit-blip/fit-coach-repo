@@ -7,16 +7,22 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 // here as a transaction in Supabase.
 //
 // Auth: accepts the shared secret EITHER as an "Authorization: Bearer <secret>"
-// header, OR as a plain "secret" field in the JSON body. The body option exists
-// because typing header values inside iOS Shortcuts is error-prone (autocapitalize,
-// stray spaces) — putting it in the JSON body alongside amount/description/category
-// is much more reliable from the Shortcuts app.
+// header, OR as a "secret" field in the JSON body (any capitalisation — iOS
+// Shortcuts auto-capitalizes the first letter of typed field names, so we
+// normalize all body keys to lowercase before reading them).
 export async function POST(req: NextRequest) {
-  let body: Record<string, unknown>
+  let rawBody: Record<string, unknown>
   try {
-    body = await req.json()
+    rawBody = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  // Normalize keys to lowercase so "Secret", "Amount", "Category", etc. all work
+  // regardless of how iOS Shortcuts capitalized the field name.
+  const body: Record<string, unknown> = {}
+  for (const key of Object.keys(rawBody)) {
+    body[key.toLowerCase()] = rawBody[key]
   }
 
   const expectedSecret = process.env.QUICK_ADD_SECRET
@@ -39,14 +45,15 @@ export async function POST(req: NextRequest) {
 
   // type: "ingreso" -> positive. Anything else (or missing) -> "gasto", negative.
   // This mirrors the automatic sign behaviour of the Economía form in the app.
-  const type = body.type === "ingreso" ? "ingreso" : "gasto"
+  const typeVal = typeof body.type === "string" ? body.type.toLowerCase() : ""
+  const type = typeVal === "ingreso" ? "ingreso" : "gasto"
   const amount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
 
-  const category =
-    typeof body.category === "string" &&
-    (TRANSACTION_CATEGORIES as readonly string[]).includes(body.category)
-      ? body.category
-      : "Otros"
+  const categoryRaw = typeof body.category === "string" ? body.category : ""
+  const matchedCategory = (TRANSACTION_CATEGORIES as readonly string[]).find(
+    (c) => c.toLowerCase() === categoryRaw.toLowerCase(),
+  )
+  const category = matchedCategory ?? "Otros"
 
   const description =
     typeof body.description === "string" && body.description.trim()
