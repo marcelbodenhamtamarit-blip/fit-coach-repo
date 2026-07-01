@@ -9,8 +9,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Download,
-}  from "lucide-react"
+} from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,6 +24,8 @@ const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
 
 type TabId = "diario" | "semanal" | "mensual"
+type ViewType = "gastos" | "ganancias"
+type TxType = "gasto" | "ingreso"
 
 // Get month name in Spanish
 function getMonthName(monthNum: number): string {
@@ -90,12 +91,14 @@ export function EconomySection() {
   const { data, addTransaction, importTransactions, clearTransactions, deleteTransaction, weeklySupermarket } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
 
+  const [view, setView] = useState<ViewType>("gastos")
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toastError, setToastError] = useState<string | null>(null)
-  
+
   const [desc, setDesc] = useState("")
+  const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [date, setDate] = useState(todayISO())
@@ -118,6 +121,12 @@ export function EconomySection() {
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
 
+  // Transactions filtered by the active view (Gastos / Ganancias)
+  const viewTransactions = useMemo(
+    () => transactions.filter((t) => (view === "gastos" ? t.amount < 0 : t.amount > 0)),
+    [transactions, view],
+  )
+
   // Weekly savings chart data
   const weeklySavingsData = useMemo(() => {
     const groups = new Map<number, { income: number; expenses: number }>()
@@ -128,7 +137,7 @@ export function EconomySection() {
       if (t.amount > 0) week.income += t.amount
       else week.expenses += Math.abs(t.amount)
     })
-        // Build data using the actual week numbers present in the transactions
+    // Build data using the actual week numbers present in the transactions
     const weekNumbers = Array.from(groups.keys()).sort((a, b) => a - b)
     const data = weekNumbers.map((w) => {
       const week = groups.get(w)!
@@ -141,18 +150,20 @@ export function EconomySection() {
       }
     })
     return data
-   }, [transactions])
+  }, [transactions])
 
   const bestWeek = weeklySavingsData.reduce((best, w) => w.savings > best.savings ? w : best, weeklySavingsData[0])
   const worstWeek = weeklySavingsData.reduce((worst, w) => w.savings < worst.savings ? w : worst, weeklySavingsData[0])
   const avgWeeklySavings = weeklySavingsData.reduce((sum, w) => sum + w.savings, 0) / weeklySavingsData.filter(w => w.income > 0 || w.expenses > 0).length || 0
 
-  // Group transactions by tab
+  // Group transactions (of the active view) by tab
   const groupedData = useMemo((): GroupedData[] => {
+    const source = viewTransactions
+
     if (tab === "diario") {
       // Group by date
       const groups = new Map<string, Transaction[]>()
-      transactions.forEach((t) => {
+      source.forEach((t) => {
         const key = t.date
         if (!groups.has(key)) groups.set(key, [])
         groups.get(key)!.push(t)
@@ -171,7 +182,7 @@ export function EconomySection() {
     if (tab === "semanal") {
       // Group by week number
       const groups = new Map<number, Transaction[]>()
-      transactions.forEach((t) => {
+      source.forEach((t) => {
         const weekNum = getWeekNumberFromISO(t.date)
         if (!groups.has(weekNum)) groups.set(weekNum, [])
         groups.get(weekNum)!.push(t)
@@ -189,7 +200,7 @@ export function EconomySection() {
 
     // Mensual - group by month
     const groups = new Map<string, Transaction[]>()
-    transactions.forEach((t) => {
+    source.forEach((t) => {
       const monthKey = t.date.slice(0, 7) // "YYYY-MM"
       if (!groups.has(monthKey)) groups.set(monthKey, [])
       groups.get(monthKey)!.push(t)
@@ -203,11 +214,15 @@ export function EconomySection() {
         const label = `${getMonthName(parseInt(month))} ${year}`
         return { key: monthKey, label, transactions: txs, totalIncome, totalExpenses, savings: totalIncome - totalExpenses }
       })
-  }, [transactions, tab])
+  }, [viewTransactions, tab])
 
   const handleSave = async () => {
-    const num = parseFloat(amount)
-    if (!desc.trim() || isNaN(num)) return
+    const raw = parseFloat(amount)
+    if (!desc.trim() || isNaN(raw)) return
+
+    // El signo se aplica automáticamente según el tipo elegido:
+    // Gasto -> siempre negativo. Ingreso -> siempre positivo.
+    const num = txType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
 
     setSaving(true)
     const tx: Omit<Transaction, "id"> = {
@@ -240,6 +255,7 @@ export function EconomySection() {
     }
 
     setDesc("")
+    setTxType("gasto")
     setAmount("")
     setCategory(TRANSACTION_CATEGORIES[0])
     setDate(todayISO())
@@ -260,12 +276,12 @@ export function EconomySection() {
         <Card className="border-amber-500/50 bg-amber-500/10 p-4">
           <p className="font-semibold text-amber-600 dark:text-amber-400">Sin transacciones</p>
           <p className="mt-1 text-sm text-muted-foreground">
-                          Añade tu primer gasto o ingreso con el botón de abajo
+            Añade tu primer gasto o ingreso con el botón de abajo
           </p>
         </Card>
       )}
 
-      {/* Add expense form at top with slide animation */}
+      {/* Add transaction form at top with slide animation */}
       {showForm && (
         <Card
           className="p-5 animate-in slide-in-from-top-4 duration-300"
@@ -278,13 +294,38 @@ export function EconomySection() {
           </div>
           <div className="space-y-4">
             <div className="space-y-1.5">
+              <Label>Tipo</Label>
+              <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                <button
+                  type="button"
+                  onClick={() => setTxType("gasto")}
+                  className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                    txType === "gasto" ? "bg-red-500/15 text-red-400 shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Gasto (−)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTxType("ingreso")}
+                  className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                    txType === "ingreso" ? "bg-emerald-500/15 text-emerald-500 shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Ganancia (+)
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="tx-desc">Descripción</Label>
               <Input id="tx-desc" placeholder="Ej: Compra semanal" value={desc} onChange={(e) => setDesc(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tx-amount">Cantidad en AUD</Label>
-              <Input id="tx-amount" type="number" placeholder="Negativo = gasto, positivo = ingreso" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Ej: -45.50 para un gasto, +2500 para un ingreso</p>
+              <Input id="tx-amount" type="number" min="0" placeholder="Ej: 45.50" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Introduce solo el número positivo, el signo se aplica solo según el tipo elegido arriba.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tx-category">Categoría</Label>
@@ -330,19 +371,19 @@ export function EconomySection() {
         </div>
       </Card>
 
-          <div className="flex gap-2">
-            {!showForm && (
-              <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
-                <Plus className="mr-2 size-4" />
-                Añadir gasto
-              </Button>
-            )}
-          </div>
+      <div className="flex gap-2">
+        {!showForm && (
+          <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
+            <Plus className="mr-2 size-4" />
+            Añadir gasto o ganancia
+          </Button>
+        )}
+      </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={TrendingUp} label="Ingresos (mes)" value={`$${ingresos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="green" />
-        <StatCard icon={TrendingDown} label="Gastos (mes)" value={`$${gastos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="red" />
-        <StatCard icon={PiggyBank} label="Ahorro (mes)" value={`$${Math.abs(ahorro).toFixed(2)}`} sub={ahorro >= 0 ? "Positivo" : "Déficit"} accent={ahorro >= 0 ? "green" : "red"} />
+        <StatCard icon={TrendingUp} label="Ingresos (mes)" value={`+$${ingresos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="green" />
+        <StatCard icon={TrendingDown} label="Gastos (mes)" value={`-$${gastos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="red" />
+        <StatCard icon={PiggyBank} label="Ahorro (mes)" value={`${ahorro >= 0 ? "+" : "-"}$${Math.abs(ahorro).toFixed(2)}`} sub={ahorro >= 0 ? "Positivo" : "Déficit"} accent={ahorro >= 0 ? "green" : "red"} />
       </div>
 
       {transactions.length > 0 && (
@@ -354,17 +395,17 @@ export function EconomySection() {
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <p className="text-xs text-muted-foreground">Ingresos ({incomeCount})</p>
-                <p className="text-xl font-bold text-emerald-500">${allIncome.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Ganancias ({incomeCount})</p>
+                <p className="text-xl font-bold text-emerald-500">+${allIncome.toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Gastos ({expenseCount})</p>
-                <p className="text-xl font-bold text-red-400">${allExpenses.toFixed(2)}</p>
+                <p className="text-xl font-bold text-red-400">-${allExpenses.toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Ahorros</p>
                 <p className={`text-xl font-bold ${allSavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                  ${allSavings.toFixed(2)}
+                  {allSavings >= 0 ? "+" : "-"}${Math.abs(allSavings).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -436,6 +477,26 @@ export function EconomySection() {
         </>
       )}
 
+      {/* Gastos / Ganancias separator */}
+      <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+        <button
+          onClick={() => setView("gastos")}
+          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+            view === "gastos" ? "bg-red-500/15 text-red-400 shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Gastos
+        </button>
+        <button
+          onClick={() => setView("ganancias")}
+          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+            view === "ganancias" ? "bg-emerald-500/15 text-emerald-500 shadow-sm" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Ganancias
+        </button>
+      </div>
+
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         {[{ id: "diario", label: "Diario" }, { id: "semanal", label: "Semanal" }, { id: "mensual", label: "Mensual" }].map((t) => (
           <button
@@ -452,7 +513,9 @@ export function EconomySection() {
 
       {groupedData.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">Sin transacciones</p>
+          <p className="text-sm text-muted-foreground">
+            {view === "gastos" ? "Sin gastos registrados" : "Sin ganancias registradas"}
+          </p>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -461,11 +524,11 @@ export function EconomySection() {
               <div className="flex items-center justify-between border-b border-border bg-muted/30 p-3">
                 <p className="text-sm font-medium">{group.label}</p>
                 <div className="flex gap-3 text-xs tabular-nums">
-                  <span className="text-emerald-500">+${group.totalIncome.toFixed(2)}</span>
-                  <span className="text-red-400">-${group.totalExpenses.toFixed(2)}</span>
-                  <span className={group.savings >= 0 ? "text-emerald-500 font-medium" : "text-red-400 font-medium"}>
-                    ${group.savings.toFixed(2)}
-                  </span>
+                  {view === "ganancias" ? (
+                    <span className="text-emerald-500 font-medium">+${group.totalIncome.toFixed(2)}</span>
+                  ) : (
+                    <span className="text-red-400 font-medium">-${group.totalExpenses.toFixed(2)}</span>
+                  )}
                 </div>
               </div>
               <div className="divide-y divide-border">
