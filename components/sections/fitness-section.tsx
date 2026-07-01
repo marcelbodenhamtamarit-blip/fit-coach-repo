@@ -7,7 +7,6 @@ import {
   Zap,
   Flame,
   Mountain,
-  TrendingUp,
   AlertCircle,
   Timer,
   Activity,
@@ -21,6 +20,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [panelOpen, setPanelOpen] = useState(true)
 
   const { data: fitnessData, isLoading, error } = useSWR(
     "/api/intervals",
@@ -36,11 +36,7 @@ export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
-          ))}
-        </div>
+        <div className="h-40 animate-pulse rounded-lg bg-muted" />
         <div className="space-y-2">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
@@ -76,107 +72,57 @@ export function FitnessSection({ onSettings }: { onSettings?: () => void }) {
 
   return (
     <div className="space-y-6">
-      {/* Fitness metric cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <MetricCard
-          label="Fitness"
-          sublabel="CTL"
-          value={wellness.ctl}
-          icon={TrendingUp}
-          colorClass="text-blue-500"
-          bgClass="bg-blue-500/10 border-blue-500/20"
-        />
-        <MetricCard
-          label="Fatiga"
-          sublabel="ATL"
-          value={wellness.atl}
-          icon={Zap}
-          colorClass="text-orange-500"
-          bgClass="bg-orange-500/10 border-orange-500/20"
-        />
-        <MetricCard
-          label="Forma"
-          sublabel="TSB"
-          value={wellness.tsb}
-          icon={Heart}
-          colorClass={
-            wellness.tsb != null
-              ? wellness.tsb >= 0
-                ? "text-green-500"
-                : "text-red-500"
-              : "text-muted-foreground"
-          }
-          bgClass={
-            wellness.tsb != null
-              ? wellness.tsb >= 0
-                ? "bg-green-500/10 border-green-500/20"
-                : "bg-red-500/10 border-red-500/20"
-              : "bg-muted border-border"
-          }
-        />
-      </div>
+      {/* Panel desplegable: Pasos, Latido y Actividades recientes */}
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <button
+          onClick={() => setPanelOpen(!panelOpen)}
+          className="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-muted/50 sm:p-4"
+        >
+          <h3 className="text-sm font-semibold">Forma física</h3>
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+              panelOpen ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-      {/* Wellness row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <WellnessItem label="Pasos" value={wellness.stepsDisplay ?? "--"} icon={Activity} />
-        <WellnessItem label="FC reposo" value={wellness.restingHR ? `${wellness.restingHR} bpm` : "--"} icon={Heart} />
-        <WellnessItem label="Sueño" value={wellness.sleepDisplay ?? "--"} icon={Timer} />
-        <WellnessItem label="HRV" value={wellness.hrv ? String(wellness.hrv) : "--"} icon={Zap} />
-      </div>
+        {panelOpen && (
+          <div className="space-y-4 border-t border-border p-3 sm:p-4">
+            {/* Pasos y Latido */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <WellnessItem label="Pasos" value={wellness.stepsDisplay ?? "--"} icon={Activity} />
+              <WellnessItem label="FC reposo" value={wellness.restingHR ? `${wellness.restingHR} bpm` : "--"} icon={Heart} />
+              <WellnessItem label="Sueño" value={wellness.sleepDisplay ?? "--"} icon={Timer} />
+              <WellnessItem label="HRV" value={wellness.hrv ? String(wellness.hrv) : "--"} icon={Zap} />
+            </div>
 
-      {/* Activities list */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Actividades recientes</h3>
+            {/* Actividades recientes */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground">Actividades recientes</h4>
 
-        {activities.length === 0 ? (
-          <div className="rounded-lg border border-border p-8 text-center">
-            <p className="text-sm text-muted-foreground">No hay actividades de running</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activities.map((a) => (
-              <ActivityRow
-                key={a.id}
-                activity={a}
-                isExpanded={expandedId === a.id}
-                onToggle={() =>
-                  setExpandedId(expandedId === a.id ? null : a.id)
-                }
-              />
-            ))}
+              {activities.length === 0 ? (
+                <div className="rounded-lg border border-border p-8 text-center">
+                  <p className="text-sm text-muted-foreground">No hay actividades de running</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {activities.map((a) => (
+                    <ActivityRow
+                      key={a.id}
+                      activity={a}
+                      isExpanded={expandedId === a.id}
+                      onToggle={() =>
+                        setExpandedId(expandedId === a.id ? null : a.id)
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
     </div>
-  )
-}
-
-function MetricCard({
-  label,
-  sublabel,
-  value,
-  icon: Icon,
-  colorClass,
-  bgClass,
-}: {
-  label: string
-  sublabel: string
-  value: number | null | undefined
-  icon: typeof TrendingUp
-  colorClass: string
-  bgClass: string
-}) {
-  return (
-    <Card className={`flex flex-col items-center gap-1.5 p-3 ${bgClass}`}>
-      <Icon className={`size-4 ${colorClass}`} />
-      <p className={`text-2xl font-bold tabular-nums ${colorClass}`}>
-        {value != null ? Math.round(value) : "—"}
-      </p>
-      <div className="text-center">
-        <p className="text-xs font-medium">{label}</p>
-        <p className="text-[10px] text-muted-foreground">{sublabel}</p>
-      </div>
-    </Card>
   )
 }
 
