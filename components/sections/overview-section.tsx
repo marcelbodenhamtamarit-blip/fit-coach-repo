@@ -87,7 +87,7 @@ export function OverviewSection({
         <StatCard
           icon={PiggyBank}
           label="Ahorro semanal"
-          value={`$${Math.abs(weekSavings).toFixed(2)}`}
+          value={`${weekSavings >= 0 ? "+" : "-"}$${Math.abs(weekSavings).toFixed(2)}`}
           unit="AUD"
           sub={weekSavings >= 0 ? "Esta semana" : "Déficit"}
           accent={weekSavings >= 0 ? "green" : "red"}
@@ -123,13 +123,16 @@ export function OverviewSection({
         </Card>
       </div>
       <Card className="p-5">
-    <p className="text-sm font-semibold mb-3">Forma fisica (Garmin)</p>
+        <p className="text-sm font-semibold mb-3">Forma física</p>
         {!hasFitness && (
-      <p className="text-sm text-muted-foreground">Conecta Garmin con Intervals.icu en Ajustes.</p>
-      )}
+          <p className="text-sm text-muted-foreground">Conecta Garmin con Intervals.icu en Ajustes.</p>
+        )}
         {hasFitness && (
-      <div className="flex gap-6 text-sm">CTL {wellness.ctl ?? '-'} / ATL {wellness.atl ?? '-'} / TSB {wellness.tsb ?? '-'}</div>
-      )}
+          <div className="flex gap-6 text-sm">
+            <span>Pasos: {wellness.stepsDisplay ?? '--'}</span>
+            <span>FC reposo: {wellness.restingHR ? `${wellness.restingHR} bpm` : '--'}</span>
+          </div>
+        )}
       </Card>
     </div>
   )
