@@ -4,12 +4,12 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 
 // Quick-add endpoint for the iPhone Shortcut: tap the shortcut right after
 // seeing an Apple Wallet payment notification, type the amount, and it lands
-// here as a transaction in Supabase. Protected with BANK_WEBHOOK_SECRET so
+// here as a transaction in Supabase. Protected with QUICK_ADD_SECRET so
 // nobody else can post fake transactions.
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
-  const expected = `Bearer ${process.env.BANK_WEBHOOK_SECRET}`
-  if (!process.env.BANK_WEBHOOK_SECRET || authHeader !== expected) {
+  const expected = `Bearer ${process.env.QUICK_ADD_SECRET}`
+  if (!process.env.QUICK_ADD_SECRET || authHeader !== expected) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
