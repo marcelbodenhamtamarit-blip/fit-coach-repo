@@ -4,20 +4,29 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 
 // Quick-add endpoint for the iPhone Shortcut: tap the shortcut right after
 // seeing an Apple Wallet payment notification, type the amount, and it lands
-// here as a transaction in Supabase. Protected with QUICK_ADD_SECRET so
-// nobody else can post fake transactions.
+// here as a transaction in Supabase.
+//
+// Auth: accepts the shared secret EITHER as an "Authorization: Bearer <secret>"
+// header, OR as a plain "secret" field in the JSON body. The body option exists
+// because typing header values inside iOS Shortcuts is error-prone (autocapitalize,
+// stray spaces) — putting it in the JSON body alongside amount/description/category
+// is much more reliable from the Shortcuts app.
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")
-  const expected = `Bearer ${process.env.QUICK_ADD_SECRET}`
-  if (!process.env.QUICK_ADD_SECRET || authHeader !== expected) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  const expectedSecret = process.env.QUICK_ADD_SECRET
+  const authHeader = req.headers.get("authorization")
+  const headerOk = !!expectedSecret && authHeader === `Bearer ${expectedSecret}`
+  const bodySecret = typeof body.secret === "string" ? body.secret.trim() : ""
+  const bodyOk = !!expectedSecret && bodySecret === expectedSecret
+
+  if (!expectedSecret || (!headerOk && !bodyOk)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const amountRaw = Number(body.amount)
