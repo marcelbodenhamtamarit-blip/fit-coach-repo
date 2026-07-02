@@ -28,8 +28,13 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
 }
 
+function formatDayShort(iso: string): string {
+  if (!iso) return ""
+  const d = new Date(iso + "T00:00:00")
+  return d.toLocaleDateString("es-ES", { weekday: "short" })
+}
+
 function makeAuth(apiKey: string) {
-  // Must encode the literal string "API_KEY:{apiKey}" — no spaces
   return "Basic " + Buffer.from(`API_KEY:${apiKey}`).toString("base64")
 }
 
@@ -42,7 +47,6 @@ function makeHeaders(apiKey: string) {
 }
 
 async function fetchIntervals(apiKey: string, athleteId: string) {
-  // Always prefix with "i"
   const id = athleteId.startsWith("i") ? athleteId : `i${athleteId}`
   const headers = makeHeaders(apiKey)
   const newest = isoDaysAgo(0)
@@ -50,7 +54,6 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
   const oldest7 = isoDaysAgo(7)
 
   try {
-    // First verify auth with profile endpoint
     const profileRes = await fetch(`${BASE}/athlete/${id}/profile`, {
       headers,
       cache: "no-store",
@@ -70,7 +73,6 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       }
     }
 
-    // Fetch activities and wellness in parallel
     const [activitiesRes, wellnessRes] = await Promise.all([
       fetch(
         `${BASE}/athlete/${id}/activities?oldest=${oldest14}&newest=${newest}`,
@@ -92,20 +94,21 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
     const activitiesRaw = (await activitiesRes.json()) as any[]
     const wellnessRaw = (await wellnessRes.json()) as any[]
 
-    // Only running activities
-    const runningActivities = (activitiesRaw || [])
+    // Running AND walking activities (used for "km corridos y caminados")
+    const relevantActivities = (activitiesRaw || [])
       .filter((a) => {
         const t = (a.type || "").toLowerCase()
-        return t.includes("run") || t === "virtualrun"
+        return t.includes("run") || t === "virtualrun" || t.includes("walk") || t.includes("hike")
       })
       .slice(0, 10)
 
-    const activities = runningActivities.map((a) => {
+    const activities = relevantActivities.map((a) => {
       const distM = a.distance || 0
       const distKm = distM > 0 ? +(distM / 1000).toFixed(1) : null
       const movingSec = a.moving_time || null
+      const t = (a.type || "").toLowerCase()
+      const isRun = t.includes("run")
 
-      // Pace: seconds per km
       let avgPace = "--"
       if (movingSec && distKm && distKm > 0) {
         const paceSecPerKm = movingSec / distKm
@@ -116,24 +119,17 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
 
       return {
         id: `icu-${a.id}`,
-        name: a.name || "Running",
-        dateDisplay: formatDate(
-          (a.start_date_local || a.start_date || "").slice(0, 10),
-        ),
+        name: a.name || (isRun ? "Running" : "Caminata"),
+        type: isRun ? "run" : "walk",
+        dateDisplay: formatDate((a.start_date_local || a.start_date || "").slice(0, 10)),
         dateISO: (a.start_date_local || a.start_date || "").slice(0, 10),
         distanceDisplay: distKm ? `${distKm} km` : "--",
+        distanceKm: distKm ?? 0,
         durationDisplay: formatMovingTime(movingSec),
         movingSec,
-        heartRateAvg: a.average_heartrate
-          ? `${Math.round(a.average_heartrate)} bpm`
-          : "--",
-        // expanded details
-        heartRateMax: a.max_heartrate
-          ? `${Math.round(a.max_heartrate)} bpm`
-          : "--",
-        elevation: a.total_elevation_gain != null
-          ? `${Math.round(a.total_elevation_gain)} m`
-          : "--",
+        heartRateAvg: a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : "--",
+        heartRateMax: a.max_heartrate ? `${Math.round(a.max_heartrate)} bpm` : "--",
+        elevation: a.total_elevation_gain != null ? `${Math.round(a.total_elevation_gain)} m` : "--",
         calories: a.calories ? `${Math.round(a.calories)} kcal` : "--",
         trainingLoad: a.training_load ? String(Math.round(a.training_load)) : "--",
         avgPace,
@@ -141,7 +137,9 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       }
     })
 
-    // Get most recent wellness entry where each field is not null
+    const kmRun = activities.filter((a) => a.type === "run").reduce((s, a) => s + a.distanceKm, 0)
+    const kmWalked = activities.filter((a) => a.type === "walk").reduce((s, a) => s + a.distanceKm, 0)
+
     const sortedWellness = [...(wellnessRaw || [])].sort((a, b) =>
       (b.id || b.date || "").localeCompare(a.id || a.date || ""),
     )
@@ -173,14 +171,44 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       hrv: hrv != null ? Math.round(hrv) : null,
     }
 
-    // Legacy shape used by overview / other sections
+    // Daily sleep for the past week (ascending by date), for tables/charts
+    const dailySleep = (wellnessRaw || [])
+      .filter((w) => w.sleepSecs != null)
+      .map((w) => {
+        const dateISO = (w.id || w.date || "").slice(0, 10)
+        return {
+          date: dateISO,
+          dayLabel: formatDayShort(dateISO),
+          dateDisplay: formatDate(dateISO),
+          hours: +(w.sleepSecs / 3600).toFixed(1),
+          hoursDisplay: formatSleepTime(w.sleepSecs),
+          score: w.sleepScore ?? null,
+        }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Daily steps for the past week (ascending by date)
+    const dailySteps = (wellnessRaw || [])
+      .filter((w) => w.steps != null)
+      .map((w) => {
+        const dateISO = (w.id || w.date || "").slice(0, 10)
+        return {
+          date: dateISO,
+          dayLabel: formatDayShort(dateISO),
+          dateDisplay: formatDate(dateISO),
+          steps: w.steps,
+          stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
+        }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Legacy shape used elsewhere
     const sleep = (wellnessRaw || [])
       .filter((w) => w.sleepSecs != null || w.sleepScore != null)
       .map((w) => ({
         id: `icu-sleep-${w.id || w.date}`,
         date: (w.id || w.date || "").slice(0, 10),
-        hours:
-          w.sleepSecs != null ? +(w.sleepSecs / 3600).toFixed(2) : null,
+        hours: w.sleepSecs != null ? +(w.sleepSecs / 3600).toFixed(2) : null,
         score: w.sleepScore ?? null,
         source: "intervals.icu" as const,
       }))
@@ -196,7 +224,11 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
 
     return {
       activities,
+      kmRun: +kmRun.toFixed(1),
+      kmWalked: +kmWalked.toFixed(1),
       wellness,
+      dailySleep,
+      dailySteps,
       sleep,
       weights,
       syncedAt: new Date().toISOString(),
@@ -215,10 +247,7 @@ export async function GET() {
 
   if (!apiKey || !athleteId) {
     return NextResponse.json(
-      {
-        error:
-          "Sin credenciales. Añade tu ID de atleta y clave API en Ajustes.",
-      },
+      { error: "Sin credenciales. Añade tu ID de atleta y clave API en Ajustes." },
       { status: 400 },
     )
   }
@@ -237,10 +266,7 @@ export async function POST(request: NextRequest) {
   const { athleteId, apiKey } = body
 
   if (!apiKey || !athleteId) {
-    return NextResponse.json(
-      { error: "Faltan el ID de atleta o la clave API." },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: "Faltan el ID de atleta o la clave API." }, { status: 400 })
   }
 
   const result = await fetchIntervals(apiKey, athleteId)
