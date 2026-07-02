@@ -6,32 +6,33 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 // seeing an Apple Wallet payment notification, type the amount, and it lands
 // here as a transaction in Supabase.
 //
-// Auth: accepts the shared secret EITHER as an "Authorization: Bearer <secret>"
-// header, OR as a "secret" field in the JSON body (any capitalisation — iOS
-// Shortcuts auto-capitalizes the first letter of typed field names, so we
-// normalize all body keys to lowercase before reading them).
+// Auth: accepts the shared secret via (in order of preference):
+//   1. Query string:  ?secret=xxx   <- simplest, recommended for iOS Shortcuts
+//   2. JSON body field "secret" (any capitalisation)
+//   3. "Authorization: Bearer xxx" header
 export async function POST(req: NextRequest) {
-  let rawBody: Record<string, unknown>
+  let rawBody: Record<string, unknown> = {}
   try {
     rawBody = await req.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    rawBody = {}
   }
 
-  // Normalize keys to lowercase so "Secret", "Amount", "Category", etc. all work
-  // regardless of how iOS Shortcuts capitalized the field name.
   const body: Record<string, unknown> = {}
   for (const key of Object.keys(rawBody)) {
     body[key.toLowerCase()] = rawBody[key]
   }
 
   const expectedSecret = process.env.QUICK_ADD_SECRET
+  const querySecret = req.nextUrl.searchParams.get("secret")
   const authHeader = req.headers.get("authorization")
-  const headerOk = !!expectedSecret && authHeader === `Bearer ${expectedSecret}`
   const bodySecret = typeof body.secret === "string" ? body.secret.trim() : ""
+
+  const queryOk = !!expectedSecret && querySecret === expectedSecret
+  const headerOk = !!expectedSecret && authHeader === `Bearer ${expectedSecret}`
   const bodyOk = !!expectedSecret && bodySecret === expectedSecret
 
-  if (!expectedSecret || (!headerOk && !bodyOk)) {
+  if (!expectedSecret || (!queryOk && !headerOk && !bodyOk)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -43,8 +44,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // type: "ingreso" -> positive. Anything else (or missing) -> "gasto", negative.
-  // This mirrors the automatic sign behaviour of the Economía form in the app.
   const typeVal = typeof body.type === "string" ? body.type.toLowerCase() : ""
   const type = typeVal === "ingreso" ? "ingreso" : "gasto"
   const amount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
