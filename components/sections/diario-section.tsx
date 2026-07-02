@@ -14,6 +14,7 @@ import {
   Footprints,
   Moon,
 } from "lucide-react"
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts"
 import { Card } from "@/components/ui/card"
 import { StatCard } from "@/components/stat-card"
 
@@ -28,22 +29,16 @@ export function DiarioSection() {
 
   const wellness = data && data.wellness ? data.wellness : {}
   const activities: any[] = data?.activities || []
+  const dailySleep: any[] = data?.dailySleep || []
+  const dailySteps: any[] = data?.dailySteps || []
   const hasFitness = !!(data && !data.error && data.wellness)
+  const kmRun = data?.kmRun ?? 0
+  const kmWalked = data?.kmWalked ?? 0
 
-  // Weekly summary from the activities Intervals.icu already returns
-  const summary = useMemo(() => {
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const recent = activities.filter((a) => {
-      if (!a.dateDisplay) return true // fall back to counting all if no parseable date
-      return true
-    })
-    const totalDistance = activities.reduce((s, a) => s + (parseFloat(a.distanceDisplay) || 0), 0)
-    return {
-      count: activities.length,
-      totalDistanceDisplay: totalDistance > 0 ? `${totalDistance.toFixed(1)} km` : "--",
-    }
-  }, [activities])
+  const totalSleepHours = useMemo(
+    () => dailySleep.reduce((s, d) => s + (d.hours || 0), 0),
+    [dailySleep],
+  )
 
   if (isLoading) {
     return (
@@ -67,17 +62,104 @@ export function DiarioSection() {
 
   return (
     <div className="space-y-5">
-      {/* Weekly summary from Intervals.icu */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Footprints} label="Pasos" value={wellness.stepsDisplay ?? "--"} sub="Hoy" accent="teal" />
-        <StatCard icon={Moon} label="Sueño" value={wellness.sleepDisplay ?? "--"} sub="Anoche" accent="primary" />
-        <StatCard icon={Activity} label="Actividades" value={String(summary.count)} sub="Últimos 14 días" accent="amber" />
-        <StatCard icon={Route} label="Distancia total" value={summary.totalDistanceDisplay} sub="Últimos 14 días" accent="green" />
+        <StatCard icon={Moon} label="Sueño total (7d)" value={`${totalSleepHours.toFixed(1)}h`} sub="Última semana" accent="primary" />
+        <StatCard icon={Navigation} label="Km corridos" value={`${kmRun.toFixed(1)} km`} sub="Últimos 14 días" accent="amber" />
+        <StatCard icon={Route} label="Km caminados" value={`${kmWalked.toFixed(1)} km`} sub="Últimos 14 días" accent="green" />
       </div>
+
+      {/* Daily sleep table + chart */}
+      {dailySleep.length > 0 && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Moon className="size-4 text-primary" />
+            <p className="text-xs font-medium text-muted-foreground">Horas dormidas esta semana</p>
+          </div>
+          <div className="mb-4 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 text-left font-medium">Día</th>
+                  <th className="py-1.5 text-right font-medium">Horas</th>
+                  <th className="py-1.5 text-right font-medium">Calidad</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {dailySleep.map((d) => (
+                  <tr key={d.date}>
+                    <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
+                    <td className="py-1.5 text-right font-semibold">{d.hoursDisplay}</td>
+                    <td className="py-1.5 text-right text-muted-foreground">{d.score ?? "--"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailySleep} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                  labelStyle={{ color: "#888" }}
+                  formatter={(value: number) => [`${value}h`, "Sueño"]}
+                />
+                <Bar dataKey="hours" fill="#7c6fff" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {/* Daily steps table + chart */}
+      {dailySteps.length > 0 && (
+        <Card className="p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Footprints className="size-4 text-teal-500" />
+            <p className="text-xs font-medium text-muted-foreground">Pasos por día esta semana</p>
+          </div>
+          <div className="mb-4 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-1.5 text-left font-medium">Día</th>
+                  <th className="py-1.5 text-right font-medium">Pasos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {dailySteps.map((d) => (
+                  <tr key={d.date}>
+                    <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
+                    <td className="py-1.5 text-right font-semibold">{d.stepsDisplay}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dailySteps} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                  labelStyle={{ color: "#888" }}
+                  formatter={(value: number) => [value.toLocaleString("es-ES"), "Pasos"]}
+                />
+                <Line type="monotone" dataKey="steps" stroke="#2dd4bf" strokeWidth={2} dot={{ fill: "#2dd4bf", r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       {activities.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">No hay actividades de running recientes.</p>
+          <p className="text-sm text-muted-foreground">No hay actividades recientes.</p>
         </Card>
       ) : (
         <div className="space-y-2">
@@ -148,7 +230,7 @@ function DetailItem({
       <div>
         <p className="text-[10px] text-muted-foreground">{label}</p>
         <p className="text-xs font-semibold">{value}</p>
-      </div>
+    </div>
     </div>
   )
 }
