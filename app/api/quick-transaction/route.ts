@@ -10,6 +10,10 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 //   1. Query string:  ?secret=xxx   <- simplest, recommended for iOS Shortcuts
 //   2. JSON body field "secret" (any capitalisation)
 //   3. "Authorization: Bearer xxx" header
+//
+// Field name matching is forgiving of both capitalisation AND stray
+// whitespace in the key (iOS Shortcuts sometimes adds a trailing space to
+// field names, e.g. "Amount " instead of "Amount").
 export async function POST(req: NextRequest) {
   let rawBody: Record<string, unknown> = {}
   let rawText = ""
@@ -22,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const body: Record<string, unknown> = {}
   for (const key of Object.keys(rawBody)) {
-    body[key.toLowerCase()] = rawBody[key]
+    body[key.trim().toLowerCase()] = rawBody[key]
   }
 
   const expectedSecret = process.env.QUICK_ADD_SECRET
@@ -40,9 +44,6 @@ export async function POST(req: NextRequest) {
 
   const amountRaw = Number(body.amount)
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
-    // Debug info to help diagnose what the Shortcut actually sent, without
-    // leaking the secret. View this by adding a "Show Result" action after
-    // "Get Contents of URL" in the Shortcut.
     return NextResponse.json(
       {
         error: "amount is required and must be a non-zero number",
@@ -57,11 +58,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const typeVal = typeof body.type === "string" ? body.type.toLowerCase() : ""
+  const typeVal = typeof body.type === "string" ? body.type.trim().toLowerCase() : ""
   const type = typeVal === "ingreso" ? "ingreso" : "gasto"
   const amount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
 
-  const categoryRaw = typeof body.category === "string" ? body.category : ""
+  const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
   const matchedCategory = (TRANSACTION_CATEGORIES as readonly string[]).find(
     (c) => c.toLowerCase() === categoryRaw.toLowerCase(),
   )
@@ -72,10 +73,10 @@ export async function POST(req: NextRequest) {
       ? body.description.trim()
       : "Compra con tarjeta (Wallet)"
 
-  const date =
-    typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
-      ? body.date
-      : new Date().toISOString().slice(0, 10)
+  const dateRaw = typeof body.date === "string" ? body.date.trim() : ""
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)
+    ? dateRaw
+    : new Date().toISOString().slice(0, 10)
 
   const { data, error } = await supabase
     .from("transactions")
