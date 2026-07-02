@@ -10,9 +10,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Marcel Fit Coach',
+  title: 'MarcelOS',
   description:
-    'Personal fitness dashboard: track workouts, calories, sleep, and body metrics with an AI coach.',
+    'Mi día a día: forma física, economía y actividad personal.',
   generator: 'v0.app',
   icons: {
     icon: [
