@@ -12,8 +12,10 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 //   3. "Authorization: Bearer xxx" header
 export async function POST(req: NextRequest) {
   let rawBody: Record<string, unknown> = {}
+  let rawText = ""
   try {
-    rawBody = await req.json()
+    rawText = await req.text()
+    rawBody = rawText ? JSON.parse(rawText) : {}
   } catch {
     rawBody = {}
   }
@@ -38,8 +40,19 @@ export async function POST(req: NextRequest) {
 
   const amountRaw = Number(body.amount)
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
+    // Debug info to help diagnose what the Shortcut actually sent, without
+    // leaking the secret. View this by adding a "Show Result" action after
+    // "Get Contents of URL" in the Shortcut.
     return NextResponse.json(
-      { error: "amount is required and must be a non-zero number" },
+      {
+        error: "amount is required and must be a non-zero number",
+        debug: {
+          receivedKeys: Object.keys(body),
+          amountValue: body.amount === undefined ? "(missing)" : body.amount,
+          amountType: typeof body.amount,
+          rawBodyText: rawText.slice(0, 300),
+        },
+      },
       { status: 400 },
     )
   }
