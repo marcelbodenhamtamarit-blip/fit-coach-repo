@@ -3,20 +3,18 @@
 import { useState, useEffect } from "react"
 import {
   Activity,
-  UtensilsCrossed,
   Settings,
   Dumbbell,
   Wallet,
-  Refrigerator,
+  CalendarDays,
   RotateCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
-import { NutritionSection } from "@/components/sections/nutrition-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-import { PantrySection } from "@/components/sections/pantry-section"
+import { DiarioSection } from "@/components/sections/diario-section"
 
 type Tab = {
   id: string
@@ -26,29 +24,27 @@ type Tab = {
 
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
-  { id: "nutrition", label: "Comida", icon: UtensilsCrossed },
-  { id: "pantry", label: "Despensa", icon: Refrigerator },
+  { id: "diario", label: "Diario", icon: CalendarDays },
   { id: "economy", label: "Economía", icon: Wallet },
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
 
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
-  nutrition: "Comida",
-  pantry: "Despensa",
+  diario: "Diario",
   economy: "Economía",
   settings: "Ajustes",
 }
 
 export function Dashboard() {
   const [active, setActive] = useState("overview")
-    useEffect(() => {
-          const stored = localStorage.getItem("marcel-fit-coach:active-tab")
-          if (stored) setActive(stored)
-    }, [])
-    useEffect(() => {
-          localStorage.setItem("marcel-fit-coach:active-tab", active)
-    }, [active])
+  useEffect(() => {
+    const stored = localStorage.getItem("marcel-fit-coach:active-tab")
+    if (stored) setActive(stored)
+  }, [])
+  useEffect(() => {
+    localStorage.setItem("marcel-fit-coach:active-tab", active)
+  }, [active])
   const { data, ready } = useStore()
 
   return (
@@ -89,16 +85,6 @@ export function Dashboard() {
             )
           })}
         </nav>
-
-        <div className="mt-auto rounded-lg border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">Objetivo calórico diario</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums" suppressHydrationWarning>
-            {data.profile.calorieGoal.toLocaleString()}
-            <span className="ml-1 text-xs font-normal text-muted-foreground">
-              kcal
-            </span>
-          </p>
-        </div>
       </aside>
 
       {/* Main */}
@@ -133,8 +119,7 @@ export function Dashboard() {
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {active === "nutrition" && <NutritionSection />}
-              {active === "pantry" && <PantrySection />}
+              {active === "diario" && <DiarioSection />}
               {active === "economy" && <EconomySection />}
               {active === "settings" && <SettingsSection />}
             </>
