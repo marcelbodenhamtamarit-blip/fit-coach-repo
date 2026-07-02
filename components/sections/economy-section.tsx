@@ -9,6 +9,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Pencil,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Area, AreaChart, Tooltip } from "recharts"
 import { Card } from "@/components/ui/card"
@@ -88,13 +89,14 @@ interface GroupedData {
 }
 
 export function EconomySection() {
-  const { data, addTransaction, importTransactions, clearTransactions, deleteTransaction, weeklySupermarket } = useStore()
+  const { data, addTransaction, updateTransaction, importTransactions, clearTransactions, deleteTransaction, weeklySupermarket } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
 
   const [view, setView] = useState<ViewType>("gastos")
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [toastError, setToastError] = useState<string | null>(null)
 
   const [desc, setDesc] = useState("")
@@ -103,6 +105,14 @@ export function EconomySection() {
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [date, setDate] = useState(todayISO())
   const [saving, setSaving] = useState(false)
+
+  // Edit form state (separate from the "new transaction" form above)
+  const [editDesc, setEditDesc] = useState("")
+  const [editType, setEditType] = useState<TxType>("gasto")
+  const [editAmount, setEditAmount] = useState("")
+  const [editCategory, setEditCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
+  const [editDate, setEditDate] = useState(todayISO())
+  const [editSaving, setEditSaving] = useState(false)
 
   const today = todayISO()
   const now = new Date()
@@ -137,7 +147,6 @@ export function EconomySection() {
       if (t.amount > 0) week.income += t.amount
       else week.expenses += Math.abs(t.amount)
     })
-    // Build data using the actual week numbers present in the transactions
     const weekNumbers = Array.from(groups.keys()).sort((a, b) => a - b)
     const data = weekNumbers.map((w) => {
       const week = groups.get(w)!
@@ -161,7 +170,6 @@ export function EconomySection() {
     const source = viewTransactions
 
     if (tab === "diario") {
-      // Group by date
       const groups = new Map<string, Transaction[]>()
       source.forEach((t) => {
         const key = t.date
@@ -180,7 +188,6 @@ export function EconomySection() {
     }
 
     if (tab === "semanal") {
-      // Group by week number
       const groups = new Map<number, Transaction[]>()
       source.forEach((t) => {
         const weekNum = getWeekNumberFromISO(t.date)
@@ -198,10 +205,9 @@ export function EconomySection() {
         })
     }
 
-    // Mensual - group by month
     const groups = new Map<string, Transaction[]>()
     source.forEach((t) => {
-      const monthKey = t.date.slice(0, 7) // "YYYY-MM"
+      const monthKey = t.date.slice(0, 7)
       if (!groups.has(monthKey)) groups.set(monthKey, [])
       groups.get(monthKey)!.push(t)
     })
@@ -220,8 +226,6 @@ export function EconomySection() {
     const raw = parseFloat(amount)
     if (!desc.trim() || isNaN(raw)) return
 
-    // El signo se aplica automáticamente según el tipo elegido:
-    // Gasto -> siempre negativo. Ingreso -> siempre positivo.
     const num = txType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
 
     setSaving(true)
@@ -236,7 +240,6 @@ export function EconomySection() {
 
     try {
       const weekNum = getWeekNumber(date)
-      // Format amount with comma as decimal separator for Google Sheets
       const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
       await fetch(GOOGLE_SHEETS_WEBHOOK, {
         method: "POST",
@@ -263,6 +266,34 @@ export function EconomySection() {
     setSaving(false)
   }
 
+  const startEditing = (tx: Transaction) => {
+    setEditingId(tx.id)
+    setEditDesc(tx.description)
+    setEditType(tx.amount >= 0 ? "ingreso" : "gasto")
+    setEditAmount(String(Math.abs(tx.amount)))
+    setEditCategory(tx.category)
+    setEditDate(tx.date)
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+  }
+
+  const handleUpdate = async (id: string) => {
+    const raw = parseFloat(editAmount)
+    if (!editDesc.trim() || isNaN(raw)) return
+    setEditSaving(true)
+    const num = editType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
+    updateTransaction(id, {
+      description: editDesc.trim(),
+      amount: num,
+      category: editCategory as Transaction["category"],
+      date: editDate,
+    })
+    setEditSaving(false)
+    setEditingId(null)
+  }
+
   return (
     <div className="space-y-5">
       {toastError && (
@@ -281,11 +312,8 @@ export function EconomySection() {
         </Card>
       )}
 
-      {/* Add transaction form at top with slide animation */}
       {showForm && (
-        <Card
-          className="p-5 animate-in slide-in-from-top-4 duration-300"
-        >
+        <Card className="p-5 animate-in slide-in-from-top-4 duration-300">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Nueva transacción</h2>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
@@ -351,7 +379,6 @@ export function EconomySection() {
         </Card>
       )}
 
-      {/* Weekly Supermarket Total Card */}
       <Card className="p-4 bg-primary/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -411,31 +438,15 @@ export function EconomySection() {
             </div>
           </Card>
 
-          {/* Weekly Savings Chart */}
           <Card className="p-4">
             <p className="mb-3 text-xs font-medium text-muted-foreground">Ahorro semanal</p>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={weeklySavingsData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#888", fontSize: 10 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#888", fontSize: 10 }}
-                    tickFormatter={(v) => `$${v}`}
-                  />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1a1a1d",
-                      border: "1px solid #333",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
+                    contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
                     labelStyle={{ color: "#888" }}
                     formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
                     labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
@@ -456,15 +467,11 @@ export function EconomySection() {
             <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
               <div>
                 <p className="text-muted-foreground">Mejor semana</p>
-                <p className="mt-1 font-medium text-emerald-500">
-                  WEEK {bestWeek.week} — ${bestWeek.savings.toFixed(2)} AUD
-                </p>
+                <p className="mt-1 font-medium text-emerald-500">WEEK {bestWeek.week} — ${bestWeek.savings.toFixed(2)} AUD</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Peor semana</p>
-                <p className="mt-1 font-medium text-red-400">
-                  WEEK {worstWeek.week} — ${worstWeek.savings.toFixed(2)} AUD
-                </p>
+                <p className="mt-1 font-medium text-red-400">WEEK {worstWeek.week} — ${worstWeek.savings.toFixed(2)} AUD</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Promedio semanal</p>
@@ -477,7 +484,6 @@ export function EconomySection() {
         </>
       )}
 
-      {/* Gastos / Ganancias separator */}
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         <button
           onClick={() => setView("gastos")}
@@ -553,15 +559,66 @@ export function EconomySection() {
                     </button>
                     {expandedId === tx.id && (
                       <div className="border-t border-border bg-muted/20 px-4 py-3 text-sm">
-                        <p className="text-muted-foreground">
-                          <span className="font-medium text-foreground">Descripción:</span> {tx.description}
-                        </p>
-                        <div className="mt-3 flex justify-end">
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={() => deleteTransaction(tx.id)}>
-                            <X className="mr-1 size-3" />
-                            Eliminar
-                          </Button>
-                        </div>
+                        {editingId === tx.id ? (
+                          <div className="space-y-3">
+                            <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditType("gasto")}
+                                className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
+                                  editType === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
+                                }`}
+                              >
+                                Gasto (−)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditType("ingreso")}
+                                className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
+                                  editType === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
+                                }`}
+                              >
+                                Ganancia (+)
+                              </button>
+                            </div>
+                            <Input placeholder="Descripción" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
+                            <Input type="number" min="0" placeholder="Cantidad" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
+                            <select
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                              className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                            >
+                              {TRANSACTION_CATEGORIES.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                            <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
+                                Cancelar
+                              </Button>
+                              <Button size="sm" className="h-7 text-xs" disabled={editSaving || !editDesc.trim() || !editAmount} onClick={() => handleUpdate(tx.id)}>
+                                {editSaving ? "Guardando..." : "Guardar"}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-muted-foreground">
+                              <span className="font-medium text-foreground">Descripción:</span> {tx.description}
+                            </p>
+                            <div className="mt-3 flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEditing(tx)}>
+                                <Pencil className="mr-1 size-3" />
+                                Editar
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={() => deleteTransaction(tx.id)}>
+                                <X className="mr-1 size-3" />
+                                Eliminar
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
