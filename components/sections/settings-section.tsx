@@ -1,92 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useStore } from "@/lib/store"
 
 export function SettingsSection() {
-  const { data, updateProfileGoals } = useStore()
-  const [calorieGoal, setCalorieGoal] = useState(String(data.profile.calorieGoal))
-  const [proteinGoal, setProteinGoal] = useState(String(data.profile.proteinGoal))
-  const [weightGoal, setWeightGoal] = useState(String(data.profile.weightGoal))
-  const [saved, setSaved] = useState(false)
-
-  const handleSave = () => {
-    updateProfileGoals({
-      calorieGoal: Math.max(1000, parseInt(calorieGoal) || 2400),
-      proteinGoal: Math.max(0, parseInt(proteinGoal) || 170),
-      weightGoal: Math.max(0, parseFloat(weightGoal) || 80),
-    })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
   return (
     <div className="max-w-2xl space-y-6">
       <Card className="p-6">
-        <h2 className="mb-1 text-lg font-semibold">Mis objetivos</h2>
-        <p className="mb-5 text-sm text-muted-foreground">Actualiza tus objetivos diarios de nutrición y peso</p>
-
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="calorie-goal" className="text-sm font-medium">
-              Objetivo de calorías (kcal/día)
-            </Label>
-            <p className="mb-2 text-xs text-muted-foreground">Ingesta calórica diaria recomendada</p>
-            <Input
-              id="calorie-goal"
-              type="number"
-              min="1000"
-              step="50"
-              value={calorieGoal}
-              onChange={(e) => setCalorieGoal(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="protein-goal" className="text-sm font-medium">
-              Objetivo de proteína (g/día)
-            </Label>
-            <p className="mb-2 text-xs text-muted-foreground">Ingesta de proteína diaria recomendada</p>
-            <Input
-              id="protein-goal"
-              type="number"
-              min="0"
-              step="5"
-              value={proteinGoal}
-              onChange={(e) => setProteinGoal(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="weight-goal" className="text-sm font-medium">
-              Objetivo de peso (kg)
-            </Label>
-            <p className="mb-2 text-xs text-muted-foreground">Tu peso objetivo</p>
-            <Input
-              id="weight-goal"
-              type="number"
-              min="0"
-              step="0.1"
-              value={weightGoal}
-              onChange={(e) => setWeightGoal(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-2">
-          <Button onClick={handleSave} className="flex-1">
-            {saved ? "Guardado" : "Guardar cambios"}
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-6">
         <h3 className="mb-2 text-sm font-semibold">Sobre esta app</h3>
-        <p className="text-xs text-muted-foreground">Fit Coach v2.0 • Tracking de nutrición y economía</p>
+        <p className="text-xs text-muted-foreground">
+          Fit Coach v3.0 • Resumen, Diario (Garmin) y Economía
+        </p>
       </Card>
     </div>
   )
