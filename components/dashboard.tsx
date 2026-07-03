@@ -56,8 +56,8 @@ export function Dashboard() {
             <Dumbbell className="size-5" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold">Marcel</p>
-            <p className="text-xs text-muted-foreground">Fit Coach</p>
+            <p className="text-sm font-semibold">MarcelOS</p>
+            <p className="text-xs text-muted-foreground">Mi día a día</p>
           </div>
         </div>
 
