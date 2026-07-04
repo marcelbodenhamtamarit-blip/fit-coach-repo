@@ -133,7 +133,10 @@ export function EconomySection() {
 
   // Transactions filtered by the active view (Gastos / Ganancias)
 const viewTransactions = useMemo(
-  () => transactions.filter((t) => (view === "gastos" ? t.amount < 0 : t.amount > 0)),
+  () =>
+    [...transactions]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .filter((t) => (view === "gastos" ? t.amount < 0 : t.amount > 0)),
   [transactions, view],
 )
 
