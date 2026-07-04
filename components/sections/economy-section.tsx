@@ -132,10 +132,13 @@ export function EconomySection() {
   const ahorro = ingresos - gastos
 
   // Transactions filtered by the active view (Gastos / Ganancias)
-  const viewTransactions = useMemo(
-    () => transactions.filter((t) => (view === "gastos" ? t.amount < 0 : t.amount > 0)),
-    [transactions, view],
-  )
+  cconst viewTransactions = useMemo(
+  () =>
+    [...transactions]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .filter((t) => (view === "gastos" ? t.amount < 0 : t.amount > 0)),
+  [transactions, view],
+)
 
   // Weekly savings chart data
   const weeklySavingsData = useMemo(() => {
