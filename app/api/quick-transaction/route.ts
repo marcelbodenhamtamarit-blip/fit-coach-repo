@@ -14,6 +14,27 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 //
 // Auth: shared secret via ?secret=xxx (preferred), a "secret" field in the
 // JSON body, or an "Authorization: Bearer xxx" header.
+function normalize(s: string): string {
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+}
+
+const CATEGORY_KEYWORDS: Array<{ category: (typeof TRANSACTION_CATEGORIES)[number]; keywords: string[] }> = [
+  { category: "Supermercado", keywords: ["woolworths", "coles", "aldi", "iga", "supermercado", "super"] },
+  { category: "Comida fuera", keywords: ["uber eats", "menulog", "doordash", "restaurant", "restaurante", "cafe", "mcdonald", "kfc", "subway", "pizza", "sushi"] },
+  { category: "Transporte", keywords: ["uber", "taxi", "myki", "opal", "translink", "gasolina", "combustible", "bp", "shell", "caltex", "parking", "estacionamiento"] },
+  { category: "Alojamiento", keywords: ["rent", "alquiler", "airbnb", "hotel"] },
+  { category: "Ocio", keywords: ["netflix", "spotify", "cinema", "cine", "steam", "playstation", "xbox"] },
+  { category: "Compras", keywords: ["amazon", "ebay", "kmart", "target", "big w", "jb hi-fi"] },
+  ]
+
+function inferCategory(text: string): (typeof TRANSACTION_CATEGORIES)[number] | null {
+    const norm = normalize(text)
+    for (const item of CATEGORY_KEYWORDS) {
+          if (item.keywords.some((k) => norm.includes(normalize(k)))) return item.category
+    }
+    return null
+}
+
 export async function POST(req: NextRequest) {
   let rawBody: Record<string, unknown> = {}
   let rawText = ""
@@ -86,11 +107,16 @@ export async function POST(req: NextRequest) {
   const amount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
 
   const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
-  const matchedCategory = (TRANSACTION_CATEGORIES as readonly string[]).find(
-    (c) => c.toLowerCase() === categoryRaw.toLowerCase(),
-  )
-  const category = matchedCategory ?? "Otros"
-
+      const matchedCategory = categoryRaw
+            ? (TRANSACTION_CATEGORIES as readonly string[]).find((c) => normalize(c) === normalize(categoryRaw))
+            : undefined
+const inferSource = [
+      typeof body.description === "string" ? body.description : "",
+      typeof body.subtitle === "string" ? body.subtitle : "",
+      typeof body.title === "string" ? body.title : "",
+      sourceText,
+    ].join(" ")
+    const category = matchedCategory ?? inferCategory(inferSource) ?? "Otros"
   // Description: prefer explicit "description", else build from notification
   // subtitle/title (typically the merchant / card name), else a generic fallback.
   const explicitDescription =
