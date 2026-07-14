@@ -3,17 +3,19 @@ import { NextResponse, NextRequest } from "next/server"
 const BASE = "https://intervals.icu/api/v1"
 
 function isoDaysAgo(days: number) {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
+    const d = new Date()
+        d.setDate(d.getDate() - days)
   return d.toISOString().slice(0, 10)
 }
 
-function formatMovingTime(seconds: number | null): string {
-  if (!seconds) return "--"
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
+function stepsToKm(steps) {
+    return steps ? Math.round(steps * 0.00076 * 10) / 10 : 0
 }
+
+function formatMovingTime(seconds: number | null): string {if (!seconds) return "--"
+const h = Math.floor(seconds / 3600)
+const m = Math.floor((seconds % 3600) / 60)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`}
 
 function formatSleepTime(seconds: number | null): string {
   if (!seconds) return "--"
@@ -164,12 +166,12 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       tsb: tsb != null ? Math.round(tsb) : null,
       restingHR: restingHR != null ? Math.round(restingHR) : null,
       steps: stepsRaw != null ? stepsRaw : null,
-      stepsDisplay: stepsRaw != null ? stepsRaw.toLocaleString("es-ES") : "--",
-      sleepSecs: sleepSecsRaw,
-      sleepDisplay: formatSleepTime(sleepSecsRaw),
-      sleepScore: sleepScore != null ? Math.round(sleepScore) : null,
-      hrv: hrv != null ? Math.round(hrv) : null,
-    }
+        stepsDisplay: stepsRaw != null ? stepsRaw.toLocaleString("es-ES") : "--",
+        kmWalkedToday: stepsToKm(stepsRaw),
+        sleepSecs: sleepSecsRaw,
+        sleepDisplay: formatSleepTime(sleepSecsRaw),
+        sleepScore: sleepScore != null ? Math.round(sleepScore) : null,
+hrv: hrv != null ? Math.round(hrv) : null,    }
 
     // Daily sleep for the past week (ascending by date), for tables/charts
     const dailySleep = (wellnessRaw || [])
@@ -197,8 +199,8 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
           dayLabel: formatDayShort(dateISO),
           dateDisplay: formatDate(dateISO),
           steps: w.steps,
-          stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
-        }
+stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
+          kmWalked: stepsToKm(w.steps),}
       })
       .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -215,19 +217,18 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
 
     const weights = (wellnessRaw || [])
       .filter((w) => w.weight != null)
-      .map((w) => ({
-        id: `icu-weight-${w.id || w.date}`,
-        date: (w.id || w.date || "").slice(0, 10),
-        weightKg: w.weight,
-        source: "intervals.icu" as const,
+        .map((w) => ({
+              id: `icu-weight-${w.id || w.date}`,
+              date: (w.id || w.date || "").slice(0, 10),
+weightKg: w.weight,        source: "intervals.icu" as const,
       }))
 
     return {
       activities,
       kmRun: +kmRun.toFixed(1),
       kmWalked: +kmWalked.toFixed(1),
-      wellness,
-      dailySleep,
+kmWalkedFromSteps: +dailySteps.reduce((s, d) => s + d.kmWalked, 0).toFixed(1),
+        wellness,dailySleep,
       dailySteps,
       sleep,
       weights,
