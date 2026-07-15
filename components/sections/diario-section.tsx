@@ -33,10 +33,8 @@ export function DiarioSection() {
   const dailySteps: any[] = data?.dailySteps || []
   const hasFitness = !!(data && !data.error && data.wellness)
   const kmRun = data?.kmRun ?? 0
-  const kmWalked = data?.kmWalked ?? 0
-
-  const totalSleepHours = useMemo(
-    () => dailySleep.reduce((s, d) => s + (d.hours || 0), 0),
+const kmWalked = data?.kmWalked ?? 0
+    const totalSleepHours = useMemo(() => dailySleep.reduce((s, d) => s + (d.hours || 0), 0),
     [dailySleep],
   )
 
@@ -66,8 +64,7 @@ export function DiarioSection() {
         <StatCard icon={Footprints} label="Pasos" value={wellness.stepsDisplay ?? "--"} sub="Hoy" accent="teal" />
         <StatCard icon={Moon} label="Sueño total (7d)" value={`${totalSleepHours.toFixed(1)}h`} sub="Última semana" accent="primary" />
         <StatCard icon={Navigation} label="Km corridos" value={`${kmRun.toFixed(1)} km`} sub="Últimos 14 días" accent="amber" />
-        <StatCard icon={Route} label="Km caminados" value={`${kmWalked.toFixed(1)} km`} sub="Últimos 14 días" accent="green" />
-      </div>
+<StatCard icon={Route} label="Km caminados" value={`${(kmWalked + (data?.kmWalkedFromSteps ?? 0)).toFixed(1)} km`} sub={(data?.kmWalkedFromSteps ?? 0) > 0 ? `~${(data?.kmWalkedFromSteps ?? 0).toFixed(1)} km por pasos` : "Últimos 14 días"} accent="green" />      </div>
 
       {/* Daily sleep table + chart */}
       {dailySleep.length > 0 && (
