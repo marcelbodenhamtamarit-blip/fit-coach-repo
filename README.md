@@ -13,13 +13,9 @@ Live app: **fit-coach-repo.vercel.app** (this is the one and only active version
 - **Resumen**: 4 mini stat cards — Ahorro semanal (tap → opens Economía), Pasos, Sueño, Km corridos/caminados (tap → opens Diario). Below that: a weekly savings trend chart (last ~13 weeks), a "Resumen de la semana" card consolidating Ahorro/Gastos/Ingresos/Pasos/Sueño/Km. No activity list here anymore — that lives in Diario. Last opened tab is remembered (localStorage) across reloads.
 - **Diario**: fitness data from Intervals.icu (`/api/intervals`). Top: Pasos, Sueño total (7d), Km corridos, Km caminados. Then two Card sections with a **table + chart** each: horas dormidas por día (bar chart) and pasos por día (line chart), both for the last 7 days. Below that, the full list of recent running/walking activities, each expandable for FC máx., desnivel, calorías, carga (TSS) and ritmo.
 - **Economía**: income/expense tracker in AUD, stored in Supabase (`transactions` table). Split into two separate views, **Gastos** and **Ganancias**, selectable with a toggle; each view groups its own transactions by Diario/Semanal/Mensual. The transaction form has a Gasto/Ingreso type selector — the sign is applied automatically, the user only types a positive number. Every transaction can be **edited** (description, amount, type, category, date — saved to Supabase via `updateTransaction`) or deleted, via buttons inside the expanded row. All expense figures are displayed with a leading `-`, income with `+`.
-- **Ajustes**: just an "About" card now. Calorie/protein/weight goal fields were removed (Comida/Despensa screens are gone, so those goals had nothing left to track against).
+**Comida**, **Despensa**, standalone **Forma física** and **Coach** were removed from the nav (per Marcel's request to simplify). Their component files, plus the now-unused `/api/coach` route and `lib/coach-context.ts`, were deleted from the repo on 15 Jul 2026 since nothing imports them anymore.
 
-### Removed screens
-**Comida**, **Despensa**, standalone **Forma física** and **Coach** were removed from the nav (per Marcel's request to simplify). Their component files may still exist in the repo but are not imported by `dashboard.tsx` — safe to delete later, kept for now in case any of that logic is wanted back.
-
-## Supabase tables
-
+  ## Supabase tables
 - `transactions` — income/expense entries (date, description, category, amount, week_number). Supports insert/update/delete from the Economía screen.
 - `profile` — single row (id=1), still exists but its calorie/protein/weight fields are no longer edited anywhere in the UI.
 - `pantry_items`, `meals`, `meal_ingredients`, `body_metrics` — still in the schema from the old Comida/Despensa screens, no longer written to by the current UI.
@@ -36,7 +32,6 @@ All tables have row-level security enabled with an open policy (`using (true)`),
 - The **direct Garmin Connect sync backend** (`/api/garmin/sync`, `/api/garmin/cron-sync`, `lib/garmin-sync.ts`, `GARMIN_EMAIL`/`GARMIN_PASSWORD`/`GARMIN_SYNC_SECRET`, daily cron in `vercel.json`) **no longer works — Garmin closed off this kind of unofficial access**, similar to what happened with the old Woolworths integration. The `garmin_activities` Supabase table it wrote to stayed empty. The `GET /api/garmin/activities` read endpoint still exists but nothing in the UI calls it anymore (Diario was switched to Intervals.icu instead). This backend can be deleted whenever convenient; it's inert.
 
 ## Bank expense import — two working pieces
-
 1. **Manual quick-add from iPhone (working now)**: `POST /api/quick-transaction` — used by an iOS Shortcut triggered from the "when I use this card" Wallet automation. Auth via `?secret=...` query param (or a `secret` field in the JSON body, or an `Authorization: Bearer` header) checked against the `QUICK_ADD_SECRET` env var. All body keys are matched case-insensitively and trimmed, since iOS Shortcuts sometimes auto-capitalizes or adds trailing spaces to field names — this caused several rounds of debugging. Body fields: `amount` (required, positive number), `description`, `category`, `type` ("gasto"/"ingreso", defaults to gasto), `date`. Right now the Shortcut asks Marcel to type the amount manually (a couple of seconds after the Wallet notification) since iOS 26.5.2 can't read notification text.
 2. **iOS 27 automatic path (built, not active yet)**: the same endpoint also accepts raw `title`/`subtitle`/`body` text straight from iOS 27's new Notification automation trigger (or the dedicated Wallet "Transaction" trigger), and extracts the amount from that text with a regex — no typing needed. Marcel is still on iOS 26.5.2, so this path is unused for now; flip it on by rebuilding the Shortcut with the Notification trigger once he updates.
 3. **CommBank direct integration**: still not built. If picked up later, keep it to a safe approach — CommBank NetBank CSV/OFX import, or an Open Banking (CDR) aggregator like Basiq with OAuth — never storing or entering CommBank login credentials in this app.
@@ -63,14 +58,15 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 
 ## Changelog
 
-### 2 Jul 2026
+### 15 Jul 2026
+- **Quick-add category fix**: `/api/quick-transaction` now normalizes accents/casing before matching the category the Shortcut sends, and falls back to inferring the category from merchant keywords in the description (Woolworths→Supermercado, Uber→Transporte, Netflix→Ocio, etc.) when the Shortcut doesn't send `category` at all. Previously it always fell straight through to "Otros".
+- **Km caminados now includes steps-based estimate**: `/api/intervals` returns `wellness.kmWalkedToday`, a `kmWalked` estimate per day in `dailySteps`, and a weekly `kmWalkedFromSteps` total (~0.76m/step), added on top of the existing GPS-tracked `kmWalked`. Diario's "Km caminados" stat card now shows the combined total.
+- **Dead code removed**: the 8 leftover section components, `/api/coach`, `lib/coach-context.ts`, `lib/woolworths-products.ts`, the direct-Garmin-sync backend, `/api/sheets`, `/api/woolworths`, and `vercel.json` were all confirmed unused and deleted from the repo.### 2 Jul 2026
 - **Economía**: added inline editing for every transaction (not just delete) — description, amount, type, category, date, saved to Supabase.
 - **Nav simplified**: removed Comida and Despensa; added Diario. Nav is now Resumen / Diario / Economía / Ajustes.
-- **Ajustes**: removed calorie/protein/weight goal fields (no longer used by anything).
 - **Resumen redesigned**: mini stat cards for Ahorro semanal (→ Economía), Pasos, Sueño, Km corridos/caminados (→ Diario); weekly savings trend chart; consolidated "Resumen de la semana" card. Activity list removed from here (moved to Diario).
 - **Diario**: switched from the (now-dead) direct Garmin sync to Intervals.icu as its data source. Added daily sleep and daily steps as both a table and a chart (last 7 days), plus the full activity list with expandable detail.
-- **`/api/intervals` extended**: now also returns `dailySleep`, `dailySteps`, `kmRun`, `kmWalked` alongside the existing `wellness` and `activities`.
-- **Garmin direct-sync backend confirmed dead**: Garmin blocked the unofficial login method the same way they eventually block most unofficial API access. `garmin_activities` table stayed empty; not worth debugging further — Intervals.icu covers the same ground.
+- - **`/api/intervals` extended**: now also returns `dailySleep`, `dailySteps`, `kmRun`, `kmWalked` alongside the existing `wellness` and `activities`.- **Garmin direct-sync backend confirmed dead**: Garmin blocked the unofficial login method the same way they eventually block most unofficial API access. `garmin_activities` table stayed empty; not worth debugging further — Intervals.icu covers the same ground.
 - **iPhone Shortcut (quick-add)**: fixed through several rounds — moved auth to a query-param secret (simplest for Shortcuts to configure), made all body field matching case-insensitive AND whitespace-trimmed (root cause of repeated "Unauthorized"/"amount missing" errors was iOS auto-capitalizing/adding spaces to field names), and added debug info in error responses. Also pre-built (but inactive) support for iOS 27's new Notification/Transaction automation triggers, which would let this become fully automatic — no typing — once Marcel updates from iOS 26.5.2.
 
 ### 1 Jul 2026
