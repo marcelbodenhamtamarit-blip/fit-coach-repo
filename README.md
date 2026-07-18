@@ -58,16 +58,21 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 
 ## Changelog
 
+### 18 Jul 2026
+- **Gastos programables por semana (opcional)**: `/api/quick-transaction` acepta dos campos nuevos, ambos opcionales y combinables. Sin ellos el comportamiento es idéntico al de antes.
+  - `weekOffset: N` — mueve el gasto entero N semanas hacia adelante. Caso de uso: pagas un viaje hoy pero el gasto pertenece a la semana en que realmente viajas.
+  - `weeks: N` — divide el importe a partes iguales entre N semanas consecutivas, marcando cada parte en la descripción (`(1/2)`, `(2/2)`). Caso de uso: pagar 2 semanas de hostel por adelantado.
+  - Combinados (`weeks: 2, weekOffset: 3`) dividen en 2 partes empezando 3 semanas después.
+  - La división mantiene los céntimos exactos: el resto del redondeo va en la primera fila, así las partes siempre suman el total original.
+  - `weekOffset` cuenta días desde hoy (N × 7), no semanas de calendario, así que el resultado depende del día en que se ejecute el Shortcut. Como Economía agrupa por semana (domingo–sábado), en la práctica cae en la semana correcta.
+- **Shortcut actualizado**: tras el menú de categoría hay un segundo menú (Normal / Otra semana / Dividir). "Normal" no manda nada extra. Las otras dos preguntan el número de semanas y lo mandan como `weekOffset` / `weeks`.
+- **Categoría del menú arreglada en el Shortcut**: cada rama del menú de categorías define ahora explícitamente su propio texto (mediante una acción `Texto` / `Definir variable`), en vez de depender de la variable mágica de Atajos, que no contenía el nombre de la opción elegida y hacía que todo cayera en "Otros".
+- **`hostel`** añadido a las palabras clave de Alojamiento.
+
 ### 15 Jul 2026
-- **Quick-add category fix**: `/api/quick-transaction` now normalizes accents/casing before matching the category the Shortcut sends, and falls back to inferring the category from merchant keywords in the description (Woolworths→Supermercado, Uber→Transporte, Netflix→Ocio, etc.) when the Shortcut doesn't send `category` at all. Previously it always fell straight through to "Otros".
-- **Km caminados now includes steps-based estimate**: `/api/intervals` returns `wellness.kmWalkedToday`, a `kmWalked` estimate per day in `dailySteps`, and a weekly `kmWalkedFromSteps` total (~0.76m/step), added on top of the existing GPS-tracked `kmWalked`. Diario's "Km caminados" stat card now shows the combined total.
-- **Dead code removed**: the 8 leftover section components, `/api/coach`, `lib/coach-context.ts`, `lib/woolworths-products.ts`, the direct-Garmin-sync backend, `/api/sheets`, `/api/woolworths`, and `vercel.json` were all confirmed unused and deleted from the repo.### 2 Jul 2026
-- **Economía**: added inline editing for every transaction (not just delete) — description, amount, type, category, date, saved to Supabase.
-- **Nav simplified**: removed Comida and Despensa; added Diario. Nav is now Resumen / Diario / Economía / Ajustes.
-- **Resumen redesigned**: mini stat cards for Ahorro semanal (→ Economía), Pasos, Sueño, Km corridos/caminados (→ Diario); weekly savings trend chart; consolidated "Resumen de la semana" card. Activity list removed from here (moved to Diario).
-- **Diario**: switched from the (now-dead) direct Garmin sync to Intervals.icu as its data source. Added daily sleep and daily steps as both a table and a chart (last 7 days), plus the full activity list with expandable detail.
-- - **`/api/intervals` extended**: now also returns `dailySleep`, `dailySteps`, `kmRun`, `kmWalked` alongside the existing `wellness` and `activities`.- **Garmin direct-sync backend confirmed dead**: Garmin blocked the unofficial login method the same way they eventually block most unofficial API access. `garmin_activities` table stayed empty; not worth debugging further — Intervals.icu covers the same ground.
-- **iPhone Shortcut (quick-add)**: fixed through several rounds — moved auth to a query-param secret (simplest for Shortcuts to configure), made all body field matching case-insensitive AND whitespace-trimmed (root cause of repeated "Unauthorized"/"amount missing" errors was iOS auto-capitalizing/adding spaces to field names), and added debug info in error responses. Also pre-built (but inactive) support for iOS 27's new Notification/Transaction automation triggers, which would let this become fully automatic — no typing — once Marcel updates from iOS 26.5.2.
+- **Quick-add category fix**: `/api/quick-transaction` normaliza acentos/mayúsculas antes de comparar la categoría que envía el Shortcut, e infiere la categoría por palabras clave del comercio (Woolworths→Supermercado, Uber→Transporte, Netflix→Ocio, etc.) cuando el Shortcut no manda `category`. Antes caía siempre directo a "Otros".
+- **Km caminados incluye estimación por pasos**: `/api/intervals` devuelve `wellness.kmWalkedToday`, un `kmWalked` estimado por día en `dailySteps`, y un total semanal `kmWalkedFromSteps` (~0,76 m/paso), sumados a los `kmWalked` con GPS que ya existían. La tarjeta "Km caminados" de Diario muestra el total combinado.
+- **Código muerto eliminado**: los 8 componentes de secciones sin usar (coach, fitness, workouts, sleep, metrics, nutrition, pantry, daily-metrics), `/api/coach`, `lib/coach-context.ts`, `lib/woolworths-products.ts`, todo el backend de sync directo con Garmin, `/api/sheets`, `/api/woolworths` y `vercel.json` — todos confirmados sin uso y borrados del repo.
 
 ### 1 Jul 2026
 - Confirmed `fit-coach-repo` (this repo) is the single active codebase going forward; the older `marcel-fit-coach` Vercel project/repo is deprecated and no longer receives updates.
