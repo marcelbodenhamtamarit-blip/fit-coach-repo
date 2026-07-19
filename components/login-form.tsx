@@ -20,7 +20,7 @@ export function LoginForm() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-50 rounded-full bg-card border border-border px-3 py-2 text-xs text-muted-foreground shadow-lg"
+        className="fixed bottom-20 right-4 z-50 rounded-full bg-card border border-border px-3 py-2 text-xs text-muted-foreground shadow-lg"
       >
         Entrar
       </button>
@@ -28,7 +28,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex w-64 flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-lg">
+    <div className="fixed bottom-20 right-4 z-50 flex w-64 flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-lg">
       <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Input placeholder="Contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
       {error && <p className="text-xs text-red-500">{error}</p>}
