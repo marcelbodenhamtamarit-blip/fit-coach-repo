@@ -16,6 +16,8 @@ import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { DiarioSection } from "@/components/sections/diario-section"
 
+import { LoginForm } from "@/components/login-form"
+
 type Tab = {
   id: string
   label: string
@@ -149,6 +151,7 @@ export function Dashboard() {
       </nav>
     </div>
   )
+  <LoginForm />
 }
 
 function greeting() {
