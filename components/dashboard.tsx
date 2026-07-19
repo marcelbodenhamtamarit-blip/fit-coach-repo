@@ -149,9 +149,10 @@ export function Dashboard() {
           )
         })}
       </nav>
+     <LoginForm />
     </div>
   )
-  <LoginForm />
+ 
 }
 
 function greeting() {
