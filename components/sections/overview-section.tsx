@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
-import { PiggyBank, Footprints, Moon, Route, TrendingUp } from "lucide-react"
+import { useMemo, useState } from "react"
+import { PiggyBank, Footprints, Moon, Route, TrendingUp, ChevronDown } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { StatCard } from "@/components/stat-card"
 import { Card } from "@/components/ui/card"
@@ -27,6 +27,7 @@ export function OverviewSection({
 }) {
   const { data } = useStore()
   const transactions = data.transactions ?? []
+  const [showDetail, setShowDetail] = useState(false)
 
   const weekStart = (() => {
     const d = new Date()
@@ -62,7 +63,7 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard
             icon={PiggyBank}
@@ -73,73 +74,71 @@ export function OverviewSection({
             accent={weekSavings >= 0 ? "green" : "red"}
           />
         </button>
-        <StatCard
-          icon={Footprints}
-          label="Pasos"
-          value={hasFitness ? (wellness.stepsDisplay ?? "--") : "--"}
-          sub={hasFitness ? "Hoy" : "Conecta Garmin"}
-          accent="teal"
-        />
-        <StatCard
-          icon={Moon}
-          label="Sueño"
-          value={hasFitness ? (wellness.sleepDisplay ?? "--") : "--"}
-          sub={hasFitness && wellness.sleepScore ? `Calidad ${wellness.sleepScore}` : "Anoche"}
-          accent="primary"
-        />
         <button onClick={() => onNavigate("diario")} className="text-left">
           <StatCard
-            icon={Route}
-            label="Km corridos/caminados"
-            value={hasFitness ? `${kmTotal.toFixed(1)} km` : "--"}
-            sub={hasFitness ? `${kmRun.toFixed(1)} corridos · ${kmWalked.toFixed(1)} caminados` : "Últimos 14 días"}
-            accent="amber"
+            icon={Footprints}
+            label="Pasos"
+            value={hasFitness ? (wellness.stepsDisplay ?? "--") : "--"}
+            sub={hasFitness ? "Hoy" : "Conecta Garmin"}
+            accent="teal"
           />
         </button>
       </div>
 
-      {weeklyTrend.length > 1 && (
-        <Card className="p-4">
-          <div className="mb-1 flex items-center gap-2">
+      <Card className="overflow-hidden p-0">
+        <button
+          onClick={() => setShowDetail((v) => !v)}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
             <TrendingUp className="size-4 text-primary" />
-            <p className="text-xs font-medium text-muted-foreground">Tendencia de ahorro semanal</p>
           </div>
-          <div className="h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                  labelStyle={{ color: "#888" }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="savings"
-                  stroke="#7c6fff"
-                  strokeWidth={2}
-                  fill="#7c6fff"
-                  fillOpacity={0.2}
-                  dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
-                  activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Resumen de la semana</p>
+            <p className="text-xs text-muted-foreground">Gastos, ingresos, sueño y km</p>
           </div>
-        </Card>
-      )}
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showDetail ? "rotate-180" : ""}`}
+          />
+        </button>
 
-      <Card className="p-4">
-        <p className="mb-3 text-xs font-medium text-muted-foreground">Resumen de la semana</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MiniStat label="Ahorro" value={`${weekSavings >= 0 ? "+" : "-"}$${Math.abs(weekSavings).toFixed(2)}`} tone={weekSavings >= 0 ? "green" : "red"} />
-          <MiniStat label="Gastos" value={`-$${weekExpenses.toFixed(2)}`} tone="red" />
-          <MiniStat label="Ingresos" value={`+$${weekIncome.toFixed(2)}`} tone="green" />
-          <MiniStat label="Pasos hoy" value={hasFitness ? (wellness.stepsDisplay ?? "--") : "--"} tone="neutral" />
-          <MiniStat label="Sueño anoche" value={hasFitness ? (wellness.sleepDisplay ?? "--") : "--"} tone="neutral" />
-          <MiniStat label="Km totales" value={hasFitness ? `${kmTotal.toFixed(1)} km` : "--"} tone="neutral" />
-        </div>
+        {showDetail && (
+          <div className="border-t border-border p-4">
+            {weeklyTrend.length > 1 && (
+              <div className="mb-4 h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={weeklyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                      labelStyle={{ color: "#888" }}
+                      formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="savings"
+                      stroke="#7c6fff"
+                      strokeWidth={2}
+                      fill="#7c6fff"
+                      fillOpacity={0.2}
+                      dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
+                      activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-3">
+              <MiniStat label="Gastos" value={`-$${weekExpenses.toFixed(2)}`} tone="red" />
+              <MiniStat label="Ingresos" value={`+$${weekIncome.toFixed(2)}`} tone="green" />
+              <MiniStat label="Sueño anoche" value={hasFitness ? (wellness.sleepDisplay ?? "--") : "--"} tone="neutral" />
+              <MiniStat label="Km corridos" value={hasFitness ? `${kmRun.toFixed(1)} km` : "--"} tone="neutral" />
+              <MiniStat label="Km caminados" value={hasFitness ? `${kmWalked.toFixed(1)} km` : "--"} tone="neutral" />
+              <MiniStat label="Km totales" value={hasFitness ? `${kmTotal.toFixed(1)} km` : "--"} tone="neutral" />
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   )
