@@ -17,7 +17,6 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
 
@@ -85,6 +84,7 @@ export function EconomySection() {
 
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -105,7 +105,6 @@ export function EconomySection() {
   const [editSaving, setEditSaving] = useState(false)
 
   const today = todayISO()
-  const now = new Date()
   const currentMonth = today.slice(0, 7)
 
   const monthTx = transactions.filter((t) => t.date.startsWith(currentMonth))
@@ -355,25 +354,6 @@ export function EconomySection() {
         </Card>
       )}
 
-      <Card className="p-4 bg-primary/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShoppingCart className="size-6 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Supermercado esta semana (W{weeklySupermarket.weekNumber})</p>
-              <p className="text-xl font-bold">${weeklySupermarket.thisWeekTotal.toFixed(2)}</p>
-            </div>
-          </div>
-          <div className="text-right text-xs text-muted-foreground">
-            {weeklySupermarket.lastSubmittedWeek === weeklySupermarket.weekNumber ? (
-              <span className="text-emerald-500">Enviado</span>
-            ) : (
-              <span>Sábado 23:59 resumen</span>
-            )}
-          </div>
-        </div>
-      </Card>
-
       {!showForm && (
         <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
           <Plus className="mr-2 size-4" />
@@ -381,46 +361,84 @@ export function EconomySection() {
         </Button>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard icon={TrendingUp} label="Ingresado" value={`+$${ingresos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="green" />
-        <StatCard icon={TrendingDown} label="Gastado" value={`-$${gastos.toFixed(2)}`} sub={now.toLocaleString("es-ES", { month: "long" })} accent="red" />
-        <StatCard icon={PiggyBank} label="Balance" value={`${ahorro >= 0 ? "+" : "-"}$${Math.abs(ahorro).toFixed(2)}`} sub={ahorro >= 0 ? "Positivo" : "Déficit"} accent={ahorro >= 0 ? "green" : "red"} />
-      </div>
-
-      {transactions.length > 0 && (
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Ahorro semanal</p>
-            <p className={`text-xs font-medium ${avgWeeklySavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-              Promedio: ${avgWeeklySavings.toFixed(2)}
+      <Card className="overflow-hidden p-0">
+        <button
+          onClick={() => setShowSummary((v) => !v)}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+        >
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${ahorro >= 0 ? "bg-emerald-500/10" : "bg-red-500/10"}`}>
+            <PiggyBank className={`size-4 ${ahorro >= 0 ? "text-emerald-500" : "text-red-400"}`} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Balance del mes</p>
+            <p className={`text-lg font-bold ${ahorro >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+              {ahorro >= 0 ? "+" : "-"}${Math.abs(ahorro).toFixed(2)}
             </p>
           </div>
-          <div className="h-40">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklySavingsData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                  labelStyle={{ color: "#888" }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
-                  labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="savings"
-                  stroke="#7c6fff"
-                  strokeWidth={2}
-                  fill="#7c6fff"
-                  fillOpacity={0.2}
-                  dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
-                  activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSummary ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {showSummary && (
+          <div className="border-t border-border p-4">
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <MiniStat label="Ingresado (mes)" value={`+$${ingresos.toFixed(2)}`} tone="green" />
+              <MiniStat label="Gastado (mes)" value={`-$${gastos.toFixed(2)}`} tone="red" />
+            </div>
+
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
+              <ShoppingCart className="size-5 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">Supermercado esta semana (W{weeklySupermarket.weekNumber})</p>
+                <p className="text-base font-semibold">${weeklySupermarket.thisWeekTotal.toFixed(2)}</p>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {weeklySupermarket.lastSubmittedWeek === weeklySupermarket.weekNumber ? (
+                  <span className="text-emerald-500">Enviado</span>
+                ) : (
+                  "Sáb 23:59"
+                )}
+              </span>
+            </div>
+
+            {weeklySavingsData.length > 0 && (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">Ahorro semanal</p>
+                  <p className={`text-xs font-medium ${avgWeeklySavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                    Promedio: ${avgWeeklySavings.toFixed(2)}
+                  </p>
+                </div>
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={weeklySavingsData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                        labelStyle={{ color: "#888" }}
+                        formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
+                        labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="savings"
+                        stroke="#7c6fff"
+                        strokeWidth={2}
+                        fill="#7c6fff"
+                        fillOpacity={0.2}
+                        dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
+                        activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         {[{ id: "diario", label: "Diario" }, { id: "semanal", label: "Semanal" }, { id: "mensual", label: "Mensual" }].map((t) => (
@@ -563,6 +581,24 @@ export function EconomySection() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function MiniStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: "green" | "red" | "neutral"
+}) {
+  const color = tone === "green" ? "text-emerald-500" : tone === "red" ? "text-red-400" : "text-foreground"
+  return (
+    <div className="rounded-md border border-border bg-muted/20 p-2 text-center">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className={`text-sm font-semibold ${color}`}>{value}</p>
     </div>
   )
 }
