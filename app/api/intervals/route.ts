@@ -157,7 +157,8 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
 
     const ctl = findLatest("ctl")
     const atl = findLatest("atl")
-    const tsb = findLatest("tsb")
+        // TSB (forma) no lo devuelve la API: es CTL - ATL
+    const tsb = ctl != null && atl != null ? ctl - atl : findLatest("tsb")
     const restingHR = findLatest("restingHR")
     const stepsRaw = findLatest("steps")
     const sleepSecsRaw = findLatest("sleepSecs")
