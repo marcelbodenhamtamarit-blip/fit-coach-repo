@@ -34,6 +34,7 @@ export function DiarioSection() {
   const hasFitness = !!(data && !data.error && data.wellness)
   const [showSleep, setShowSleep] = useState(false)
   const [showSteps, setShowSteps] = useState(false)
+  const [showActivities, setShowActivities] = useState(false)
   const kmRun = data?.kmRun ?? 0
   const kmWalked = data?.kmWalked ?? 0
   const kmWalkedFromSteps = data?.kmWalkedFromSteps ?? 0
@@ -186,60 +187,79 @@ export function DiarioSection() {
         </Card>
       )}
 
-      {activities.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">No hay actividades recientes.</p>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Todas las actividades</p>
-          {activities.map((a) => {
-            const isExpanded = expandedId === a.id
-            return (
-              <div key={a.id} className="overflow-hidden rounded-lg border border-border bg-card">
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                  className="w-full p-3 text-left transition-colors hover:bg-muted/50 sm:p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                        <Navigation className="size-4 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-2">
-                          <p className="truncate text-sm font-medium">{a.name}</p>
-                          <span className="text-xs text-muted-foreground">{a.dateDisplay}</span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span>{a.distanceDisplay}</span>
-                          <span>{a.durationDisplay}</span>
-                          <span>{a.heartRateAvg}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronDown
-                      className={`size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    />
-                  </div>
-                </button>
+      <Card className="overflow-hidden p-0">
+        <button
+          onClick={() => setShowActivities((v) => !v)}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
+            <Activity className="size-4 text-amber-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Actividades</p>
+            <p className="text-xs text-muted-foreground">
+              {activities.length === 0 ? "Sin actividades recientes" : `${activities.length} ${activities.length === 1 ? "actividad" : "actividades"}`}
+            </p>
+          </div>
+          <ChevronDown
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showActivities ? "rotate-180" : ""}`}
+          />
+        </button>
 
-                {isExpanded && (
-                  <div className="border-t border-border bg-muted/20 p-3 sm:p-4">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      <DetailItem icon={Heart} label="FC máx." value={a.heartRateMax} />
-                      <DetailItem icon={Mountain} label="Desnivel" value={a.elevation} />
-                      <DetailItem icon={Flame} label="Calorías" value={a.calories} />
-                      <DetailItem icon={Zap} label="Carga" value={a.trainingLoad} />
-                      <DetailItem icon={Navigation} label="Ritmo medio" value={a.avgPace} />
-                    </div>
+        {showActivities && (
+          <div className="space-y-2 border-t border-border p-4">
+            {activities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hay actividades recientes.</p>
+            ) : (
+              activities.map((a) => {
+                const isExpanded = expandedId === a.id
+                return (
+                  <div key={a.id} className="overflow-hidden rounded-lg border border-border bg-card">
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                      className="w-full p-3 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                            <Navigation className="size-4 text-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-2">
+                              <p className="truncate text-sm font-medium">{a.name}</p>
+                              <span className="text-xs text-muted-foreground">{a.dateDisplay}</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                              <span>{a.distanceDisplay}</span>
+                              <span>{a.durationDisplay}</span>
+                              <span>{a.heartRateAvg}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronDown
+                          className={`size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        />
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t border-border bg-muted/20 p-3">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          <DetailItem icon={Heart} label="FC máx." value={a.heartRateMax} />
+                          <DetailItem icon={Mountain} label="Desnivel" value={a.elevation} />
+                          <DetailItem icon={Flame} label="Calorías" value={a.calories} />
+                          <DetailItem icon={Zap} label="Carga" value={a.trainingLoad} />
+                          <DetailItem icon={Navigation} label="Ritmo medio" value={a.avgPace} />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+                )
+              })
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   )
 }
@@ -263,4 +283,3 @@ function DetailItem({
     </div>
   )
 }
-
