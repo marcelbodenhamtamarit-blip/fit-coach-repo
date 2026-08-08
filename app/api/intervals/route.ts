@@ -3,19 +3,21 @@ import { NextResponse, NextRequest } from "next/server"
 const BASE = "https://intervals.icu/api/v1"
 
 function isoDaysAgo(days: number) {
-    const d = new Date()
-        d.setDate(d.getDate() - days)
+  const d = new Date()
+  d.setDate(d.getDate() - days)
   return d.toISOString().slice(0, 10)
 }
 
-function stepsToKm(steps) {
-    return steps ? Math.round(steps * 0.00076 * 10) / 10 : 0
+function stepsToKm(steps: number | null | undefined): number {
+  return steps ? Math.round(steps * 0.00076 * 10) / 10 : 0
 }
 
-function formatMovingTime(seconds: number | null): string {if (!seconds) return "--"
-const h = Math.floor(seconds / 3600)
-const m = Math.floor((seconds % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`}
+function formatMovingTime(seconds: number | null): string {
+  if (!seconds) return "--"
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  return h > 0 ? `${h}h ${m}m` : `${m}m`
+}
 
 function formatSleepTime(seconds: number | null): string {
   if (!seconds) return "--"
@@ -76,14 +78,14 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
     }
 
     const [activitiesRes, wellnessRes] = await Promise.all([
-      fetch(
-        `${BASE}/athlete/${id}/activities?oldest=${oldest14}&newest=${newest}`,
-        { headers, cache: "no-store" },
-      ),
-      fetch(
-        `${BASE}/athlete/${id}/wellness?oldest=${oldest7}&newest=${newest}`,
-        { headers, cache: "no-store" },
-      ),
+      fetch(`${BASE}/athlete/${id}/activities?oldest=${oldest14}&newest=${newest}`, {
+        headers,
+        cache: "no-store",
+      }),
+      fetch(`${BASE}/athlete/${id}/wellness?oldest=${oldest7}&newest=${newest}`, {
+        headers,
+        cache: "no-store",
+      }),
     ])
 
     if (!activitiesRes.ok || !wellnessRes.ok) {
@@ -110,6 +112,7 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       const movingSec = a.moving_time || null
       const t = (a.type || "").toLowerCase()
       const isRun = t.includes("run")
+      const dateISO = (a.start_date_local || a.start_date || "").slice(0, 10)
 
       let avgPace = "--"
       if (movingSec && distKm && distKm > 0) {
@@ -123,8 +126,9 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
         id: `icu-${a.id}`,
         name: a.name || (isRun ? "Running" : "Caminata"),
         type: isRun ? "run" : "walk",
-        dateDisplay: formatDate((a.start_date_local || a.start_date || "").slice(0, 10)),
-        dateISO: (a.start_date_local || a.start_date || "").slice(0, 10),
+        date: dateISO,
+        dateISO,
+        dateDisplay: formatDate(dateISO),
         distanceDisplay: distKm ? `${distKm} km` : "--",
         distanceKm: distKm ?? 0,
         durationDisplay: formatMovingTime(movingSec),
@@ -166,12 +170,13 @@ async function fetchIntervals(apiKey: string, athleteId: string) {
       tsb: tsb != null ? Math.round(tsb) : null,
       restingHR: restingHR != null ? Math.round(restingHR) : null,
       steps: stepsRaw != null ? stepsRaw : null,
-        stepsDisplay: stepsRaw != null ? stepsRaw.toLocaleString("es-ES") : "--",
-        kmWalkedToday: stepsToKm(stepsRaw),
-        sleepSecs: sleepSecsRaw,
-        sleepDisplay: formatSleepTime(sleepSecsRaw),
-        sleepScore: sleepScore != null ? Math.round(sleepScore) : null,
-hrv: hrv != null ? Math.round(hrv) : null,    }
+      stepsDisplay: stepsRaw != null ? stepsRaw.toLocaleString("es-ES") : "--",
+      kmWalkedToday: stepsToKm(stepsRaw),
+      sleepSecs: sleepSecsRaw,
+      sleepDisplay: formatSleepTime(sleepSecsRaw),
+      sleepScore: sleepScore != null ? Math.round(sleepScore) : null,
+      hrv: hrv != null ? Math.round(hrv) : null,
+    }
 
     // Daily sleep for the past week (ascending by date), for tables/charts
     const dailySleep = (wellnessRaw || [])
@@ -199,8 +204,21 @@ hrv: hrv != null ? Math.round(hrv) : null,    }
           dayLabel: formatDayShort(dateISO),
           dateDisplay: formatDate(dateISO),
           steps: w.steps,
-stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
-          kmWalked: stepsToKm(w.steps),}
+          stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
+          kmWalked: stepsToKm(w.steps),
+        }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    // Daily resting HR for the past week (ascending by date)
+    const dailyRestingHR = (wellnessRaw || [])
+      .filter((w) => w.restingHR != null)
+      .map((w) => {
+        const dateISO = (w.id || w.date || "").slice(0, 10)
+        return {
+          date: dateISO,
+          restingHR: Math.round(w.restingHR),
+        }
       })
       .sort((a, b) => a.date.localeCompare(b.date))
 
@@ -217,19 +235,22 @@ stepsDisplay: Number(w.steps).toLocaleString("es-ES"),
 
     const weights = (wellnessRaw || [])
       .filter((w) => w.weight != null)
-        .map((w) => ({
-              id: `icu-weight-${w.id || w.date}`,
-              date: (w.id || w.date || "").slice(0, 10),
-weightKg: w.weight,        source: "intervals.icu" as const,
+      .map((w) => ({
+        id: `icu-weight-${w.id || w.date}`,
+        date: (w.id || w.date || "").slice(0, 10),
+        weightKg: w.weight,
+        source: "intervals.icu" as const,
       }))
 
     return {
       activities,
       kmRun: +kmRun.toFixed(1),
       kmWalked: +kmWalked.toFixed(1),
-kmWalkedFromSteps: +dailySteps.reduce((s, d) => s + d.kmWalked, 0).toFixed(1),
-        wellness,dailySleep,
+      kmWalkedFromSteps: +dailySteps.reduce((s, d) => s + d.kmWalked, 0).toFixed(1),
+      wellness,
+      dailySleep,
       dailySteps,
+      dailyRestingHR,
       sleep,
       weights,
       syncedAt: new Date().toISOString(),
@@ -278,3 +299,4 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(result)
 }
+
