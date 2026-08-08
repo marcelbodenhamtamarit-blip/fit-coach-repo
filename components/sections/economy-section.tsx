@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react"
 import {
-  TrendingUp,
-  TrendingDown,
   PiggyBank,
   Plus,
   X,
@@ -85,6 +83,7 @@ export function EconomySection() {
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -459,126 +458,142 @@ export function EconomySection() {
           <p className="text-sm text-muted-foreground">Sin transacciones registradas</p>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {groupedData.map((group) => (
-            <Card key={group.key} className="overflow-hidden p-0">
-              <div className="flex items-center justify-between border-b border-border bg-muted/30 p-3">
-                <p className="text-sm font-medium">{group.label}</p>
-                <span className={`text-xs font-semibold tabular-nums ${group.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                  {fmt(group.net)}
-                </span>
-              </div>
-              <div className="divide-y divide-border">
-                {group.categories.map((catGroup) => {
-                  const catKey = `${group.key}:${catGroup.category}`
-                  const isCatExpanded = expandedCategory === catKey
-                  return (
-                    <div key={catKey}>
-                      <button
-                        onClick={() => setExpandedCategory(isCatExpanded ? null : catKey)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{catGroup.category}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {catGroup.transactions.length} {catGroup.transactions.length === 1 ? "movimiento" : "movimientos"}
-                          </p>
-                        </div>
-                        <span className={`text-sm font-semibold tabular-nums ${catGroup.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                          {fmt(catGroup.net)}
-                        </span>
-                        {isCatExpanded ? (
-                          <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                        )}
-                      </button>
+        <div className="space-y-3">
+          {groupedData.map((group) => {
+            const isGroupExpanded = expandedGroup === group.key
+            return (
+              <Card key={group.key} className="overflow-hidden p-0">
+                <button
+                  onClick={() => setExpandedGroup(isGroupExpanded ? null : group.key)}
+                  className="flex w-full items-center justify-between gap-3 bg-muted/30 p-3 text-left hover:bg-muted/40 transition-colors"
+                >
+                  <p className="text-sm font-medium">{group.label}</p>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold tabular-nums ${group.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                      {fmt(group.net)}
+                    </span>
+                    {isGroupExpanded ? (
+                      <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </div>
+                </button>
 
-                      {isCatExpanded && (
-                        <div className="divide-y divide-border bg-muted/10">
-                          {catGroup.transactions.map((tx) => (
-                            <div key={tx.id}>
-                              <button
-                                onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
-                                className="flex w-full items-center gap-3 py-2.5 pl-8 pr-4 text-left hover:bg-muted/40 transition-colors"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-xs font-medium">{tx.description}</p>
-                                  <p className="truncate text-xs text-muted-foreground">{tx.date}</p>
-                                </div>
-                                <span className={`text-xs font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                                  {fmt(tx.amount)}
-                                </span>
-                              </button>
-                              {expandedId === tx.id && (
-                                <div className="border-t border-border bg-muted/20 px-4 py-3 pl-8 text-sm">
-                                  {editingId === tx.id ? (
-                                    <div className="space-y-3">
-                                      <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditType("gasto")}
-                                          className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
-                                            editType === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
-                                          }`}
-                                        >
-                                          Gasto (−)
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditType("ingreso")}
-                                          className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
-                                            editType === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
-                                          }`}
-                                        >
-                                          Ganancia (+)
-                                        </button>
-                                      </div>
-                                      <Input placeholder="Descripción" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
-                                      <Input type="number" min="0" placeholder="Cantidad" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
-                                      <select
-                                        value={editCategory}
-                                        onChange={(e) => setEditCategory(e.target.value)}
-                                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                                      >
-                                        {TRANSACTION_CATEGORIES.map((c) => (
-                                          <option key={c} value={c}>{c}</option>
-                                        ))}
-                                      </select>
-                                      <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
-                                      <div className="flex justify-end gap-2">
-                                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
-                                          Cancelar
-                                        </Button>
-                                        <Button size="sm" className="h-7 text-xs" disabled={editSaving || !editDesc.trim() || !editAmount} onClick={() => handleUpdate(tx.id)}>
-                                          {editSaving ? "Guardando..." : "Guardar"}
-                                        </Button>
-                                      </div>
+                {isGroupExpanded && (
+                  <div className="divide-y divide-border border-t border-border">
+                    {group.categories.map((catGroup) => {
+                      const catKey = `${group.key}:${catGroup.category}`
+                      const isCatExpanded = expandedCategory === catKey
+                      return (
+                        <div key={catKey}>
+                          <button
+                            onClick={() => setExpandedCategory(isCatExpanded ? null : catKey)}
+                            className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">{catGroup.category}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {catGroup.transactions.length} {catGroup.transactions.length === 1 ? "movimiento" : "movimientos"}
+                              </p>
+                            </div>
+                            <span className={`text-sm font-semibold tabular-nums ${catGroup.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                              {fmt(catGroup.net)}
+                            </span>
+                            {isCatExpanded ? (
+                              <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                            )}
+                          </button>
+
+                          {isCatExpanded && (
+                            <div className="divide-y divide-border bg-muted/10">
+                              {catGroup.transactions.map((tx) => (
+                                <div key={tx.id}>
+                                  <button
+                                    onClick={() => setExpandedId(expandedId === tx.id ? null : tx.id)}
+                                    className="flex w-full items-center gap-3 py-2.5 pl-8 pr-4 text-left hover:bg-muted/40 transition-colors"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-xs font-medium">{tx.description}</p>
+                                      <p className="truncate text-xs text-muted-foreground">{tx.date}</p>
                                     </div>
-                                  ) : (
-                                    <div className="flex justify-end gap-2">
-                                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEditing(tx)}>
-                                        <Pencil className="mr-1 size-3" />
-                                        Editar
-                                      </Button>
-                                      <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={() => deleteTransaction(tx.id)}>
-                                        <X className="mr-1 size-3" />
-                                        Eliminar
-                                      </Button>
+                                    <span className={`text-xs font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                      {fmt(tx.amount)}
+                                    </span>
+                                  </button>
+                                  {expandedId === tx.id && (
+                                    <div className="border-t border-border bg-muted/20 px-4 py-3 pl-8 text-sm">
+                                      {editingId === tx.id ? (
+                                        <div className="space-y-3">
+                                          <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditType("gasto")}
+                                              className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
+                                                editType === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
+                                              }`}
+                                            >
+                                              Gasto (−)
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditType("ingreso")}
+                                              className={`flex-1 rounded-md py-1 text-xs font-medium transition-colors ${
+                                                editType === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
+                                              }`}
+                                            >
+                                              Ganancia (+)
+                                            </button>
+                                          </div>
+                                          <Input placeholder="Descripción" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
+                                          <Input type="number" min="0" placeholder="Cantidad" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
+                                          <select
+                                            value={editCategory}
+                                            onChange={(e) => setEditCategory(e.target.value)}
+                                            className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                                          >
+                                            {TRANSACTION_CATEGORIES.map((c) => (
+                                              <option key={c} value={c}>{c}</option>
+                                            ))}
+                                          </select>
+                                          <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
+                                          <div className="flex justify-end gap-2">
+                                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
+                                              Cancelar
+                                            </Button>
+                                            <Button size="sm" className="h-7 text-xs" disabled={editSaving || !editDesc.trim() || !editAmount} onClick={() => handleUpdate(tx.id)}>
+                                              {editSaving ? "Guardando..." : "Guardar"}
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="flex justify-end gap-2">
+                                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEditing(tx)}>
+                                            <Pencil className="mr-1 size-3" />
+                                            Editar
+                                          </Button>
+                                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={() => deleteTransaction(tx.id)}>
+                                            <X className="mr-1 size-3" />
+                                            Eliminar
+                                          </Button>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
-                              )}
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </Card>
-          ))}
+                      )
+                    })}
+                  </div>
+                )}
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>
