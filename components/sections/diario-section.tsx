@@ -32,13 +32,14 @@ export function DiarioSection() {
   const dailySleep: any[] = data?.dailySleep || []
   const dailySteps: any[] = data?.dailySteps || []
   const hasFitness = !!(data && !data.error && data.wellness)
-  const [showSleepChart, setShowSleepChart] = useState(false)
-  const [showStepsChart, setShowStepsChart] = useState(false)
+  const [showSleep, setShowSleep] = useState(false)
+  const [showSteps, setShowSteps] = useState(false)
   const kmRun = data?.kmRun ?? 0
   const kmWalked = data?.kmWalked ?? 0
   const kmWalkedFromSteps = data?.kmWalkedFromSteps ?? 0
   const kmTotal = kmRun + kmWalked + kmWalkedFromSteps
   const totalSleepHours = useMemo(() => dailySleep.reduce((s, d) => s + (d.hours || 0), 0), [dailySleep])
+  const totalSteps = useMemo(() => dailySteps.reduce((s, d) => s + (Number(d.steps) || 0), 0), [dailySteps])
 
   if (isLoading) {
     return (
@@ -68,105 +69,118 @@ export function DiarioSection() {
       </div>
 
       {dailySleep.length > 0 && (
-        <Card className="p-4">
-          <div
-            onClick={() => setShowSleepChart((v) => !v)}
-            className="mb-3 flex cursor-pointer items-center gap-2"
+        <Card className="overflow-hidden p-0">
+          <button
+            onClick={() => setShowSleep((v) => !v)}
+            className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
           >
-            <Moon className="size-4 text-primary" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Moon className="size-4 text-primary" />
+            </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-muted-foreground">Sueño esta semana</p>
-              <p className="text-sm font-semibold">{totalSleepHours.toFixed(1)}h total</p>
+              <p className="text-sm font-medium">Sueño</p>
+              <p className="text-xs text-muted-foreground">{totalSleepHours.toFixed(1)}h esta semana</p>
             </div>
             <ChevronDown
-              className={`size-4 text-muted-foreground transition-transform ${showSleepChart ? "rotate-180" : ""}`}
+              className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSleep ? "rotate-180" : ""}`}
             />
-          </div>
-          <div className="mb-4 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1.5 text-left font-medium">Día</th>
-                  <th className="py-1.5 text-right font-medium">Horas</th>
-                  <th className="py-1.5 text-right font-medium">Calidad</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {dailySleep.map((d) => (
-                  <tr key={d.date}>
-                    <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
-                    <td className="py-1.5 text-right font-semibold">{d.hoursDisplay}</td>
-                    <td className="py-1.5 text-right text-muted-foreground">{d.score ?? "--"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {showSleepChart && (
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailySleep} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                  <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                    labelStyle={{ color: "#888" }}
-                    formatter={(value: number) => [`${value}h`, "Sueño"]}
-                  />
-                  <Bar dataKey="hours" fill="#7c6fff" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+          </button>
+
+          {showSleep && (
+            <div className="border-t border-border p-4">
+              <div className="mb-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="py-1.5 text-left font-medium">Día</th>
+                      <th className="py-1.5 text-right font-medium">Horas</th>
+                      <th className="py-1.5 text-right font-medium">Calidad</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {dailySleep.map((d) => (
+                      <tr key={d.date}>
+                        <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
+                        <td className="py-1.5 text-right font-semibold">{d.hoursDisplay}</td>
+                        <td className="py-1.5 text-right text-muted-foreground">{d.score ?? "--"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailySleep} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                      labelStyle={{ color: "#888" }}
+                      formatter={(value: number) => [`${value}h`, "Sueño"]}
+                    />
+                    <Bar dataKey="hours" fill="#7c6fff" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </Card>
       )}
 
       {dailySteps.length > 0 && (
-        <Card className="p-4">
-          <div
-            onClick={() => setShowStepsChart((v) => !v)}
-            className="mb-3 flex cursor-pointer items-center gap-2"
+        <Card className="overflow-hidden p-0">
+          <button
+            onClick={() => setShowSteps((v) => !v)}
+            className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
           >
-            <Footprints className="size-4 text-teal-500" />
-            <p className="text-xs font-medium text-muted-foreground">Pasos por día esta semana</p>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-500/10">
+              <Footprints className="size-4 text-teal-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Pasos</p>
+              <p className="text-xs text-muted-foreground">{totalSteps.toLocaleString("es-ES")} esta semana</p>
+            </div>
             <ChevronDown
-              className={`ml-auto size-4 text-muted-foreground transition-transform ${showStepsChart ? "rotate-180" : ""}`}
+              className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSteps ? "rotate-180" : ""}`}
             />
-          </div>
-          <div className="mb-4 overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1.5 text-left font-medium">Día</th>
-                  <th className="py-1.5 text-right font-medium">Pasos</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {dailySteps.map((d) => (
-                  <tr key={d.date}>
-                    <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
-                    <td className="py-1.5 text-right font-semibold">{d.stepsDisplay}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {showStepsChart && (
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dailySteps} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                  <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                    labelStyle={{ color: "#888" }}
-                    formatter={(value: number) => [value.toLocaleString("es-ES"), "Pasos"]}
-                  />
-                  <Line type="monotone" dataKey="steps" stroke="#2dd4bf" strokeWidth={2} dot={{ fill: "#2dd4bf", r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
+          </button>
+
+          {showSteps && (
+            <div className="border-t border-border p-4">
+              <div className="mb-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="py-1.5 text-left font-medium">Día</th>
+                      <th className="py-1.5 text-right font-medium">Pasos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {dailySteps.map((d) => (
+                      <tr key={d.date}>
+                        <td className="py-1.5 capitalize">{d.dayLabel} {d.dateDisplay}</td>
+                        <td className="py-1.5 text-right font-semibold">{d.stepsDisplay}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dailySteps} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                      labelStyle={{ color: "#888" }}
+                      formatter={(value: number) => [value.toLocaleString("es-ES"), "Pasos"]}
+                    />
+                    <Line type="monotone" dataKey="steps" stroke="#2dd4bf" strokeWidth={2} dot={{ fill: "#2dd4bf", r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </Card>
@@ -249,3 +263,4 @@ function DetailItem({
     </div>
   )
 }
+
