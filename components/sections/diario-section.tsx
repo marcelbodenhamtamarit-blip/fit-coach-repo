@@ -36,6 +36,8 @@ export function DiarioSection() {
   const [showStepsChart, setShowStepsChart] = useState(false)
   const kmRun = data?.kmRun ?? 0
   const kmWalked = data?.kmWalked ?? 0
+  const kmWalkedFromSteps = data?.kmWalkedFromSteps ?? 0
+  const kmTotal = kmRun + kmWalked + kmWalkedFromSteps
   const totalSleepHours = useMemo(() => dailySleep.reduce((s, d) => s + (d.hours || 0), 0), [dailySleep])
 
   if (isLoading) {
@@ -60,11 +62,9 @@ export function DiarioSection() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <StatCard icon={Footprints} label="Pasos" value={wellness.stepsDisplay ?? "--"} sub="Hoy" accent="teal" />
-        <StatCard icon={Moon} label="Sueño total (7d)" value={`${totalSleepHours.toFixed(1)}h`} sub="Última semana" accent="primary" />
-        <StatCard icon={Navigation} label="Km corridos" value={`${kmRun.toFixed(1)} km`} sub="Últimos 14 días" accent="amber" />
-        <StatCard icon={Route} label="Km caminados" value={`${(kmWalked + (data?.kmWalkedFromSteps ?? 0)).toFixed(1)} km`} sub={(data?.kmWalkedFromSteps ?? 0) > 0 ? `~${(data?.kmWalkedFromSteps ?? 0).toFixed(1)} km por pasos` : "Últimos 14 días"} accent="green" />
+        <StatCard icon={Route} label="Km totales" value={`${kmTotal.toFixed(1)} km`} sub="Corriendo + caminando (14d)" accent="green" />
       </div>
 
       {dailySleep.length > 0 && (
@@ -74,9 +74,12 @@ export function DiarioSection() {
             className="mb-3 flex cursor-pointer items-center gap-2"
           >
             <Moon className="size-4 text-primary" />
-            <p className="text-xs font-medium text-muted-foreground">Horas dormidas esta semana</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-muted-foreground">Sueño esta semana</p>
+              <p className="text-sm font-semibold">{totalSleepHours.toFixed(1)}h total</p>
+            </div>
             <ChevronDown
-              className={`ml-auto size-4 text-muted-foreground transition-transform ${showSleepChart ? "rotate-180" : ""}`}
+              className={`size-4 text-muted-foreground transition-transform ${showSleepChart ? "rotate-180" : ""}`}
             />
           </div>
           <div className="mb-4 overflow-x-auto">
