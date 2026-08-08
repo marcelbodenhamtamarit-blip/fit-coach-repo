@@ -10,7 +10,7 @@ import {
   Pencil,
   ShoppingCart,
 } from "lucide-react"
-import { ResponsiveContainer, Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts"
+import { ResponsiveContainer, BarChart, Bar, Cell, Tooltip, XAxis } from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -111,6 +111,8 @@ export function EconomySection() {
   const gastos = monthTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const ahorro = ingresos - gastos
 
+  const allSavings = transactions.reduce((s, t) => s + t.amount, 0)
+
   const weeklySavingsData = useMemo(() => {
     const groups = new Map<number, { income: number; expenses: number }>()
     transactions.forEach((t) => {
@@ -127,8 +129,8 @@ export function EconomySection() {
     })
   }, [transactions])
 
-  const avgWeeklySavings =
-    weeklySavingsData.reduce((sum, w) => sum + w.savings, 0) / (weeklySavingsData.length || 1)
+  const bestWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((best, w) => (w.savings > best.savings ? w : best)) : null
+  const worstWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((worst, w) => (w.savings < worst.savings ? w : worst)) : null
 
   const groupedData = useMemo((): GroupedData[] => {
     const source = [...transactions].sort((a, b) => b.date.localeCompare(a.date))
@@ -374,9 +376,7 @@ export function EconomySection() {
               {ahorro >= 0 ? "+" : "-"}${Math.abs(ahorro).toFixed(2)}
             </p>
           </div>
-          <ChevronDown
-            className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSummary ? "rotate-180" : ""}`}
-          />
+          <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSummary ? "rotate-180" : ""}`} />
         </button>
 
         {showSummary && (
@@ -386,7 +386,7 @@ export function EconomySection() {
               <MiniStat label="Gastado (mes)" value={`-$${gastos.toFixed(2)}`} tone="red" />
             </div>
 
-            <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
               <ShoppingCart className="size-5 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Supermercado esta semana (W{weeklySupermarket.weekNumber})</p>
@@ -400,44 +400,40 @@ export function EconomySection() {
                 )}
               </span>
             </div>
-
-            {weeklySavingsData.length > 0 && (
-              <>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground">Ahorro semanal</p>
-                  <p className={`text-xs font-medium ${avgWeeklySavings >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                    Promedio: ${avgWeeklySavings.toFixed(2)}
-                  </p>
-                </div>
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={weeklySavingsData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                        labelStyle={{ color: "#888" }}
-                        formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
-                        labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="savings"
-                        stroke="#7c6fff"
-                        strokeWidth={2}
-                        fill="#7c6fff"
-                        fillOpacity={0.2}
-                        dot={{ fill: "#7c6fff", strokeWidth: 0, r: 3 }}
-                        activeDot={{ fill: "#7c6fff", strokeWidth: 0, r: 5 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </>
-            )}
           </div>
         )}
       </Card>
+
+      {weeklySavingsData.length > 0 && (
+        <Card className="p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold">Ahorro semanal</p>
+          </div>
+          <div className="h-28">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklySavingsData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
+                  labelStyle={{ color: "#888" }}
+                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
+                  labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
+                />
+                <Bar dataKey="savings" radius={[3, 3, 0, 0]}>
+                  {weeklySavingsData.map((entry, i) => (
+                    <Cell key={i} fill={entry.savings >= 0 ? "#34d399" : "#f87171"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <MiniStat label="Total ahorrado" value={`${allSavings >= 0 ? "+" : "-"}$${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
+            {bestWeek && <MiniStat label="Mejor" value={`+$${bestWeek.savings.toFixed(2)}`} tone="green" />}
+            {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}$${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
+          </div>
+        </Card>
+      )}
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         {[{ id: "diario", label: "Diario" }, { id: "semanal", label: "Semanal" }, { id: "mensual", label: "Mensual" }].map((t) => (
