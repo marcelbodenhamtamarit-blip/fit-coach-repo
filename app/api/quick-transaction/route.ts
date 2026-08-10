@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
+
+// Cliente con service_role: salta RLS, solo se usa en servidor.
+// El Shortcut ya se autentica con QUICK_ADD_SECRET más abajo.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+)
+
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 
 function normalize(s: string): string {
