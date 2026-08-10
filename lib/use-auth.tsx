@@ -3,27 +3,60 @@
 import { createContext, useContext, useEffect, useState } from "react"
 import { supabase } from "./supabase"
 
-const AuthContext = createContext<{ isAuthed: boolean; loading: boolean }>({
-  isAuthed: false,
-  loading: true,
+type Mode = "loading" | "out" | "guest" | "owner"
+
+const AuthContext = createContext<{
+  mode: Mode
+  isOwner: boolean
+  enterAsGuest: () => void
+  signOut: () => void
+}>({
+  mode: "loading",
+  isOwner: false,
+  enterAsGuest: () => {},
+  signOut: () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthed, setIsAuthed] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<Mode>("loading")
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setIsAuthed(!!data.session)
-      setLoading(false)
+      if (data.session) {
+        setMode("owner")
+      } else if (typeof window !== "undefined" && sessionStorage.getItem("guest") === "1") {
+        setMode("guest")
+      } else {
+        setMode("out")
+      }
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthed(!!session)
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) {
+        setMode("owner")
+      } else {
+        setMode(sessionStorage.getItem("guest") === "1" ? "guest" : "out")
+      }
     })
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  return <AuthContext.Provider value={{ isAuthed, loading }}>{children}</AuthContext.Provider>
+  const enterAsGuest = () => {
+    sessionStorage.setItem("guest", "1")
+    setMode("guest")
+  }
+
+  const signOut = () => {
+    sessionStorage.removeItem("guest")
+    supabase.auth.signOut()
+    setMode("out")
+  }
+
+  return (
+    <AuthContext.Provider value={{ mode, isOwner: mode === "owner", enterAsGuest, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
