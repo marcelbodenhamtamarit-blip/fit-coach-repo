@@ -15,6 +15,9 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { DiarioSection } from "@/components/sections/diario-section"
+import { useAuth } from "@/lib/use-auth"
+import { LoginScreen } from "@/components/login-screen"
+import { LogOut } from "lucide-react"
 
 
 
@@ -48,6 +51,22 @@ export function Dashboard() {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
   const { data, ready } = useStore()
+  const { mode, isOwner, signOut } = useAuth()
+
+  if (mode === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Cargando...
+      </div>
+    )
+  }
+
+  if (mode === "out") {
+    return <LoginScreen />
+  }
+
+  const visibleTabs = isOwner ? TABS : TABS.filter((t) => t.id === "overview")
+  const activeTab = isOwner ? active : "overview"
 
   return (
     <div className="min-h-screen bg-background">
@@ -64,7 +83,7 @@ export function Dashboard() {
         </div>
 
         <nav className="mt-8 flex flex-col gap-1">
-          {TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon
             const isActive = active === tab.id
             return (
@@ -95,7 +114,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-balance text-lg font-semibold sm:text-xl">
-                {TAB_TITLES[active] ?? active}
+                {TAB_TITLES[activeTab] ?? activeTab}
               </h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
                 {greeting()}, {data.profile.name}. Sigamos con la racha.
@@ -108,6 +127,13 @@ export function Dashboard() {
             >
               <RotateCw className="size-4" />
             </button>
+            <button
+              onClick={signOut}
+              className="ml-2 flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Salir"
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </header>
 
@@ -118,12 +144,12 @@ export function Dashboard() {
             </div>
           ) : (
             <>
-              {active === "overview" && (
+              {activeTab === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {active === "diario" && <DiarioSection />}
-              {active === "economy" && <EconomySection />}
-              {active === "settings" && <SettingsSection />}
+              {isOwner && activeTab === "diario" && <DiarioSection />}
+              {isOwner && activeTab === "economy" && <EconomySection />}
+              {isOwner && activeTab === "settings" && <SettingsSection />}
             </>
           )}
         </main>
@@ -131,7 +157,7 @@ export function Dashboard() {
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (
