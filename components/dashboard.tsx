@@ -120,20 +120,22 @@ export function Dashboard() {
                 {greeting()}, {data.profile.name}. Sigamos con la racha.
               </p>
             </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              title="Recargar"
-            >
-              <RotateCw className="size-4" />
-            </button>
-            <button
-              onClick={signOut}
-              className="ml-2 flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              title="Salir"
-            >
-              <LogOut className="size-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Recargar"
+              >
+                <RotateCw className="size-4" />
+              </button>
+              <button
+                onClick={signOut}
+                className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Salir"
+              >
+                <LogOut className="size-4" />
+              </button>
+            </div>
           </div>
         </header>
 
