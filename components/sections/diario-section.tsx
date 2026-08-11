@@ -320,10 +320,11 @@ function MiniChart({
       <div className="h-14">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-            <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 9 }} interval={0} />
+            <XAxis dataKey="dayLabel" axisLine={false} tickLine={false} tick={{ fill: "#a1a1aa", fontSize: 9 }} interval={0} />
             <Tooltip
-              contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "11px" }}
-              labelStyle={{ color: "#888" }}
+              contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "11px", color: "#f4f4f5" }}
+              labelStyle={{ color: "#a1a1aa" }}
+              itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
               formatter={(value: number) => [formatValue(value), ""]}
               cursor={{ fill: "rgba(255,255,255,0.06)" }}
             />
