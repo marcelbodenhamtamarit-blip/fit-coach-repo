@@ -433,8 +433,9 @@ export function EconomySection() {
               <BarChart data={weeklySavingsData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#a1a1aa", fontSize: 10 }} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
-                  labelStyle={{ color: "#888" }}
+                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
+                  labelStyle={{ color: "#a1a1aa" }}
+                  itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
                   formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
                   labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
                   cursor={{ fill: "rgba(255,255,255,0.06)" }}
