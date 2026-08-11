@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
   const dateRaw = typeof body.date === "string" ? body.date.trim() : ""
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)
     ? dateRaw
-    : new Date().toISOString().slice(0, 10)
+    : new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Brisbane" }).format(new Date())
 
   // Programación opcional:
   //   weekOffset -> mueve el gasto N semanas hacia adelante (pagado hoy, pero
