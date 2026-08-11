@@ -141,6 +141,14 @@ export type AppData = {
   transactions: Transaction[]
 }
 
-export const todayISO = () => new Date().toISOString().slice(0, 10)
+// Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
+// Evita que a primera hora de la manana en Australia se registre el dia anterior.
+export const todayISO = () => {
+  const tz =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Brisbane"
+      : "Australia/Brisbane"
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date())
+}
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
