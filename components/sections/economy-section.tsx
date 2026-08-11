@@ -431,7 +431,7 @@ export function EconomySection() {
           <div className="h-28">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklySavingsData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 10 }} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#a1a1aa", fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "12px" }}
                   labelStyle={{ color: "#888" }}
@@ -642,10 +642,10 @@ function MiniStat({
   value: string
   tone: "green" | "red" | "neutral"
 }) {
-  const color = tone === "green" ? "text-emerald-500" : tone === "red" ? "text-red-400" : "text-foreground"
+  const color = tone === "green" ? "text-emerald-400" : tone === "red" ? "text-red-400" : "text-zinc-100"
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-2 text-center">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
+    <div className="rounded-md border border-white/10 bg-white/5 p-2 text-center">
+      <p className="text-[10px] text-zinc-400">{label}</p>
       <p className={`text-sm font-semibold ${color}`}>{value}</p>
     </div>
   )
