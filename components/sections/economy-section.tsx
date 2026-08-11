@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
+  PieChart,
 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, Cell, Tooltip, XAxis } from "recharts"
 import { Card } from "@/components/ui/card"
@@ -61,6 +62,39 @@ function fmt(amount: number): string {
   return amount >= 0 ? `+$${abs}` : `-$${abs}`
 }
 
+const CATEGORY_EMOJI: Record<string, string> = {
+  Alojamiento: "\u{1F3E0}",
+  Supermercado: "\u{1F6D2}",
+  "Comida fuera": "\u{1F37D}\uFE0F",
+  Transporte: "\u{1F697}",
+  Salario: "\u{1F4B0}",
+  Compras: "\u{1F6CD}\uFE0F",
+  Necesidades: "\u{1F9FE}",
+  Ocio: "\u{1F3AC}",
+  Otros: "\u{1F4CC}",
+}
+
+const CATEGORY_COLOR: Record<string, string> = {
+  Alojamiento: "#fbbf24",
+  Supermercado: "#2dd4bf",
+  "Comida fuera": "#fb7185",
+  Transporte: "#60a5fa",
+  Salario: "#34d399",
+  Compras: "#c084fc",
+  Necesidades: "#f87171",
+  Ocio: "#a78bfa",
+  Otros: "#8a8a93",
+}
+
+interface WeeklyCategory {
+  category: string
+  total: number
+  count: number
+  history: { week: number; total: number }[]
+  trend: number | null
+  transactions: Transaction[]
+}
+
 interface CategoryGroup {
   category: string
   net: number
@@ -83,6 +117,7 @@ export function EconomySection() {
   const [showForm, setShowForm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
+  const [expandedSpendCat, setExpandedSpendCat] = useState<string | null>(null)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -130,6 +165,45 @@ export function EconomySection() {
 
   const bestWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((best, w) => (w.savings > best.savings ? w : best)) : null
   const worstWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((worst, w) => (w.savings < worst.savings ? w : worst)) : null
+
+  // Gasto por categoria de la semana actual, con historico de 6 semanas
+  const currentWeekNum = getWeekNumberFromISO(today)
+  const weeklyByCategory = useMemo((): WeeklyCategory[] => {
+    const expenses = transactions.filter((t) => t.amount < 0)
+    const cats = new Map<string, Transaction[]>()
+    expenses
+      .filter((t) => getWeekNumberFromISO(t.date) === currentWeekNum)
+      .forEach((t) => {
+        if (!cats.has(t.category)) cats.set(t.category, [])
+        cats.get(t.category)!.push(t)
+      })
+
+    return Array.from(cats.entries())
+      .map(([category, txs]) => {
+        const total = txs.reduce((s, t) => s + Math.abs(t.amount), 0)
+        const history = Array.from({ length: 6 }, (_, i) => {
+          const w = currentWeekNum - 5 + i
+          const wTotal = expenses
+            .filter((t) => t.category === category && getWeekNumberFromISO(t.date) === w)
+            .reduce((s, t) => s + Math.abs(t.amount), 0)
+          return { week: w, total: wTotal }
+        })
+        const past = history.slice(0, 5).filter((h) => h.total > 0)
+        const avg = past.length > 0 ? past.reduce((s, h) => s + h.total, 0) / past.length : null
+        const trend = avg && avg > 0 ? ((total - avg) / avg) * 100 : null
+        return {
+          category,
+          total,
+          count: txs.length,
+          history,
+          trend,
+          transactions: [...txs].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
+        }
+      })
+      .sort((a, b) => b.total - a.total)
+  }, [transactions, currentWeekNum])
+
+  const weekSpendTotal = weeklyByCategory.reduce((s, c) => s + c.total, 0)
 
   const groupedData = useMemo((): GroupedData[] => {
     const source = [...transactions].sort((a, b) => b.date.localeCompare(a.date))
@@ -417,6 +491,98 @@ export function EconomySection() {
             <MiniStat label="Total ahorrado" value={`${allSavings >= 0 ? "+" : "-"}$${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
             {bestWeek && <MiniStat label="Mejor" value={`+$${bestWeek.savings.toFixed(2)}`} tone="green" />}
             {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}$${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
+          </div>
+        </Card>
+      )}
+
+      {weeklyByCategory.length > 0 && (
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center gap-3 p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <PieChart className="size-4 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Gasto por categoria</p>
+              <p className="text-xs text-muted-foreground">
+                Esta semana &middot; ${weekSpendTotal.toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-border border-t border-border">
+            {weeklyByCategory.map((cat) => {
+              const isOpen = expandedSpendCat === cat.category
+              const color = CATEGORY_COLOR[cat.category] ?? "#8a8a93"
+              const pct = weekSpendTotal > 0 ? (cat.total / weekSpendTotal) * 100 : 0
+              const maxHist = Math.max(...cat.history.map((h) => h.total), 1)
+              return (
+                <div key={cat.category}>
+                  <button
+                    onClick={() => setExpandedSpendCat(isOpen ? null : cat.category)}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {CATEGORY_EMOJI[cat.category] ?? "\u{1F4CC}"} {cat.category}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {cat.count} {cat.count === 1 ? "movimiento" : "movimientos"}
+                      </p>
+                      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/5">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                      </div>
+                    </div>
+
+                    <div className="flex h-6 w-12 shrink-0 items-end gap-[2px]">
+                      {cat.history.map((h, i) => (
+                        <div
+                          key={h.week}
+                          className="flex-1 rounded-t-[1px]"
+                          style={{
+                            height: `${Math.max((h.total / maxHist) * 100, 4)}%`,
+                            backgroundColor: color,
+                            opacity: i === cat.history.length - 1 ? 1 : 0.35,
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-bold tabular-nums text-red-400">-${cat.total.toFixed(2)}</p>
+                      {cat.trend != null && (
+                        <p className={`text-[9px] ${cat.trend > 0 ? "text-red-400" : "text-emerald-500"}`}>
+                          {cat.trend > 0 ? "\u2191" : "\u2193"} {Math.abs(Math.round(cat.trend))}%
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-border bg-muted/10 px-4 py-3 pl-10">
+                      <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">Ultimas 6 semanas</p>
+                      <div className="mb-3 flex h-10 items-end gap-1.5">
+                        {cat.history.map((h) => (
+                          <div key={h.week} className="flex flex-1 flex-col">
+                            <div
+                              className="rounded-t-sm"
+                              style={{ height: `${Math.max((h.total / maxHist) * 40, 2)}px`, backgroundColor: color }}
+                            />
+                            <span className="mt-1 text-center text-[8px] text-muted-foreground">W{h.week}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Movimientos</p>
+                      {cat.transactions.map((tx) => (
+                        <div key={tx.id} className="flex justify-between border-t border-white/5 py-1 text-[11px]">
+                          <span className="truncate pr-2 text-muted-foreground">{tx.description}</span>
+                          <span className="shrink-0 font-semibold text-red-400">-${Math.abs(tx.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </Card>
       )}
