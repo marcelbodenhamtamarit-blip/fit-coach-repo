@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
-  ShoppingCart,
 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, Cell, Tooltip, XAxis } from "recharts"
 import { Card } from "@/components/ui/card"
@@ -77,7 +76,7 @@ interface GroupedData {
 }
 
 export function EconomySection() {
-  const { data, addTransaction, updateTransaction, deleteTransaction, weeklySupermarket } = useStore()
+  const { data, addTransaction, updateTransaction, deleteTransaction } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
 
   const [tab, setTab] = useState<TabId>("mensual")
@@ -386,20 +385,6 @@ export function EconomySection() {
               <MiniStat label="Gastado (mes)" value={`-$${gastos.toFixed(2)}`} tone="red" />
             </div>
 
-            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 p-3">
-              <ShoppingCart className="size-5 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">Supermercado esta semana (W{weeklySupermarket.weekNumber})</p>
-                <p className="text-base font-semibold">${weeklySupermarket.thisWeekTotal.toFixed(2)}</p>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {weeklySupermarket.lastSubmittedWeek === weeklySupermarket.weekNumber ? (
-                  <span className="text-emerald-500">Enviado</span>
-                ) : (
-                  "Sáb 23:59"
-                )}
-              </span>
-            </div>
           </div>
         )}
       </Card>
@@ -418,6 +403,7 @@ export function EconomySection() {
                   labelStyle={{ color: "#888" }}
                   formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
                   labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
+                  cursor={{ fill: "rgba(255,255,255,0.06)" }}
                 />
                 <Bar dataKey="savings" radius={[3, 3, 0, 0]}>
                   {weeklySavingsData.map((entry, i) => (
