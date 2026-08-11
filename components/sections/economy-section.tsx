@@ -165,23 +165,6 @@ export function EconomySection() {
   const bestWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((best, w) => (w.savings > best.savings ? w : best)) : null
   const worstWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((worst, w) => (w.savings < worst.savings ? w : worst)) : null
 
-  // Totales acumulados por categoria (todo el historico) + media semanal
-  const { totalsByCategory, totalWeeksSpan } = useMemo(() => {
-    if (transactions.length === 0) return { totalsByCategory: [] as any[], totalWeeksSpan: 0 }
-    const weeks = new Set(transactions.map((t) => getWeekNumberFromISO(t.date)))
-    const span = Math.max(weeks.size, 1)
-    const cats = new Map<string, number>()
-    transactions.forEach((t) => {
-      cats.set(t.category, (cats.get(t.category) ?? 0) + t.amount)
-    })
-    const list = Array.from(cats.entries())
-      .map(([category, total]) => ({ category, total, perWeek: total / span, maxAbs: 0 }))
-      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-    const maxAbs = list.length > 0 ? Math.abs(list[0].total) : 0
-    list.forEach((c) => (c.maxAbs = maxAbs))
-    return { totalsByCategory: list, totalWeeksSpan: span }
-  }, [transactions])
-
   const groupedData = useMemo((): GroupedData[] => {
     const source = [...transactions].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -469,43 +452,6 @@ export function EconomySection() {
             {bestWeek && <MiniStat label="Mejor" value={`+$${bestWeek.savings.toFixed(2)}`} tone="green" />}
             {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}$${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
           </div>
-        </Card>
-      )}
-
-      {totalsByCategory.length > 0 && (
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-border p-4">
-            <p className="text-sm font-semibold">Total por categoria</p>
-            <p className="text-[10px] text-muted-foreground">
-              Todo el historico &middot; {totalWeeksSpan} {totalWeeksSpan === 1 ? "semana" : "semanas"}
-            </p>
-          </div>
-          {totalsByCategory.map((c) => {
-            const color = CATEGORY_COLOR[c.category] ?? "#8a8a93"
-            const pct = c.maxAbs > 0 ? (Math.abs(c.total) / c.maxAbs) * 100 : 0
-            return (
-              <div key={c.category} className="flex items-center gap-3 border-t border-white/5 px-4 py-2.5">
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-base"
-                  style={{ backgroundColor: color + "24" }}
-                >
-                  {CATEGORY_EMOJI[c.category] ?? "\u{1F4CC}"}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium">{c.category}</p>
-                  <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/5">
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className={`text-[13px] font-bold tabular-nums ${c.total >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                    {c.total >= 0 ? "+" : "-"}${Math.abs(c.total).toFixed(0)}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground">~${Math.abs(c.perWeek).toFixed(0)}/sem</p>
-                </div>
-              </div>
-            )
-          })}
         </Card>
       )}
 
