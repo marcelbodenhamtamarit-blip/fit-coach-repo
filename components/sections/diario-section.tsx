@@ -325,6 +325,7 @@ function MiniChart({
               contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #333", borderRadius: "8px", fontSize: "11px" }}
               labelStyle={{ color: "#888" }}
               formatter={(value: number) => [formatValue(value), ""]}
+              cursor={{ fill: "rgba(255,255,255,0.06)" }}
             />
             <Bar dataKey={dataKey} fill={color} radius={[3, 3, 0, 0]} />
           </BarChart>
