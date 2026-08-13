@@ -15,7 +15,7 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 // Diario desactivado (no se usa). Reactivar: descomentar estas 4 lineas marcadas "Diario".
-// DIARIO desactivado: // import { DiarioSection } from "@/components/sections/diario-section"
+// DIARIO desactivado: import { DiarioSection } from "@/components/sections/diario-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { LogOut } from "lucide-react"
@@ -150,7 +150,7 @@ export function Dashboard() {
               {activeTab === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {/* DIARIO desactivado: {/* Diario: {isOwner && activeTab === "diario" && <DiarioSection />} */} */}
+              {/* DIARIO desactivado: isOwner && activeTab === "diario" && <DiarioSection /> */}
               {isOwner && activeTab === "economy" && <EconomySection />}
               {isOwner && activeTab === "settings" && <SettingsSection />}
             </>
