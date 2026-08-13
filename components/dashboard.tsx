@@ -15,7 +15,7 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 // Diario desactivado (no se usa). Reactivar: descomentar estas 4 lineas marcadas "Diario".
-// import { DiarioSection } from "@/components/sections/diario-section"
+// DIARIO desactivado: // import { DiarioSection } from "@/components/sections/diario-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { LogOut } from "lucide-react"
@@ -30,14 +30,14 @@ type Tab = {
 
 const TABS: Tab[] = [
   { id: "overview", label: "Resumen", icon: Activity },
-  // Diario: { id: "diario", label: "Diario", icon: CalendarDays },
+  // DIARIO desactivado:  // Diario: { id: "diario", label: "Diario", icon: CalendarDays },
   { id: "economy", label: "Economía", icon: Wallet },
   { id: "settings", label: "Ajustes", icon: Settings },
 ]
 
 const TAB_TITLES: Record<string, string> = {
   overview: "Resumen",
-  // Diario: diario: "Diario",
+  // DIARIO desactivado:  // Diario: diario: "Diario",
   economy: "Economía",
   settings: "Ajustes",
 }
@@ -150,7 +150,7 @@ export function Dashboard() {
               {activeTab === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {/* Diario: {isOwner && activeTab === "diario" && <DiarioSection />} */}
+              {/* DIARIO desactivado: {/* Diario: {isOwner && activeTab === "diario" && <DiarioSection />} */} */}
               {isOwner && activeTab === "economy" && <EconomySection />}
               {isOwner && activeTab === "settings" && <SettingsSection />}
             </>
