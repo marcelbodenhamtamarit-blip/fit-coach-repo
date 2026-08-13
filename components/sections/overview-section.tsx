@@ -152,21 +152,9 @@ export function OverviewSection({
       <p className="text-xs font-medium capitalize text-muted-foreground">{periodLabel}</p>
 
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => onNavigate("diario")} className="text-left">
-          <StatCard icon={Footprints} label="Pasos" value={hasFitness ? stepsValue : "--"} sub={hasFitness ? stepsSub : "Conecta Garmin"} accent="teal" />
-        </button>
+        <StatCard icon={Footprints} label="Pasos" value={hasFitness ? stepsValue : "--"} sub={hasFitness ? stepsSub : "Conecta Garmin"} accent="teal" />
 
-        <button onClick={() => onNavigate("diario")} className="text-left">
-          <StatCard icon={Moon} label="Sueño" value={hasFitness ? sleepValue : "--"} sub={hasFitness ? sleepSub : "Conecta Garmin"} accent="primary" />
-        </button>
-
-        <button onClick={() => onNavigate("diario")} className="text-left">
-          <StatCard icon={Zap} label="Deporte" value={hasFitness ? sportValue : "--"} sub={hasFitness ? sportSub : "Conecta Garmin"} accent="amber" />
-        </button>
-
-        <button onClick={() => onNavigate("diario")} className="text-left">
-          <StatCard icon={Heart} label="FC en reposo" value={hasFitness ? hrValue : "--"} sub={hasFitness ? hrSub : "Conecta Garmin"} accent="red" />
-        </button>
+        <StatCard icon={Moon} label="Sueño" value={hasFitness ? sleepValue : "--"} sub={hasFitness ? sleepSub : "Conecta Garmin"} accent="primary" />
 
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard icon={TrendingDown} label="Gastado" value={`-$${spent.toFixed(2)}`} sub={`${periodTx.filter((t) => t.amount < 0).length} movimientos`} accent="red" />
