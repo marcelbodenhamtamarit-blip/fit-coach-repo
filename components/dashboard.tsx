@@ -18,6 +18,7 @@ import { SettingsSection } from "@/components/sections/settings-section"
 // DIARIO desactivado: import { DiarioSection } from "@/components/sections/diario-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
+import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { LogOut } from "lucide-react"
 
 
@@ -76,6 +77,8 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <RecurringReviewDialog />
+
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-sidebar px-4 py-6 lg:flex">
         <div className="flex items-center gap-2.5 px-2">
