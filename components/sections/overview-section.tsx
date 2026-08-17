@@ -1,12 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Footprints, Moon, TrendingDown, TrendingUp, Zap, Heart } from "lucide-react"
+import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
-import useSWR from "swr"
-
-const fetcher = (u: string) => fetch(u).then((r) => r.json())
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -46,81 +43,23 @@ export function OverviewSection({
   const periodTx = useMemo(() => transactions.filter((t) => inPeriod(t.date)), [transactions, period, today])
   const spent = periodTx.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const income = periodTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const balance = income - spent
 
-  const fitnessSWR = useSWR("/api/intervals", fetcher, { revalidateOnFocus: false })
-  const fdata = fitnessSWR.data
-  const hasFitness = !!(fdata && !fdata.error && fdata.wellness)
-  const wellness = hasFitness ? fdata.wellness : {}
-  const dailySteps: any[] = fdata?.dailySteps || []
-  const dailySleep: any[] = fdata?.dailySleep || []
-  const dailyRestingHR: any[] = fdata?.dailyRestingHR || []
-  const activities: any[] = fdata?.activities || []
-
-  const periodSteps = useMemo(() => dailySteps.filter((d) => inPeriod(d.date)), [dailySteps, period, today])
-  const periodSleep = useMemo(() => dailySleep.filter((d) => inPeriod(d.date)), [dailySleep, period, today])
-  const periodHR = useMemo(() => dailyRestingHR.filter((d) => inPeriod(d.date)), [dailyRestingHR, period, today])
-  const periodActivities = useMemo(() => activities.filter((a) => inPeriod(a.date)), [activities, period, today])
-
-  // --- Steps ---
-  const stepsValue =
-    period === "diario"
-      ? wellness.stepsDisplay ?? "--"
-      : periodSteps.length > 0
-        ? periodSteps.reduce((s, d) => s + (Number(d.steps) || 0), 0).toLocaleString("es-ES")
-        : "--"
-  const stepsSub =
-    period === "diario"
-      ? "Hoy"
-      : periodSteps.length > 0
-        ? `Media: ${Math.round(periodSteps.reduce((s, d) => s + (Number(d.steps) || 0), 0) / periodSteps.length).toLocaleString("es-ES")}/día`
-        : "Sin datos"
-
-  // --- Sleep ---
-  const sleepHoursSum = periodSleep.reduce((s, d) => s + (d.hours || 0), 0)
-  const sleepValue =
-    period === "diario"
-      ? wellness.sleepDisplay ?? "--"
-      : periodSleep.length > 0
-        ? `${sleepHoursSum.toFixed(1)}h`
-        : "--"
-  const sleepSub =
-    period === "diario"
-      ? wellness.sleepScore
-        ? `Anoche · Calidad ${wellness.sleepScore}`
-        : "Anoche"
-      : periodSleep.length > 0
-        ? `Media: ${(sleepHoursSum / periodSleep.length).toFixed(1)}h/noche`
-        : "Sin datos"
-
-  // --- Resting HR ---
-  const hrValue =
-    period === "diario"
-      ? wellness.restingHR
-        ? `${Math.round(wellness.restingHR)} lpm`
-        : "--"
-      : periodHR.length > 0
-        ? `${Math.round(periodHR.reduce((s, d) => s + d.restingHR, 0) / periodHR.length)} lpm`
-        : "--"
-  const hrSub = period === "diario" ? "Esta mañana" : `Media ${period}`
-
-  // --- Sport ---
-  const sportKm = periodActivities.reduce((s, a) => s + (Number(a.distanceKm) || 0), 0)
-  const sportValue =
-    period === "diario"
-      ? periodActivities[0]
-        ? periodActivities[0].distanceDisplay ?? periodActivities[0].name
-        : "Sin actividad"
-      : periodActivities.length > 0
-        ? `${periodActivities.length} ${periodActivities.length === 1 ? "sesión" : "sesiones"}`
-        : "Sin actividad"
-  const sportSub =
-    period === "diario"
-      ? periodActivities[0]
-        ? periodActivities[0].durationDisplay ?? periodActivities[0].name
-        : "Descanso"
-      : periodActivities.length > 0
-        ? `${sportKm.toFixed(1)} km totales`
-        : "Descanso"
+  // Categoría con más gasto en el periodo seleccionado (sustituye a las
+  // antiguas tarjetas de pasos/sueño de Garmin, que solo tenían sentido
+  // para una cuenta y no tienen cabida en una app multiusuario).
+  const topCategory = useMemo(() => {
+    const byCat = new Map<string, number>()
+    for (const t of periodTx) {
+      if (t.amount >= 0) continue
+      byCat.set(t.category, (byCat.get(t.category) ?? 0) + Math.abs(t.amount))
+    }
+    let best: { category: string; total: number } | null = null
+    for (const [category, total] of byCat) {
+      if (!best || total > best.total) best = { category, total }
+    }
+    return best
+  }, [periodTx])
 
   const periodLabel =
     period === "diario"
@@ -152,16 +91,44 @@ export function OverviewSection({
       <p className="text-xs font-medium capitalize text-muted-foreground">{periodLabel}</p>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={Footprints} label="Pasos" value={hasFitness ? stepsValue : "--"} sub={hasFitness ? stepsSub : "Conecta Garmin"} accent="teal" />
-
-        <StatCard icon={Moon} label="Sueño" value={hasFitness ? sleepValue : "--"} sub={hasFitness ? sleepSub : "Conecta Garmin"} accent="primary" />
-
         <button onClick={() => onNavigate("economy")} className="text-left">
-          <StatCard icon={TrendingDown} label="Gastado" value={`-$${spent.toFixed(2)}`} sub={`${periodTx.filter((t) => t.amount < 0).length} movimientos`} accent="red" />
+          <StatCard
+            icon={TrendingDown}
+            label="Gastado"
+            value={`-$${spent.toFixed(2)}`}
+            sub={`${periodTx.filter((t) => t.amount < 0).length} movimientos`}
+            accent="red"
+          />
         </button>
 
         <button onClick={() => onNavigate("economy")} className="text-left">
-          <StatCard icon={TrendingUp} label="Ingresado" value={`+$${income.toFixed(2)}`} sub={income > 0 ? "Registrado" : "Sin ingresos"} accent="green" />
+          <StatCard
+            icon={TrendingUp}
+            label="Ingresado"
+            value={`+$${income.toFixed(2)}`}
+            sub={income > 0 ? "Registrado" : "Sin ingresos"}
+            accent="green"
+          />
+        </button>
+
+        <button onClick={() => onNavigate("economy")} className="text-left">
+          <StatCard
+            icon={Wallet}
+            label="Balance"
+            value={`${balance >= 0 ? "+" : "-"}$${Math.abs(balance).toFixed(2)}`}
+            sub={period === "diario" ? "Hoy" : period === "semanal" ? "Esta semana" : "Este mes"}
+            accent={balance >= 0 ? "primary" : "amber"}
+          />
+        </button>
+
+        <button onClick={() => onNavigate("economy")} className="text-left">
+          <StatCard
+            icon={PiggyBank}
+            label="Top categoría"
+            value={topCategory ? topCategory.category : "--"}
+            sub={topCategory ? `-$${topCategory.total.toFixed(2)}` : "Sin gastos"}
+            accent="pink"
+          />
         </button>
       </div>
     </div>
