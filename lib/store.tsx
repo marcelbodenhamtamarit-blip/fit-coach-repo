@@ -17,6 +17,7 @@ import type {
   Profile,
   Transaction,
   RecurringTransaction,
+  RecurringFrequency,
 } from "./types"
 import { todayISO, uid } from "./types"
 import {
@@ -51,6 +52,33 @@ function getWeekStart(date: Date): Date {
   return d
 }
 
+// Clave del periodo actual para una plantilla recurrente: "YYYY-MM" si es
+// mensual, "YYYY-Www" si es semanal. Se usa para saber si ya se generó la
+// transacción de este periodo y así no duplicarla.
+function currentPeriodKey(frequency: RecurringFrequency): string {
+  const today = todayISO()
+  if (frequency === "weekly") {
+    const weekNumber = getWeekNumber(new Date(today + "T00:00:00"))
+    return `${today.slice(0, 4)}-W${weekNumber}`
+  }
+  return today.slice(0, 7)
+}
+
+// Fecha (yyyy-mm-dd) con la que se registra la transacción generada:
+// el día 1 del mes para las mensuales, el domingo de esta semana para las
+// semanales.
+function periodStartDate(frequency: RecurringFrequency): string {
+  const today = todayISO()
+  if (frequency === "weekly") {
+    const start = getWeekStart(new Date(today + "T00:00:00"))
+    const y = start.getFullYear()
+    const m = String(start.getMonth() + 1).padStart(2, "0")
+    const d = String(start.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
+  return `${today.slice(0, 7)}-01`
+}
+
 const EMPTY_DATA: AppData = {
   profile: { name: "Marcel", calorieGoal: 2400, proteinGoal: 170, weightGoal: 80 },
   meals: [],
@@ -79,7 +107,8 @@ function rowToRecurring(row: RecurringTransactionRow): RecurringTransaction {
     category: row.category as RecurringTransaction["category"],
     amount: Number(row.amount),
     active: row.active,
-    lastCreatedMonth: row.last_created_month,
+    frequency: (row.frequency as RecurringTransaction["frequency"]) ?? "monthly",
+    lastCreatedPeriod: row.last_created_month,
   }
 }
 
@@ -274,8 +303,8 @@ type StoreContextType = {
   markSupermarketSubmitted: (week: number, date: string) => void
   refreshTransactions: () => Promise<void>
   refreshAll: () => Promise<void>
-  addRecurring: (r: Omit<RecurringTransaction, "id" | "lastCreatedMonth">) => void
-  updateRecurring: (id: string, updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedMonth">>) => void
+  addRecurring: (r: Omit<RecurringTransaction, "id" | "lastCreatedPeriod">) => void
+  updateRecurring: (id: string, updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedPeriod">>) => void
   deleteRecurring: (id: string) => void
   pendingReview: Transaction[]
   reviewOpen: boolean
@@ -298,20 +327,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [reviewOpen, setReviewOpen] = useState(false)
 
   // Revisa las plantillas de gastos/ingresos recurrentes activas y, para las
-  // que no tengan ya creada su transacción de este mes, la crea (día 1) y
-  // marca la plantilla como generada. Devuelve las transacciones nuevas para
-  // poder mostrarlas en un popup de revisión.
-  const runMonthlyRecurring = async (recurringList: RecurringTransaction[]): Promise<Transaction[]> => {
-    const currentMonth = todayISO().slice(0, 7)
-    const due = recurringList.filter((r) => r.active && r.lastCreatedMonth !== currentMonth)
+  // que no tengan ya creada su transacción de este periodo (mes o semana,
+  // según su frecuencia), la crea y marca la plantilla como generada.
+  // Devuelve las transacciones nuevas para poder mostrarlas en un popup de
+  // revisión.
+  const runRecurringGeneration = async (recurringList: RecurringTransaction[]): Promise<Transaction[]> => {
+    const due = recurringList.filter(
+      (r) => r.active && r.lastCreatedPeriod !== currentPeriodKey(r.frequency),
+    )
     if (due.length === 0) return []
 
     const created: Transaction[] = []
     for (const template of due) {
+      const periodKey = currentPeriodKey(template.frequency)
       const { data: txRow, error: txError } = await supabase
         .from("transactions")
         .insert({
-          date: `${currentMonth}-01`,
+          date: periodStartDate(template.frequency),
           description: template.description,
           category: template.category,
           amount: template.amount,
@@ -320,17 +352,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (txError || !txRow) {
-        console.error("[supabase] runMonthlyRecurring insert transaction error:", txError?.message)
+        console.error("[supabase] runRecurringGeneration insert transaction error:", txError?.message)
         continue
       }
 
       const { error: updateError } = await supabase
         .from("recurring_transactions")
-        .update({ last_created_month: currentMonth })
+        .update({ last_created_month: periodKey })
         .eq("id", template.id)
 
       if (updateError) {
-        console.error("[supabase] runMonthlyRecurring update template error:", updateError.message)
+        console.error("[supabase] runRecurringGeneration update template error:", updateError.message)
       }
 
       created.push(rowToTransaction(txRow))
@@ -360,13 +392,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       setReady(true)
 
-      const createdThisMonth = await runMonthlyRecurring(fresh.recurring ?? [])
+      const createdThisPeriod = await runRecurringGeneration(fresh.recurring ?? [])
       if (cancelled) return
-      if (createdThisMonth.length > 0) {
+      if (createdThisPeriod.length > 0) {
         const [transactions, recurring] = await Promise.all([fetchTransactions(), fetchRecurring()])
         if (cancelled) return
         setData((d) => ({ ...d, transactions, recurring }))
-        setPendingReview(createdThisMonth)
+        setPendingReview(createdThisPeriod)
         setReviewOpen(true)
       }
     }
@@ -694,11 +726,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- Gastos/ingresos recurrentes ----------
 
-  const addRecurring = (r: Omit<RecurringTransaction, "id" | "lastCreatedMonth">) => {
+  const addRecurring = (r: Omit<RecurringTransaction, "id" | "lastCreatedPeriod">) => {
     const optimisticId = uid()
     setData((d) => ({
       ...d,
-      recurring: [{ ...r, id: optimisticId, lastCreatedMonth: null }, ...(d.recurring ?? [])],
+      recurring: [{ ...r, id: optimisticId, lastCreatedPeriod: null }, ...(d.recurring ?? [])],
     }))
 
     supabase
@@ -708,6 +740,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         category: r.category,
         amount: r.amount,
         active: r.active,
+        frequency: r.frequency,
       })
       .then(({ error }) => {
         if (error) {
@@ -719,7 +752,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateRecurring = (
     id: string,
-    updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedMonth">>,
+    updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedPeriod">>,
   ) => {
     setData((d) => ({
       ...d,
@@ -731,6 +764,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (updates.category !== undefined) updatePayload.category = updates.category
     if (updates.amount !== undefined) updatePayload.amount = updates.amount
     if (updates.active !== undefined) updatePayload.active = updates.active
+    if (updates.frequency !== undefined) updatePayload.frequency = updates.frequency
 
     supabase
       .from("recurring_transactions")
