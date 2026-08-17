@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
+import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
 
 const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
@@ -389,10 +390,13 @@ export function EconomySection() {
       )}
 
       {!showForm && (
-        <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
-          <Plus className="mr-2 size-4" />
-          Añadir gasto o ganancia
-        </Button>
+        <div className="space-y-2">
+          <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
+            <Plus className="mr-2 size-4" />
+            Añadir gasto o ganancia
+          </Button>
+          <RecurringManagerDialog />
+        </div>
       )}
 
       <Card className="overflow-hidden p-0">
