@@ -152,6 +152,20 @@ export async function POST(req: NextRequest) {
   const remainder = totalCents - baseCents * weeks
   const sign = amount < 0 ? -1 : 1
 
+  // Esta ruta usa la service_role key, así que salta RLS por completo.
+  // Ahora que transactions es multiusuario, cada fila TIENE que llevar un
+  // user_id explícito o quedaría huérfana (o peor, visible para nadie /
+  // rechazada por el NOT NULL de la migración). QUICK_ADD_OWNER_USER_ID es
+  // tu propio user id de Supabase Auth: este endpoint sigue siendo tu
+  // atajo personal, no uno compartido entre usuarios.
+  const ownerUserId = process.env.QUICK_ADD_OWNER_USER_ID
+  if (!ownerUserId) {
+    return NextResponse.json(
+      { error: "QUICK_ADD_OWNER_USER_ID no está configurado en el servidor" },
+      { status: 500 },
+    )
+  }
+
   const rows = Array.from({ length: weeks }, (_, i) => {
     const cents = baseCents + (i === 0 ? remainder : 0)
     return {
@@ -159,6 +173,7 @@ export async function POST(req: NextRequest) {
       description: weeks > 1 ? `${description} (${i + 1}/${weeks})` : description,
       category,
       amount: sign * (cents / 100),
+      user_id: ownerUserId,
     }
   })
 
