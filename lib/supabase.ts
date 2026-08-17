@@ -29,6 +29,7 @@ export type RecurringTransactionRow = {
   category: string
   amount: number
   active: boolean
+  frequency: string
   last_created_month: string | null
   created_at: string
 }
