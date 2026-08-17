@@ -4,15 +4,15 @@
 // notificaciones ni intenta nada automático— y hace un GET a
 // /api/quick-transaction con el token personal del usuario ya incrustado.
 //
-// Usa @joshfarrant/shortcuts-js para construir el plist binario real que
-// espera la app Atajos de iOS. El shortcut resultante lleva "WatchKit" en
-// WFWorkflowTypes, así que en principio ya está habilitado para el Apple
-// Watch sin pasos extra (aunque en algunos iOS hace falta confirmarlo a
-// mano: Atajos -> el atajo -> ⓘ -> "Mostrar en Apple Watch").
+// Usa @joshfarrant/shortcuts-js para construir las acciones, pero el plist
+// final lo armamos a mano (en vez de su buildShortcut()) para poder incluir
+// WFWorkflowMinimumClientVersion / WFWorkflowMinimumClientVersionString:
+// esa librería está pensada para iOS 12 y no las incluye, y sin ellas
+// versiones recientes de Atajos pueden rechazar la importación.
 //
 // @ts-ignore: este paquete no publica tipos para el subpath "/actions" ni
 // para el paquete raíz de forma que TS los resuelva de forma fiable.
-import { buildShortcut, variable, withVariables } from "@joshfarrant/shortcuts-js"
+import { variable, withVariables } from "@joshfarrant/shortcuts-js"
 // @ts-ignore
 import {
   ask,
@@ -24,7 +24,19 @@ import {
   URL as urlAction,
   URLEncode,
 } from "@joshfarrant/shortcuts-js/actions"
+// @ts-ignore: sin tipos, solo expone una función que serializa un objeto a bplist binario
+import createBplist from "bplist-creator"
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
+
+// Reimplementación mínima del flatten interno de la librería: algunas
+// acciones (por ejemplo los items de chooseFromMenu) devuelven arrays
+// anidados que hay que aplanar antes de meterlos en WFWorkflowActions.
+function flatten(arr: unknown[]): unknown[] {
+  return arr.reduce<unknown[]>(
+    (acc, val) => (Array.isArray(val) ? acc.concat(flatten(val)) : acc.concat(val)),
+    [],
+  )
+}
 
 export function buildQuickAddShortcut({ baseUrl, token }: { baseUrl: string; token: string }): Buffer {
   const amountVar = variable("ZentOS Cantidad")
@@ -78,7 +90,41 @@ export function buildQuickAddShortcut({ baseUrl, token }: { baseUrl: string; tok
     }),
   ]
 
-  // El paquete tipa buildShortcut como si devolviera un string, pero en
-  // runtime devuelve el Buffer que produce bplist-creator.
-  return buildShortcut(actions, { showInWidget: true }) as unknown as Buffer
+  const template = {
+    WFWorkflowClientVersion: "2302.0.2",
+    WFWorkflowClientRelease: "2.2",
+    WFWorkflowMinimumClientVersion: 900,
+    WFWorkflowMinimumClientVersionString: "16.0",
+    WFWorkflowHasShortcutInputVariables: false,
+    WFWorkflowIcon: {
+      WFWorkflowIconStartColor: 4274264319,
+      WFWorkflowIconGlyphNumber: 59446,
+    },
+    WFWorkflowImportQuestions: [],
+    WFWorkflowTypes: ["WatchKit", "NCWidget"],
+    WFWorkflowInputContentItemClasses: [
+      "WFAppStoreAppContentItem",
+      "WFArticleContentItem",
+      "WFContactContentItem",
+      "WFDateContentItem",
+      "WFEmailAddressContentItem",
+      "WFGenericFileContentItem",
+      "WFImageContentItem",
+      "WFiTunesProductContentItem",
+      "WFLocationContentItem",
+      "WFDCMapsLinkContentItem",
+      "WFAVAssetContentItem",
+      "WFPDFContentItem",
+      "WFPhoneNumberContentItem",
+      "WFRichTextContentItem",
+      "WFSafariWebPageContentItem",
+      "WFStringContentItem",
+      "WFURLContentItem",
+    ],
+    WFWorkflowActions: flatten(actions),
+  }
+
+  // bplist-creator tipa mal su export (a veces como string, en runtime
+  // siempre Buffer): de ahí el cast.
+  return createBplist(template) as unknown as Buffer
 }
