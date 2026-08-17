@@ -52,7 +52,7 @@ export function Dashboard() {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
   const { data, ready } = useStore()
-  const { mode, isOwner, signOut } = useAuth()
+  const { mode, user, signOut } = useAuth()
 
   if (mode === "loading") {
     return (
@@ -66,8 +66,13 @@ export function Dashboard() {
     return <LoginScreen />
   }
 
-  const visibleTabs = isOwner ? TABS : TABS.filter((t) => t.id === "overview")
-  const activeTab = isOwner ? active : "overview"
+  // Nombre a mostrar en el saludo: antes venía de un profile compartido
+  // (siempre "Marcel"), lo que se filtraba a cualquier cuenta nueva. Ahora
+  // usamos el propio usuario logueado.
+  const displayName =
+    (user?.user_metadata?.name as string | undefined) ||
+    user?.email?.split("@")[0] ||
+    "de nuevo"
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,13 +83,13 @@ export function Dashboard() {
             <Dumbbell className="size-5" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold">MarcelOS</p>
-            <p className="text-xs text-muted-foreground">Mi día a día</p>
+            <p className="text-sm font-semibold">ZentOS</p>
+            <p className="text-xs text-muted-foreground">Tu economía, a tu manera</p>
           </div>
         </div>
 
         <nav className="mt-8 flex flex-col gap-1">
-          {visibleTabs.map((tab) => {
+          {TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = active === tab.id
             return (
@@ -115,10 +120,10 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-balance text-lg font-semibold sm:text-xl">
-                {TAB_TITLES[activeTab] ?? activeTab}
+                {TAB_TITLES[active] ?? active}
               </h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
-                {greeting()}, {data.profile.name}. Sigamos con la racha.
+                {greeting()}, {displayName}. Sigamos con la racha.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -147,12 +152,12 @@ export function Dashboard() {
             </div>
           ) : (
             <>
-              {activeTab === "overview" && (
+              {active === "overview" && (
                 <OverviewSection onNavigate={setActive} />
               )}
-              {/* DIARIO desactivado: isOwner && activeTab === "diario" && <DiarioSection /> */}
-              {isOwner && activeTab === "economy" && <EconomySection />}
-              {isOwner && activeTab === "settings" && <SettingsSection />}
+              {/* DIARIO desactivado: activeTab === "diario" && <DiarioSection /> */}
+              {active === "economy" && <EconomySection />}
+              {active === "settings" && <SettingsSection />}
             </>
           )}
         </main>
@@ -160,7 +165,7 @@ export function Dashboard() {
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
-        {visibleTabs.map((tab) => {
+        {TABS.map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (
@@ -180,7 +185,6 @@ export function Dashboard() {
       </nav>
     </div>
   )
- 
 }
 
 function greeting() {
