@@ -1,31 +1,33 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from "react"
+import type { User } from "@supabase/supabase-js"
 import { supabase } from "./supabase"
 
-type Mode = "loading" | "out" | "guest" | "owner"
+// "loading": comprobando si hay sesión guardada.
+// "out": nadie logueado -> mostrar login/signup.
+// "in": sesión activa -> mostrar la app, con datos aislados por RLS.
+type Mode = "loading" | "out" | "in"
 
 const AuthContext = createContext<{
   mode: Mode
-  isOwner: boolean
-  enterAsGuest: () => void
+  user: User | null
   signOut: () => void
 }>({
   mode: "loading",
-  isOwner: false,
-  enterAsGuest: () => {},
+  user: null,
   signOut: () => {},
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading")
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        setMode("owner")
-      } else if (typeof window !== "undefined" && sessionStorage.getItem("guest") === "1") {
-        setMode("guest")
+        setUser(data.session.user)
+        setMode("in")
       } else {
         setMode("out")
       }
@@ -33,27 +35,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session) {
-        setMode("owner")
+        setUser(session.user)
+        setMode("in")
       } else {
-        setMode(sessionStorage.getItem("guest") === "1" ? "guest" : "out")
+        setUser(null)
+        setMode("out")
       }
     })
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  const enterAsGuest = () => {
-    sessionStorage.setItem("guest", "1")
-    setMode("guest")
-  }
-
   const signOut = () => {
-    sessionStorage.removeItem("guest")
     supabase.auth.signOut()
     setMode("out")
   }
 
   return (
-    <AuthContext.Provider value={{ mode, isOwner: mode === "owner", enterAsGuest, signOut }}>
+    <AuthContext.Provider value={{ mode, user, signOut }}>
       {children}
     </AuthContext.Provider>
   )
