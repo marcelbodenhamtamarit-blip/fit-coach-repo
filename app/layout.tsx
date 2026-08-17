@@ -12,9 +12,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'MarcelOS',
+  title: 'ZentOS',
   description:
-    'Mi día a día: forma física, economía y actividad personal.',
+    'Controla tu economía personal, a tu manera.',
   generator: 'v0.app',
   icons: {
     icon: [
