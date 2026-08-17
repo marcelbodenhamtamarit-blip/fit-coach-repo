@@ -146,7 +146,9 @@ function QuickAddShortcutCard() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const shortcutFileUrl = token && origin ? `${origin}/api/quick-transaction/shortcut?token=${token}` : ""
+  const shortcutFileUrl = token && origin
+    ? `${origin}/api/quick-transaction/shortcut/ZentOS-Anadir-gasto.shortcut?token=${token}`
+    : ""
   const importUrl = shortcutFileUrl
     ? `shortcuts://import-shortcut?url=${encodeURIComponent(shortcutFileUrl)}&name=${encodeURIComponent("ZentOS - Añadir gasto")}`
     : ""
