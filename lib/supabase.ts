@@ -23,6 +23,16 @@ export type TransactionRow = {
   created_at: string
 }
 
+export type RecurringTransactionRow = {
+  id: string
+  description: string
+  category: string
+  amount: number
+  active: boolean
+  last_created_month: string | null
+  created_at: string
+}
+
 export type ProfileRow = {
   id: number
   name: string
