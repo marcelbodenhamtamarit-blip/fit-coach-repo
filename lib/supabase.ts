@@ -30,6 +30,7 @@ export type RecurringTransactionRow = {
   amount: number
   active: boolean
   frequency: string
+  pay_day: number | null
   last_created_month: string | null
   created_at: string
 }
