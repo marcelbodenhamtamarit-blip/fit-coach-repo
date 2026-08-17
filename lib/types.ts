@@ -134,15 +134,20 @@ export type Transaction = {
 }
 
 // Plantilla de gasto/ingreso recurrente (alquiler, suscripciones, nómina...).
-// El día 1 de cada mes se crea automáticamente una transacción real a partir
-// de cada plantilla activa, y se guarda en lastCreatedMonth para no duplicar.
+// Según su frecuencia, se crea automáticamente una transacción real al
+// empezar cada mes o cada semana a partir de cada plantilla activa, y se
+// guarda en lastCreatedPeriod ("YYYY-MM" o "YYYY-Www") para no duplicar.
+export const RECURRING_FREQUENCIES = ["monthly", "weekly"] as const
+export type RecurringFrequency = (typeof RECURRING_FREQUENCIES)[number]
+
 export type RecurringTransaction = {
   id: string
   description: string
   category: TransactionCategory
   amount: number // negative = expense, positive = income (AUD)
   active: boolean
-  lastCreatedMonth: string | null // "YYYY-MM"
+  frequency: RecurringFrequency
+  lastCreatedPeriod: string | null // "YYYY-MM" si frequency=monthly, "YYYY-Www" si weekly
 }
 
 export type AppData = {
