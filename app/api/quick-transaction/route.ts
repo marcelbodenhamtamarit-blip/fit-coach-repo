@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 // Cliente con service_role: salta RLS, solo se usa en servidor.
-// El Shortcut ya se autentica con QUICK_ADD_SECRET más abajo.
+// La request se autentica con QUICK_ADD_SECRET (atajo antiguo, un solo
+// dueño) o con un token personal por usuario (tabla quick_add_tokens) más
+// abajo.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -31,21 +33,55 @@ function inferCategory(text: string): (typeof TRANSACTION_CATEGORIES)[number] | 
   return null
 }
 
-export async function POST(req: NextRequest) {
+// El Shortcut nuevo (uno por usuario, generado desde Ajustes) manda todo
+// por query string con un GET: más simple de construir desde la app
+// Atajos que un body JSON. El Wallet automation antiguo sigue mandando un
+// POST con JSON body. Unificamos ambos: query string primero, body encima
+// si hay alguno con el mismo nombre (nunca coexisten en la práctica).
+async function resolveParams(req: NextRequest): Promise<{ body: Record<string, unknown>; rawText: string }> {
+  const fromQuery: Record<string, unknown> = {}
+  req.nextUrl.searchParams.forEach((value, key) => {
+    fromQuery[key.trim().toLowerCase()] = value
+  })
+
   let rawBody: Record<string, unknown> = {}
   let rawText = ""
-  try {
-    rawText = await req.text()
-    rawBody = rawText ? JSON.parse(rawText) : {}
-  } catch {
-    rawBody = {}
+  if (req.method === "POST") {
+    try {
+      rawText = await req.text()
+      rawBody = rawText ? JSON.parse(rawText) : {}
+    } catch {
+      rawBody = {}
+    }
   }
 
-  const body: Record<string, unknown> = {}
+  const body: Record<string, unknown> = { ...fromQuery }
   for (const key of Object.keys(rawBody)) {
     body[key.trim().toLowerCase()] = rawBody[key]
   }
 
+  return { body, rawText }
+}
+
+async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown>): Promise<string | null> {
+  // Vía 1 (nueva, multiusuario): token personal generado en Ajustes,
+  // guardado en quick_add_tokens. Cada usuario tiene el suyo.
+  const tokenRaw =
+    (typeof body.token === "string" && body.token) ||
+    req.headers.get("x-quick-add-token") ||
+    ""
+  const token = tokenRaw.trim()
+  if (token) {
+    const { data } = await supabase
+      .from("quick_add_tokens")
+      .select("user_id")
+      .eq("token", token)
+      .maybeSingle()
+    if (data?.user_id) return data.user_id as string
+  }
+
+  // Vía 2 (antigua, un solo dueño): QUICK_ADD_SECRET + QUICK_ADD_OWNER_USER_ID,
+  // pensada para el Wallet automation original. Se mantiene por compatibilidad.
   const expectedSecret = process.env.QUICK_ADD_SECRET
   const querySecret = req.nextUrl.searchParams.get("secret")
   const authHeader = req.headers.get("authorization")
@@ -55,7 +91,18 @@ export async function POST(req: NextRequest) {
   const headerOk = !!expectedSecret && authHeader === `Bearer ${expectedSecret}`
   const bodyOk = !!expectedSecret && bodySecret === expectedSecret
 
-  if (!expectedSecret || (!queryOk && !headerOk && !bodyOk)) {
+  if (expectedSecret && (queryOk || headerOk || bodyOk)) {
+    return process.env.QUICK_ADD_OWNER_USER_ID ?? null
+  }
+
+  return null
+}
+
+async function handle(req: NextRequest) {
+  const { body, rawText } = await resolveParams(req)
+
+  const ownerUserId = await resolveOwnerUserId(req, body)
+  if (!ownerUserId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -153,19 +200,8 @@ export async function POST(req: NextRequest) {
   const sign = amount < 0 ? -1 : 1
 
   // Esta ruta usa la service_role key, así que salta RLS por completo.
-  // Ahora que transactions es multiusuario, cada fila TIENE que llevar un
-  // user_id explícito o quedaría huérfana (o peor, visible para nadie /
-  // rechazada por el NOT NULL de la migración). QUICK_ADD_OWNER_USER_ID es
-  // tu propio user id de Supabase Auth: este endpoint sigue siendo tu
-  // atajo personal, no uno compartido entre usuarios.
-  const ownerUserId = process.env.QUICK_ADD_OWNER_USER_ID
-  if (!ownerUserId) {
-    return NextResponse.json(
-      { error: "QUICK_ADD_OWNER_USER_ID no está configurado en el servidor" },
-      { status: 500 },
-    )
-  }
-
+  // Cada fila lleva el user_id resuelto arriba (por token personal o por
+  // el QUICK_ADD_OWNER_USER_ID antiguo), nunca huérfana.
   const rows = Array.from({ length: weeks }, (_, i) => {
     const cents = baseCents + (i === 0 ? remainder : 0)
     return {
@@ -188,4 +224,14 @@ export async function POST(req: NextRequest) {
     transaction: data?.[0] ?? null,
     transactions: data,
   })
+}
+
+export async function POST(req: NextRequest) {
+  return handle(req)
+}
+
+// El Shortcut nuevo (por usuario) usa un GET simple con todo en la URL, así
+// no hace falta montar un body JSON desde Atajos.
+export async function GET(req: NextRequest) {
+  return handle(req)
 }
