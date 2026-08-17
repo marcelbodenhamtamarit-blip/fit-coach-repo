@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useStore } from "@/lib/store"
-import { TRANSACTION_CATEGORIES, type RecurringTransaction } from "@/lib/types"
+import { TRANSACTION_CATEGORIES, type RecurringFrequency, type RecurringTransaction } from "@/lib/types"
 
 type TxType = "gasto" | "ingreso"
 
@@ -22,9 +22,15 @@ function fmt(amount: number): string {
   return amount >= 0 ? `+$${abs}` : `-$${abs}`
 }
 
+const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
+  monthly: "Mensual",
+  weekly: "Semanal",
+}
+
 // Gestión de plantillas de gastos/ingresos recurrentes: alquiler,
-// suscripciones, nómina... Cada día 1 de mes se generan solas como
-// transacciones reales (ver runMonthlyRecurring en lib/store.tsx) y el
+// suscripciones, nómina (mensuales) o la compra semanal, la paga de los
+// peques, etc (semanales). Según su frecuencia se generan solas como
+// transacciones reales (ver runRecurringGeneration en lib/store.tsx) y el
 // popup de revisión (recurring-review-dialog.tsx) avisa de lo que se creó.
 export function RecurringManagerDialog() {
   const { data, addRecurring, updateRecurring, deleteRecurring } = useStore()
@@ -35,6 +41,7 @@ export function RecurringManagerDialog() {
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
+  const [frequency, setFrequency] = useState<RecurringFrequency>("monthly")
   const [saving, setSaving] = useState(false)
 
   const handleAdd = () => {
@@ -46,13 +53,19 @@ export function RecurringManagerDialog() {
       amount: txType === "gasto" ? -Math.abs(raw) : Math.abs(raw),
       category: category as RecurringTransaction["category"],
       active: true,
+      frequency,
     })
     setDesc("")
     setTxType("gasto")
     setAmount("")
     setCategory(TRANSACTION_CATEGORIES[0])
+    setFrequency("monthly")
     setShowForm(false)
     setSaving(false)
+  }
+
+  const toggleFrequency = (r: RecurringTransaction) => {
+    updateRecurring(r.id, { frequency: r.frequency === "monthly" ? "weekly" : "monthly" })
   }
 
   return (
@@ -65,8 +78,8 @@ export function RecurringManagerDialog() {
         <DialogHeader>
           <DialogTitle>Gastos e ingresos recurrentes</DialogTitle>
           <DialogDescription>
-            Se crean solos el día 1 de cada mes (alquiler, suscripciones, nómina...). Al abrir la app te avisamos con
-            un popup para que los revises.
+            Elige mensual o semanal y se crean solas al empezar cada periodo (alquiler, suscripciones, nómina... o la
+            compra semanal). Al abrir la app te avisamos con un popup para que los revises.
           </DialogDescription>
         </DialogHeader>
 
@@ -85,6 +98,13 @@ export function RecurringManagerDialog() {
               >
                 {fmt(r.amount)}
               </span>
+              <button
+                type="button"
+                onClick={() => toggleFrequency(r)}
+                className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors"
+              >
+                {FREQUENCY_LABEL[r.frequency]}
+              </button>
               <button
                 type="button"
                 onClick={() => updateRecurring(r.id, { active: !r.active })}
@@ -126,6 +146,26 @@ export function RecurringManagerDialog() {
                 }`}
               >
                 Ganancia (+)
+              </button>
+            </div>
+            <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+              <button
+                type="button"
+                onClick={() => setFrequency("monthly")}
+                className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                  frequency === "monthly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                Mensual
+              </button>
+              <button
+                type="button"
+                onClick={() => setFrequency("weekly")}
+                className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                  frequency === "weekly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                }`}
+              >
+                Semanal
               </button>
             </div>
             <Input placeholder="Ej: Alquiler" value={desc} onChange={(e) => setDesc(e.target.value)} />
