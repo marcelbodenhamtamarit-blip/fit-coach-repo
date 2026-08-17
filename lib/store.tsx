@@ -16,6 +16,7 @@ import type {
   PantryItem,
   Profile,
   Transaction,
+  RecurringTransaction,
 } from "./types"
 import { todayISO, uid } from "./types"
 import {
@@ -26,6 +27,7 @@ import {
   type BodyMetricRow,
   type MealRow,
   type MealIngredientRow,
+  type RecurringTransactionRow,
 } from "./supabase"
 
 const SUPERMARKET_CATEGORIES = ["Supermercado", "Comida Supermercado", "MENJAR SUPER", "COMIDA SUPER", "Menjar super", "Menjar SUPER"]
@@ -55,6 +57,7 @@ const EMPTY_DATA: AppData = {
   metrics: [],
   pantry: [],
   transactions: [],
+  recurring: [],
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -66,6 +69,17 @@ function rowToTransaction(row: TransactionRow): Transaction {
     description: row.description,
     category: row.category as Transaction["category"],
     amount: Number(row.amount),
+  }
+}
+
+function rowToRecurring(row: RecurringTransactionRow): RecurringTransaction {
+  return {
+    id: row.id,
+    description: row.description,
+    category: row.category as RecurringTransaction["category"],
+    amount: Number(row.amount),
+    active: row.active,
+    lastCreatedMonth: row.last_created_month,
   }
 }
 
@@ -211,15 +225,29 @@ async function fetchMeals(): Promise<Meal[]> {
   return (mealRows ?? []).map((m) => rowToMeal(m, ingredientRows ?? []))
 }
 
+async function fetchRecurring(): Promise<RecurringTransaction[]> {
+  const { data, error } = await supabase
+    .from("recurring_transactions")
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  if (error) {
+    console.error("[supabase] fetchRecurring error:", error.message)
+    return []
+  }
+  return (data ?? []).map(rowToRecurring)
+}
+
 async function fetchAll(): Promise<AppData> {
-  const [profile, meals, metrics, pantry, transactions] = await Promise.all([
+  const [profile, meals, metrics, pantry, transactions, recurring] = await Promise.all([
     fetchProfile(),
     fetchMeals(),
     fetchMetrics(),
     fetchPantry(),
     fetchTransactions(),
+    fetchRecurring(),
   ])
-  return { profile, meals, metrics, pantry, transactions }
+  return { profile, meals, metrics, pantry, transactions, recurring }
 }
 
 type WeeklySupermarketState = {
@@ -246,6 +274,12 @@ type StoreContextType = {
   markSupermarketSubmitted: (week: number, date: string) => void
   refreshTransactions: () => Promise<void>
   refreshAll: () => Promise<void>
+  addRecurring: (r: Omit<RecurringTransaction, "id" | "lastCreatedMonth">) => void
+  updateRecurring: (id: string, updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedMonth">>) => void
+  deleteRecurring: (id: string) => void
+  pendingReview: Transaction[]
+  reviewOpen: boolean
+  dismissReview: () => void
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
@@ -260,6 +294,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     lastSubmittedDate: null,
   })
   const submittedWeeksRef = useRef<Set<number>>(new Set())
+  const [pendingReview, setPendingReview] = useState<Transaction[]>([])
+  const [reviewOpen, setReviewOpen] = useState(false)
+
+  // Revisa las plantillas de gastos/ingresos recurrentes activas y, para las
+  // que no tengan ya creada su transacción de este mes, la crea (día 1) y
+  // marca la plantilla como generada. Devuelve las transacciones nuevas para
+  // poder mostrarlas en un popup de revisión.
+  const runMonthlyRecurring = async (recurringList: RecurringTransaction[]): Promise<Transaction[]> => {
+    const currentMonth = todayISO().slice(0, 7)
+    const due = recurringList.filter((r) => r.active && r.lastCreatedMonth !== currentMonth)
+    if (due.length === 0) return []
+
+    const created: Transaction[] = []
+    for (const template of due) {
+      const { data: txRow, error: txError } = await supabase
+        .from("transactions")
+        .insert({
+          date: `${currentMonth}-01`,
+          description: template.description,
+          category: template.category,
+          amount: template.amount,
+        })
+        .select()
+        .single()
+
+      if (txError || !txRow) {
+        console.error("[supabase] runMonthlyRecurring insert transaction error:", txError?.message)
+        continue
+      }
+
+      const { error: updateError } = await supabase
+        .from("recurring_transactions")
+        .update({ last_created_month: currentMonth })
+        .eq("id", template.id)
+
+      if (updateError) {
+        console.error("[supabase] runMonthlyRecurring update template error:", updateError.message)
+      }
+
+      created.push(rowToTransaction(txRow))
+    }
+
+    return created
+  }
 
   // Load everything from Supabase on mount
   useEffect(() => {
@@ -281,6 +359,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       setReady(true)
+
+      const createdThisMonth = await runMonthlyRecurring(fresh.recurring ?? [])
+      if (cancelled) return
+      if (createdThisMonth.length > 0) {
+        const [transactions, recurring] = await Promise.all([fetchTransactions(), fetchRecurring()])
+        if (cancelled) return
+        setData((d) => ({ ...d, transactions, recurring }))
+        setPendingReview(createdThisMonth)
+        setReviewOpen(true)
+      }
     }
 
     load()
@@ -294,9 +382,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({ ...d, transactions }))
   }
 
+  const refreshRecurring = async () => {
+    const recurring = await fetchRecurring()
+    setData((d) => ({ ...d, recurring }))
+  }
+
   const refreshAll = async () => {
     const fresh = await fetchAll()
     setData(fresh)
+  }
+
+  const dismissReview = () => {
+    setReviewOpen(false)
+    setPendingReview([])
   }
 
   // Calculate weekly supermarket total and handle Saturday summary
@@ -594,6 +692,76 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
   }
 
+  // ---------- Gastos/ingresos recurrentes ----------
+
+  const addRecurring = (r: Omit<RecurringTransaction, "id" | "lastCreatedMonth">) => {
+    const optimisticId = uid()
+    setData((d) => ({
+      ...d,
+      recurring: [{ ...r, id: optimisticId, lastCreatedMonth: null }, ...(d.recurring ?? [])],
+    }))
+
+    supabase
+      .from("recurring_transactions")
+      .insert({
+        description: r.description,
+        category: r.category,
+        amount: r.amount,
+        active: r.active,
+      })
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] addRecurring error:", error.message)
+        }
+        refreshRecurring()
+      })
+  }
+
+  const updateRecurring = (
+    id: string,
+    updates: Partial<Omit<RecurringTransaction, "id" | "lastCreatedMonth">>,
+  ) => {
+    setData((d) => ({
+      ...d,
+      recurring: (d.recurring ?? []).map((r) => (r.id === id ? { ...r, ...updates } : r)),
+    }))
+
+    const updatePayload: Record<string, string | number | boolean> = {}
+    if (updates.description !== undefined) updatePayload.description = updates.description
+    if (updates.category !== undefined) updatePayload.category = updates.category
+    if (updates.amount !== undefined) updatePayload.amount = updates.amount
+    if (updates.active !== undefined) updatePayload.active = updates.active
+
+    supabase
+      .from("recurring_transactions")
+      .update(updatePayload)
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] updateRecurring error:", error.message)
+        }
+        refreshRecurring()
+      })
+  }
+
+  const deleteRecurring = (id: string) => {
+    setData((d) => ({
+      ...d,
+      recurring: (d.recurring ?? []).filter((r) => r.id !== id),
+    }))
+
+    supabase
+      .from("recurring_transactions")
+      .delete()
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] deleteRecurring error:", error.message)
+        }
+        refreshRecurring()
+      })
+  }
+
   // ---------- Pantry ----------
 
   const addPantryItem = (item: Omit<PantryItem, "id" | "dateAdded">) => {
@@ -722,6 +890,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         markSupermarketSubmitted,
         refreshTransactions,
         refreshAll,
+        addRecurring,
+        updateRecurring,
+        deleteRecurring,
+        pendingReview,
+        reviewOpen,
+        dismissReview,
       }}
     >
       {children}
