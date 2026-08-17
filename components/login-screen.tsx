@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Dumbbell } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -79,9 +78,9 @@ export function LoginScreen() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm p-6">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Dumbbell className="size-6" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="ZentOS" className="size-11 rounded-xl shadow-sm" />
+
           <div>
             <p className="text-lg font-semibold">ZentOS</p>
             <p className="text-xs text-muted-foreground">Tu economía, a tu manera</p>
