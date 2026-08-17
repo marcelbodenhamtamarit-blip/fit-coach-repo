@@ -64,19 +64,27 @@ function currentPeriodKey(frequency: RecurringFrequency): string {
   return today.slice(0, 7)
 }
 
-// Fecha (yyyy-mm-dd) con la que se registra la transacción generada:
-// el día 1 del mes para las mensuales, el domingo de esta semana para las
-// semanales.
-function periodStartDate(frequency: RecurringFrequency): string {
+// Fecha (yyyy-mm-dd) con la que se registra la transacción generada, según
+// el "día de pago" configurado en la plantilla: para mensuales, ese día del
+// mes actual (recortado al último día real si el mes es más corto, p.ej.
+// día 31 en febrero); para semanales, ese día de la semana actual
+// (0=domingo...6=sábado, empezando la semana el domingo como getWeekStart).
+function periodStartDate(frequency: RecurringFrequency, payDay: number): string {
   const today = todayISO()
   if (frequency === "weekly") {
     const start = getWeekStart(new Date(today + "T00:00:00"))
-    const y = start.getFullYear()
-    const m = String(start.getMonth() + 1).padStart(2, "0")
-    const d = String(start.getDate()).padStart(2, "0")
+    const target = new Date(start)
+    target.setDate(start.getDate() + Math.min(Math.max(payDay, 0), 6))
+    const y = target.getFullYear()
+    const m = String(target.getMonth() + 1).padStart(2, "0")
+    const d = String(target.getDate()).padStart(2, "0")
     return `${y}-${m}-${d}`
   }
-  return `${today.slice(0, 7)}-01`
+  const y = Number(today.slice(0, 4))
+  const m = Number(today.slice(5, 7))
+  const daysInMonth = new Date(y, m, 0).getDate()
+  const day = String(Math.min(Math.max(payDay, 1), daysInMonth)).padStart(2, "0")
+  return `${today.slice(0, 7)}-${day}`
 }
 
 const EMPTY_DATA: AppData = {
@@ -108,6 +116,7 @@ function rowToRecurring(row: RecurringTransactionRow): RecurringTransaction {
     amount: Number(row.amount),
     active: row.active,
     frequency: (row.frequency as RecurringTransaction["frequency"]) ?? "monthly",
+    payDay: row.pay_day ?? (row.frequency === "weekly" ? 0 : 1),
     lastCreatedPeriod: row.last_created_month,
   }
 }
@@ -343,7 +352,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const { data: txRow, error: txError } = await supabase
         .from("transactions")
         .insert({
-          date: periodStartDate(template.frequency),
+          date: periodStartDate(template.frequency, template.payDay),
           description: template.description,
           category: template.category,
           amount: template.amount,
@@ -741,6 +750,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         amount: r.amount,
         active: r.active,
         frequency: r.frequency,
+        pay_day: r.payDay,
       })
       .then(({ error }) => {
         if (error) {
@@ -765,6 +775,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (updates.amount !== undefined) updatePayload.amount = updates.amount
     if (updates.active !== undefined) updatePayload.active = updates.active
     if (updates.frequency !== undefined) updatePayload.frequency = updates.frequency
+    if (updates.payDay !== undefined) updatePayload.pay_day = updates.payDay
 
     supabase
       .from("recurring_transactions")
