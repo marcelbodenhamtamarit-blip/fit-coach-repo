@@ -133,12 +133,25 @@ export type Transaction = {
   amount: number // negative = expense, positive = income (AUD)
 }
 
+// Plantilla de gasto/ingreso recurrente (alquiler, suscripciones, nómina...).
+// El día 1 de cada mes se crea automáticamente una transacción real a partir
+// de cada plantilla activa, y se guarda en lastCreatedMonth para no duplicar.
+export type RecurringTransaction = {
+  id: string
+  description: string
+  category: TransactionCategory
+  amount: number // negative = expense, positive = income (AUD)
+  active: boolean
+  lastCreatedMonth: string | null // "YYYY-MM"
+}
+
 export type AppData = {
   profile: Profile
   meals: Meal[]
   metrics: BodyMetric[]
   pantry: PantryItem[]
   transactions: Transaction[]
+  recurring: RecurringTransaction[]
 }
 
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
