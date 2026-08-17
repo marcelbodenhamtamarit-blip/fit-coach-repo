@@ -147,6 +147,11 @@ export type RecurringTransaction = {
   amount: number // negative = expense, positive = income (AUD)
   active: boolean
   frequency: RecurringFrequency
+  // Día en que se genera la transacción dentro de cada periodo. Si
+  // frequency=monthly es el día del mes (1-31, recortado al último día real
+  // del mes si el mes es más corto). Si frequency=weekly es el día de la
+  // semana (0=domingo...6=sábado, igual que Date.getDay()).
+  payDay: number
   lastCreatedPeriod: string | null // "YYYY-MM" si frequency=monthly, "YYYY-Www" si weekly
 }
 
