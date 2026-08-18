@@ -180,7 +180,7 @@ export type RecurringTransaction = {
   id: string
   description: string
   category: TransactionCategory
-  amount: number // negative = expense, positive = income (AUD)
+  amount: number // negative = expense, positive = income; ya convertido a home_currency
   active: boolean
   frequency: RecurringFrequency
   // Día en que se genera la transacción dentro de cada periodo. Si
