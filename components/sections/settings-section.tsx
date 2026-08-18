@@ -4,10 +4,11 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, RefreshCw, Watch, Coins, Languages } from "lucide-react"
+import { Check, Copy, Download, RefreshCw, Watch, Coins, Languages, UserRound, LogOut } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
+import { useAuth } from "@/lib/use-auth"
 import { LANGUAGES, type Language } from "@/lib/i18n"
 
 export function SettingsSection() {
@@ -35,6 +36,8 @@ export function SettingsSection() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <AccountCard />
+
       <Card className="p-6">
         <h3 className="mb-2 text-sm font-semibold">{t("settings.about")}</h3>
         <p className="text-xs text-muted-foreground">ZentOS · {t("app.tagline")}</p>
@@ -63,6 +66,32 @@ export function SettingsSection() {
         </Button>
       </Card>
     </div>
+  )
+}
+
+// Muestra con qué cuenta está logueada la persona ahora mismo. Antes no
+// había forma de verlo en ningún sitio de la app — si te registrabas con
+// un email al vuelo (por ejemplo para probar), no había manera de recordar
+// cuál era. También sirve de acceso rápido para cerrar sesión.
+function AccountCard() {
+  const { user, signOut } = useAuth()
+  const { t } = useStore()
+
+  return (
+    <Card className="p-6">
+      <div className="mb-1 flex items-center gap-2">
+        <UserRound className="size-4 text-primary" />
+        <h3 className="text-sm font-semibold">{t("settings.account")}</h3>
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">{t("settings.accountDesc")}</p>
+      <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">
+        <p className="min-w-0 truncate text-sm font-medium">{user?.email ?? "—"}</p>
+        <Button size="sm" variant="ghost" onClick={signOut} className="shrink-0 text-muted-foreground">
+          <LogOut className="mr-1.5 size-3.5" />
+          {t("settings.signOut")}
+        </Button>
+      </div>
+    </Card>
   )
 }
 
