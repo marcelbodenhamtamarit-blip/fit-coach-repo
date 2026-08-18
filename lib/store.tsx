@@ -94,6 +94,7 @@ const EMPTY_DATA: AppData = {
   pantry: [],
   transactions: [],
   recurring: [],
+  homeCurrency: "AUD",
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -105,6 +106,8 @@ function rowToTransaction(row: TransactionRow): Transaction {
     description: row.description,
     category: row.category as Transaction["category"],
     amount: Number(row.amount),
+    currency: row.currency ?? null,
+    originalAmount: row.original_amount !== null && row.original_amount !== undefined ? Number(row.original_amount) : null,
   }
 }
 
@@ -276,16 +279,50 @@ async function fetchRecurring(): Promise<RecurringTransaction[]> {
   return (data ?? []).map(rowToRecurring)
 }
 
+// Divisa principal del usuario: la que se usa para sumar/mostrar todos los
+// totales. Si el usuario todavía no tiene fila en user_preferences (primera
+// vez), se crea con AUD por defecto (lo que se usaba antes de esta tabla).
+async function fetchHomeCurrency(): Promise<string> {
+  const { data: userData } = await supabase.auth.getUser()
+  const userId = userData.user?.id
+  if (!userId) return "AUD"
+
+  const { data, error } = await supabase
+    .from("user_preferences")
+    .select("home_currency")
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[supabase] fetchHomeCurrency error:", error.message)
+    return "AUD"
+  }
+  if (data?.home_currency) return data.home_currency
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("user_preferences")
+    .insert({ user_id: userId })
+    .select("home_currency")
+    .single()
+
+  if (insertError) {
+    console.error("[supabase] fetchHomeCurrency insert error:", insertError.message)
+    return "AUD"
+  }
+  return inserted?.home_currency ?? "AUD"
+}
+
 async function fetchAll(): Promise<AppData> {
-  const [profile, meals, metrics, pantry, transactions, recurring] = await Promise.all([
+  const [profile, meals, metrics, pantry, transactions, recurring, homeCurrency] = await Promise.all([
     fetchProfile(),
     fetchMeals(),
     fetchMetrics(),
     fetchPantry(),
     fetchTransactions(),
     fetchRecurring(),
+    fetchHomeCurrency(),
   ])
-  return { profile, meals, metrics, pantry, transactions, recurring }
+  return { profile, meals, metrics, pantry, transactions, recurring, homeCurrency }
 }
 
 type WeeklySupermarketState = {
@@ -318,6 +355,7 @@ type StoreContextType = {
   pendingReview: Transaction[]
   reviewOpen: boolean
   dismissReview: () => void
+  setHomeCurrency: (code: string) => void
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
@@ -436,6 +474,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dismissReview = () => {
     setReviewOpen(false)
     setPendingReview([])
+  }
+
+  const setHomeCurrency = (code: string) => {
+    setData((d) => ({ ...d, homeCurrency: code }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, home_currency: code })
+      if (error) {
+        console.error("[supabase] setHomeCurrency error:", error.message)
+      }
+    })()
   }
 
   // Calculate weekly supermarket total and handle Saturday summary
@@ -605,6 +659,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         description: t.description,
         category: t.category,
         amount: t.amount,
+        currency: t.currency ?? null,
+        original_amount: t.originalAmount ?? null,
       })
       .then(({ error }) => {
         if (error) {
@@ -622,11 +678,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .sort((a, b) => b.date.localeCompare(a.date)),
     }))
 
-          const updatePayload: Record<string, string | number> = {}
+          const updatePayload: Record<string, string | number | null> = {}
     if (updates.date !== undefined) updatePayload.date = updates.date
     if (updates.description !== undefined) updatePayload.description = updates.description
     if (updates.category !== undefined) updatePayload.category = updates.category
     if (updates.amount !== undefined) updatePayload.amount = updates.amount
+    if (updates.currency !== undefined) updatePayload.currency = updates.currency
+    if (updates.originalAmount !== undefined) updatePayload.original_amount = updates.originalAmount
 
     supabase
     .from("transactions")
@@ -941,6 +999,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         pendingReview,
         reviewOpen,
         dismissReview,
+        setHomeCurrency,
       }}
     >
       {children}
