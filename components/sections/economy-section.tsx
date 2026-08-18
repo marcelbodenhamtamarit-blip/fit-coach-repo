@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
+import { categoryLabel, type Language } from "@/lib/i18n"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
@@ -26,9 +27,8 @@ const GOOGLE_SHEETS_WEBHOOK =
 type TabId = "diario" | "semanal" | "mensual"
 type TxType = "gasto" | "ingreso"
 
-function getMonthName(monthNum: number): string {
-  const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-  return months[monthNum - 1] || ""
+function getMonthName(monthNum: number, locale: string): string {
+  return new Date(Date.UTC(2026, monthNum - 1, 1)).toLocaleDateString(locale, { month: "long", timeZone: "UTC" })
 }
 
 function getWeekNumberFromISO(dateStr: string): number {
@@ -68,10 +68,10 @@ function fmt(amount: number, currency?: string | null): string {
 const CATEGORY_EMOJI: Record<string, string> = {
   Alojamiento: "\u{1F3E0}",
   Supermercado: "\u{1F6D2}",
-  "Comida fuera": "\u{1F37D}\uFE0F",
+  "Comida fuera": "\u{1F37D}️",
   Transporte: "\u{1F697}",
   Salario: "\u{1F4B0}",
-  Compras: "\u{1F6CD}\uFE0F",
+  Compras: "\u{1F6CD}️",
   Necesidades: "\u{1F9FE}",
   Ocio: "\u{1F3AC}",
   Otros: "\u{1F4CC}",
@@ -113,7 +113,9 @@ interface GroupedData {
 }
 
 export function EconomySection() {
-  const { data, addTransaction, updateTransaction, deleteTransaction } = useStore()
+  const { data, addTransaction, updateTransaction, deleteTransaction, t } = useStore()
+  const lang = (data.language as Language) ?? "es"
+  const locale = lang === "en" ? "en-US" : "es-ES"
   const transactions: Transaction[] = data.transactions ?? []
   const homeCurrency = data.homeCurrency
 
@@ -202,7 +204,7 @@ export function EconomySection() {
         .sort((a, b) => b[0].localeCompare(a[0]))
         .map(([date, txs]) => {
           const d = new Date(date + "T00:00:00")
-          const label = d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })
+          const label = d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })
           return toGroups(date, label, txs)
         })
     }
@@ -218,7 +220,7 @@ export function EconomySection() {
         .sort((a, b) => b[0] - a[0])
         .map(([weekNum, txs]) => {
           const { sunday, saturday } = getWeekDateRangeFromNum(weekNum)
-          const label = `Semana ${weekNum} (${sunday} - ${saturday})`
+          const label = `${t("economy.week", { n: weekNum })} (${sunday} - ${saturday})`
           return toGroups(`week-${weekNum}`, label, txs)
         })
     }
@@ -233,10 +235,11 @@ export function EconomySection() {
       .sort((a, b) => b[0].localeCompare(a[0]))
       .map(([monthKey, txs]) => {
         const [year, month] = monthKey.split("-")
-        const label = `${getMonthName(parseInt(month))} ${year}`
+        const monthName = getMonthName(parseInt(month), locale)
+        const label = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`
         return toGroups(monthKey, label, txs)
       })
-  }, [transactions, tab])
+  }, [transactions, tab, locale])
 
   const handleSave = async () => {
     const raw = parseFloat(amount)
@@ -261,7 +264,7 @@ export function EconomySection() {
         txOriginalAmount = num
       } catch {
         setSaving(false)
-        setConversionError("No se pudo obtener el tipo de cambio. Inténtalo de nuevo en un momento.")
+        setConversionError(t("economy.conversionError"))
         return
       }
     }
@@ -292,7 +295,7 @@ export function EconomySection() {
         }),
       })
     } catch {
-      setToastError("No se pudo sincronizar con Google Sheets")
+      setToastError(t("economy.googleSheetsError"))
       setTimeout(() => setToastError(null), 3000)
     }
 
@@ -350,24 +353,22 @@ export function EconomySection() {
 
       {transactions.length === 0 && (
         <Card className="border-amber-500/50 bg-amber-500/10 p-4">
-          <p className="font-semibold text-amber-600 dark:text-amber-400">Sin transacciones</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Añade tu primer gasto o ingreso con el botón de abajo
-          </p>
+          <p className="font-semibold text-amber-600 dark:text-amber-400">{t("economy.noTransactions")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("economy.addFirstHint")}</p>
         </Card>
       )}
 
       {showForm && (
         <Card className="p-5 animate-in slide-in-from-top-4 duration-300">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Nueva transacción</h2>
+            <h2 className="text-sm font-semibold">{t("economy.newTransaction")}</h2>
             <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground">
               <X className="size-4" />
             </button>
           </div>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Tipo</Label>
+              <Label>{t("economy.type")}</Label>
               <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
                 <button
                   type="button"
@@ -376,7 +377,7 @@ export function EconomySection() {
                     txType === "gasto" ? "bg-red-500/15 text-red-400 shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Gasto (−)
+                  {t("common.expense")}
                 </button>
                 <button
                   type="button"
@@ -385,28 +386,28 @@ export function EconomySection() {
                     txType === "ingreso" ? "bg-emerald-500/15 text-emerald-500 shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Ganancia (+)
+                  {t("common.income")}
                 </button>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-desc">Descripción</Label>
-              <Input id="tx-desc" placeholder="Ej: Compra semanal" value={desc} onChange={(e) => setDesc(e.target.value)} />
+              <Label htmlFor="tx-desc">{t("economy.description")}</Label>
+              <Input id="tx-desc" placeholder={t("economy.descPlaceholder")} value={desc} onChange={(e) => setDesc(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-amount">Cantidad</Label>
+              <Label htmlFor="tx-amount">{t("economy.amount")}</Label>
               <div className="flex gap-2">
                 <Input
                   id="tx-amount"
                   type="number"
                   min="0"
-                  placeholder="Ej: 45.50"
+                  placeholder={t("economy.amountPlaceholder")}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="flex-1"
                 />
                 <select
-                  aria-label="Divisa"
+                  aria-label={t("common.currency")}
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -417,13 +418,13 @@ export function EconomySection() {
                 </select>
               </div>
               <p className="text-xs text-muted-foreground">
-                Introduce solo el número positivo, el signo se aplica solo según el tipo elegido arriba.
-                {currency !== homeCurrency && ` Se convertirá a ${homeCurrency} al guardar, con el tipo de cambio de hoy.`}
+                {t("economy.amountHint")}
+                {currency !== homeCurrency && t("economy.convertNotice", { currency: homeCurrency })}
               </p>
               {conversionError && <p className="text-xs text-red-500">{conversionError}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-category">Categoría</Label>
+              <Label htmlFor="tx-category">{t("economy.category")}</Label>
               <select
                 id="tx-category"
                 value={category}
@@ -431,16 +432,16 @@ export function EconomySection() {
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {TRANSACTION_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{categoryLabel(c, lang)}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-date">Fecha</Label>
+              <Label htmlFor="tx-date">{t("economy.date")}</Label>
               <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <Button onClick={handleSave} disabled={saving || !desc.trim() || !amount} className="w-full">
-              {saving ? "Guardando..." : "Guardar"}
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </div>
         </Card>
@@ -457,7 +458,7 @@ export function EconomySection() {
             style={{ backgroundColor: "#7c6fff" }}
           >
             <Plus className="mr-2 size-4" />
-            Añadir gasto o ganancia
+            {t("economy.addButton")}
           </Button>
           <RecurringManagerDialog />
         </div>
@@ -472,7 +473,7 @@ export function EconomySection() {
             <PiggyBank className={`size-4 ${ahorro >= 0 ? "text-emerald-500" : "text-red-400"}`} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Balance del mes</p>
+            <p className="text-sm font-medium">{t("economy.monthBalance")}</p>
             <p className={`text-lg font-bold ${ahorro >= 0 ? "text-emerald-500" : "text-red-400"}`}>
               {ahorro >= 0 ? "+" : "-"}{currencySymbol(homeCurrency)}{Math.abs(ahorro).toFixed(2)}
             </p>
@@ -483,8 +484,8 @@ export function EconomySection() {
         {showSummary && (
           <div className="border-t border-border p-4">
             <div className="mb-4 grid grid-cols-2 gap-3">
-              <MiniStat label="Ingresado (mes)" value={`+${currencySymbol(homeCurrency)}${ingresos.toFixed(2)}`} tone="green" />
-              <MiniStat label="Gastado (mes)" value={`-${currencySymbol(homeCurrency)}${gastos.toFixed(2)}`} tone="red" />
+              <MiniStat label={t("economy.incomeMonth")} value={`+${currencySymbol(homeCurrency)}${ingresos.toFixed(2)}`} tone="green" />
+              <MiniStat label={t("economy.spentMonth")} value={`-${currencySymbol(homeCurrency)}${gastos.toFixed(2)}`} tone="red" />
             </div>
 
           </div>
@@ -494,7 +495,7 @@ export function EconomySection() {
       {weeklySavingsData.length > 0 && (
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold">Ahorro semanal</p>
+            <p className="text-xs font-semibold">{t("economy.weeklySavings")}</p>
           </div>
           <div className="h-28">
             <ResponsiveContainer width="100%" height="100%">
@@ -504,8 +505,8 @@ export function EconomySection() {
                   contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
                   labelStyle={{ color: "#a1a1aa" }}
                   itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
-                  formatter={(value: number) => [`${currencySymbol(homeCurrency)}${value.toFixed(2)}`, "Ahorro"]}
-                  labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
+                  formatter={(value: number) => [`${currencySymbol(homeCurrency)}${value.toFixed(2)}`, t("economy.savingsLabel")]}
+                  labelFormatter={(label) => t("economy.week", { n: label.replace("W", "") })}
                   cursor={{ fill: "rgba(255,255,255,0.06)" }}
                 />
                 <Bar dataKey="savings" radius={[3, 3, 0, 0]}>
@@ -517,30 +518,34 @@ export function EconomySection() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <MiniStat label="Total ahorrado" value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
-            {bestWeek && <MiniStat label="Mejor" value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" />}
-            {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
+            <MiniStat label={t("economy.totalSaved")} value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
+            {bestWeek && <MiniStat label={t("economy.best")} value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" />}
+            {worstWeek && <MiniStat label={t("economy.worst")} value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
           </div>
         </Card>
       )}
 
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
-        {[{ id: "diario", label: "Diario" }, { id: "semanal", label: "Semanal" }, { id: "mensual", label: "Mensual" }].map((t) => (
+        {[
+          { id: "diario", label: t("common.daily") },
+          { id: "semanal", label: t("common.weekly") },
+          { id: "mensual", label: t("common.monthly") },
+        ].map((tabOption) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id as TabId)}
+            key={tabOption.id}
+            onClick={() => setTab(tabOption.id as TabId)}
             className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
-              tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              tab === tabOption.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t.label}
+            {tabOption.label}
           </button>
         ))}
       </div>
 
       {groupedData.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">Sin transacciones registradas</p>
+          <p className="text-sm text-muted-foreground">{t("economy.noTransactionsRegistered")}</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -586,9 +591,9 @@ export function EconomySection() {
                               {CATEGORY_EMOJI[catGroup.category] ?? "\u{1F4CC}"}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">{catGroup.category}</p>
+                              <p className="truncate text-sm font-medium">{categoryLabel(catGroup.category, lang)}</p>
                               <p className="text-[10px] text-muted-foreground">
-                                {catGroup.transactions.length} {catGroup.transactions.length === 1 ? "movimiento" : "movimientos"}
+                                {catGroup.transactions.length} {catGroup.transactions.length === 1 ? t("common.movement") : t("common.movements")}
                               </p>
                               <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-white/5">
                                 <div className="h-full rounded-full" style={{ width: `${catPct}%`, backgroundColor: catColor }} />
@@ -599,7 +604,7 @@ export function EconomySection() {
                                 {fmt(catGroup.net, homeCurrency)}
                               </p>
                               <p className="text-[9px] text-muted-foreground">
-                                {catGroup.net >= 0 ? "ingreso" : `${Math.round(catPct)}%`}
+                                {catGroup.net >= 0 ? t("economy.incomeTag") : `${Math.round(catPct)}%`}
                               </p>
                             </div>
                             {isCatExpanded ? (
@@ -642,7 +647,7 @@ export function EconomySection() {
                                                 editType === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
                                               }`}
                                             >
-                                              Gasto (−)
+                                              {t("common.expense")}
                                             </button>
                                             <button
                                               type="button"
@@ -651,27 +656,27 @@ export function EconomySection() {
                                                 editType === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
                                               }`}
                                             >
-                                              Ganancia (+)
+                                              {t("common.income")}
                                             </button>
                                           </div>
-                                          <Input placeholder="Descripción" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
-                                          <Input type="number" min="0" placeholder="Cantidad" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
+                                          <Input placeholder={t("economy.description")} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
+                                          <Input type="number" min="0" placeholder={t("economy.amount")} value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
                                           <select
                                             value={editCategory}
                                             onChange={(e) => setEditCategory(e.target.value)}
                                             className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                                           >
                                             {TRANSACTION_CATEGORIES.map((c) => (
-                                              <option key={c} value={c}>{c}</option>
+                                              <option key={c} value={c}>{categoryLabel(c, lang)}</option>
                                             ))}
                                           </select>
                                           <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-8 text-sm" />
                                           <div className="flex justify-end gap-2">
                                             <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
-                                              Cancelar
+                                              {t("common.cancel")}
                                             </Button>
                                             <Button size="sm" className="h-7 text-xs" disabled={editSaving || !editDesc.trim() || !editAmount} onClick={() => handleUpdate(tx.id)}>
-                                              {editSaving ? "Guardando..." : "Guardar"}
+                                              {editSaving ? t("common.saving") : t("common.save")}
                                             </Button>
                                           </div>
                                         </div>
@@ -679,11 +684,11 @@ export function EconomySection() {
                                         <div className="flex justify-end gap-2">
                                           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => startEditing(tx)}>
                                             <Pencil className="mr-1 size-3" />
-                                            Editar
+                                            {t("common.edit")}
                                           </Button>
                                           <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={() => deleteTransaction(tx.id)}>
                                             <X className="mr-1 size-3" />
-                                            Eliminar
+                                            {t("common.delete")}
                                           </Button>
                                         </div>
                                       )}
