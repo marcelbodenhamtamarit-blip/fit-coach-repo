@@ -22,6 +22,7 @@ import {
 } from "@/lib/types"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
+import { categoryLabel, weekdayLabel, type Language } from "@/lib/i18n"
 
 type TxType = "gasto" | "ingreso"
 
@@ -29,13 +30,6 @@ function fmt(amount: number, symbol: string): string {
   const abs = Math.abs(amount).toFixed(2)
   return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
-
-const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
-  monthly: "Mensual",
-  weekly: "Semanal",
-}
-
-const WEEKDAY_FULL = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
 
 function defaultPayDay(frequency: RecurringFrequency): number {
   return frequency === "weekly" ? 0 : 1
@@ -48,9 +42,15 @@ function defaultPayDay(frequency: RecurringFrequency): number {
 // lib/store.tsx) y el popup de revisión (recurring-review-dialog.tsx) avisa
 // de lo que se creó.
 export function RecurringManagerDialog() {
-  const { data, addRecurring, updateRecurring, deleteRecurring } = useStore()
+  const { data, addRecurring, updateRecurring, deleteRecurring, t } = useStore()
+  const lang = (data.language as Language) ?? "es"
   const recurring: RecurringTransaction[] = data.recurring ?? []
   const homeCurrency = data.homeCurrency
+
+  const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
+    monthly: t("common.monthly"),
+    weekly: t("common.weekly"),
+  }
 
   const [showForm, setShowForm] = useState(false)
   const [desc, setDesc] = useState("")
@@ -81,7 +81,7 @@ export function RecurringManagerDialog() {
         finalAmount = await convertAmount(num, currency, homeCurrency, supabase)
       } catch {
         setSaving(false)
-        setConversionError("No se pudo obtener el tipo de cambio. Inténtalo de nuevo en un momento.")
+        setConversionError(t("economy.conversionError"))
         return
       }
     }
@@ -119,19 +119,15 @@ export function RecurringManagerDialog() {
     <Dialog>
       <DialogTrigger render={<Button variant="outline" className="w-full" />}>
         <Repeat className="mr-2 size-4" />
-        Gastos recurrentes
+        {t("recurring.title")}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="mb-1 flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
             <Repeat className="size-4.5" />
           </div>
-          <DialogTitle>Gastos e ingresos recurrentes</DialogTitle>
-          <DialogDescription>
-            Elige mensual o semanal, y el día en que se paga. Se crean solas al empezar cada periodo (alquiler,
-            suscripciones, nómina... o la compra semanal). Al abrir la app te avisamos con un popup para que los
-            revises.
-          </DialogDescription>
+          <DialogTitle>{t("recurring.dialogTitle")}</DialogTitle>
+          <DialogDescription>{t("recurring.dialogDesc")}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-80 space-y-2 overflow-y-auto">
@@ -140,7 +136,7 @@ export function RecurringManagerDialog() {
               <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <CalendarClock className="size-5" />
               </div>
-              <p className="text-sm text-muted-foreground">Aún no tienes ninguno.</p>
+              <p className="text-sm text-muted-foreground">{t("recurring.empty")}</p>
             </div>
           )}
           {recurring.map((r) => (
@@ -151,7 +147,7 @@ export function RecurringManagerDialog() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{r.description}</p>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{r.category}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{categoryLabel(r.category, lang)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span
@@ -187,14 +183,14 @@ export function RecurringManagerDialog() {
                     className="appearance-none bg-transparent pr-0.5 focus-visible:outline-none"
                   >
                     {r.frequency === "weekly"
-                      ? WEEKDAY_FULL.map((label, idx) => (
+                      ? Array.from({ length: 7 }, (_, idx) => idx).map((idx) => (
                           <option key={idx} value={idx} className="bg-background text-foreground">
-                            {label}
+                            {weekdayLabel(idx, lang)}
                           </option>
                         ))
                       : Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
                           <option key={d} value={d} className="bg-background text-foreground">
-                            Día {d}
+                            {t("recurring.day", { n: d })}
                           </option>
                         ))}
                   </select>
@@ -207,7 +203,7 @@ export function RecurringManagerDialog() {
                     r.active ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {r.active ? "Activo" : "Pausado"}
+                  {r.active ? t("recurring.active") : t("recurring.paused")}
                 </button>
               </div>
             </div>
@@ -217,7 +213,7 @@ export function RecurringManagerDialog() {
         {showForm ? (
           <div className="space-y-3 rounded-xl border border-border bg-card/40 p-3">
             <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Tipo</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("economy.type")}</p>
               <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
                 <button
                   type="button"
@@ -226,7 +222,7 @@ export function RecurringManagerDialog() {
                     txType === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
                   }`}
                 >
-                  Gasto (−)
+                  {t("common.expense")}
                 </button>
                 <button
                   type="button"
@@ -235,13 +231,13 @@ export function RecurringManagerDialog() {
                     txType === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
                   }`}
                 >
-                  Ganancia (+)
+                  {t("common.income")}
                 </button>
               </div>
             </div>
 
             <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">Frecuencia</p>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("recurring.frequency")}</p>
               <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
                 <button
                   type="button"
@@ -250,7 +246,7 @@ export function RecurringManagerDialog() {
                     frequency === "monthly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                   }`}
                 >
-                  Mensual
+                  {t("common.monthly")}
                 </button>
                 <button
                   type="button"
@@ -259,14 +255,14 @@ export function RecurringManagerDialog() {
                     frequency === "weekly" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                   }`}
                 >
-                  Semanal
+                  {t("common.weekly")}
                 </button>
               </div>
             </div>
 
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                {frequency === "weekly" ? "Día de la semana" : "Día del mes"}
+                {frequency === "weekly" ? t("recurring.dayOfWeek") : t("recurring.dayOfMonth")}
               </p>
               <select
                 value={payDay}
@@ -274,32 +270,32 @@ export function RecurringManagerDialog() {
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {frequency === "weekly"
-                  ? WEEKDAY_FULL.map((label, idx) => (
+                  ? Array.from({ length: 7 }, (_, idx) => idx).map((idx) => (
                       <option key={idx} value={idx}>
-                        {label}
+                        {weekdayLabel(idx, lang)}
                       </option>
                     ))
                   : Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
                       <option key={d} value={d}>
-                        Día {d}
+                        {t("recurring.day", { n: d })}
                       </option>
                     ))}
               </select>
             </div>
 
-            <Input placeholder="Ej: Alquiler" value={desc} onChange={(e) => setDesc(e.target.value)} />
+            <Input placeholder={t("recurring.descPlaceholder")} value={desc} onChange={(e) => setDesc(e.target.value)} />
             <div className="space-y-1.5">
               <div className="flex gap-2">
                 <Input
                   type="number"
                   min="0"
-                  placeholder="Ej: 45.50"
+                  placeholder={t("economy.amountPlaceholder")}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="flex-1"
                 />
                 <select
-                  aria-label="Divisa"
+                  aria-label={t("common.currency")}
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -313,7 +309,7 @@ export function RecurringManagerDialog() {
               </div>
               {currency !== homeCurrency && (
                 <p className="text-xs text-muted-foreground">
-                  Se convertirá a {homeCurrency} al guardar, con el tipo de cambio de hoy.
+                  {t("economy.convertNotice", { currency: homeCurrency })}
                 </p>
               )}
               {conversionError && <p className="text-xs text-red-500">{conversionError}</p>}
@@ -325,23 +321,23 @@ export function RecurringManagerDialog() {
             >
               {TRANSACTION_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {categoryLabel(c, lang)}
                 </option>
               ))}
             </select>
             <div className="flex gap-2">
               <Button variant="ghost" className="flex-1" onClick={() => setShowForm(false)}>
-                Cancelar
+                {t("common.cancel")}
               </Button>
               <Button className="flex-1" disabled={saving || !desc.trim() || !amount} onClick={handleAdd}>
-                Guardar
+                {t("common.save")}
               </Button>
             </div>
           </div>
         ) : (
           <Button variant="outline" className="w-full" onClick={() => setShowForm(true)}>
             <Plus className="mr-2 size-4" />
-            Añadir recurrente
+            {t("recurring.addNew")}
           </Button>
         )}
       </DialogContent>
