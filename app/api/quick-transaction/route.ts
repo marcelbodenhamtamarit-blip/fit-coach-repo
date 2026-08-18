@@ -11,6 +11,7 @@ const supabase = createClient(
 )
 
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
+import { convertAmount } from "@/lib/exchange-rates"
 
 function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
@@ -144,7 +145,39 @@ async function handle(req: NextRequest) {
 
   const typeVal = typeof body.type === "string" ? body.type.trim().toLowerCase() : ""
   const type = typeVal === "ingreso" ? "ingreso" : "gasto"
-  const amount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
+  const rawAmount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
+
+  // Divisa opcional (paso 5 del atajo manual puede mandar `currency`, p.ej.
+  // desde un viaje). Si no coincide con la divisa principal del usuario, se
+  // convierte aquí con el tipo de cambio del día y se guarda también el
+  // importe original para poder mostrarlo tal cual en la app.
+  const currencyRaw = typeof body.currency === "string" ? body.currency.trim().toUpperCase() : ""
+
+  let amount = rawAmount
+  let txCurrency: string | null = null
+  let txOriginalAmount: number | null = null
+
+  if (currencyRaw) {
+    const { data: prefs } = await supabase
+      .from("user_preferences")
+      .select("home_currency")
+      .eq("user_id", ownerUserId)
+      .maybeSingle()
+    const homeCurrency = (prefs?.home_currency ?? "AUD").toUpperCase()
+
+    if (currencyRaw !== homeCurrency) {
+      try {
+        amount = await convertAmount(rawAmount, currencyRaw, homeCurrency, supabase)
+        txCurrency = currencyRaw
+        txOriginalAmount = rawAmount
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "No se pudo convertir la divisa" },
+          { status: 500 },
+        )
+      }
+    }
+  }
 
   const explicitDescription =
     typeof body.description === "string" && body.description.trim()
@@ -199,18 +232,35 @@ async function handle(req: NextRequest) {
   const remainder = totalCents - baseCents * weeks
   const sign = amount < 0 ? -1 : 1
 
+  // Si hay importe original en otra divisa, se reparte entre semanas con el
+  // mismo criterio (céntimos exactos) para que cada fila lleve su propio
+  // original_amount coherente con su amount ya convertido.
+  let origBaseCents = 0
+  let origRemainder = 0
+  let origSign = 1
+  if (txOriginalAmount !== null) {
+    const origTotalCents = Math.round(Math.abs(txOriginalAmount) * 100)
+    origBaseCents = Math.floor(origTotalCents / weeks)
+    origRemainder = origTotalCents - origBaseCents * weeks
+    origSign = txOriginalAmount < 0 ? -1 : 1
+  }
+
   // Esta ruta usa la service_role key, así que salta RLS por completo.
   // Cada fila lleva el user_id resuelto arriba (por token personal o por
   // el QUICK_ADD_OWNER_USER_ID antiguo), nunca huérfana.
   const rows = Array.from({ length: weeks }, (_, i) => {
     const cents = baseCents + (i === 0 ? remainder : 0)
-    return {
+    const row: Record<string, unknown> = {
       date: addWeeks(baseDate, weekOffset + i),
       description: weeks > 1 ? `${description} (${i + 1}/${weeks})` : description,
       category,
       amount: sign * (cents / 100),
       user_id: ownerUserId,
+      currency: txCurrency,
+      original_amount:
+        txOriginalAmount !== null ? origSign * ((origBaseCents + (i === 0 ? origRemainder : 0)) / 100) : null,
     }
+    return row
   })
 
   const { data, error } = await supabase.from("transactions").insert(rows).select()
