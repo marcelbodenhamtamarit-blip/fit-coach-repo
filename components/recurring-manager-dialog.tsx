@@ -13,7 +13,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useStore } from "@/lib/store"
-import { TRANSACTION_CATEGORIES, type RecurringFrequency, type RecurringTransaction } from "@/lib/types"
+import { CURRENCIES, TRANSACTION_CATEGORIES, type RecurringFrequency, type RecurringTransaction } from "@/lib/types"
+import { supabase } from "@/lib/supabase"
+import { convertAmount } from "@/lib/exchange-rates"
 
 type TxType = "gasto" | "ingreso"
 
@@ -42,23 +44,45 @@ function defaultPayDay(frequency: RecurringFrequency): number {
 export function RecurringManagerDialog() {
   const { data, addRecurring, updateRecurring, deleteRecurring } = useStore()
   const recurring: RecurringTransaction[] = data.recurring ?? []
+  const homeCurrency = data.homeCurrency
 
   const [showForm, setShowForm] = useState(false)
   const [desc, setDesc] = useState("")
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
+  const [currency, setCurrency] = useState<string>(homeCurrency)
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [frequency, setFrequency] = useState<RecurringFrequency>("monthly")
   const [payDay, setPayDay] = useState<number>(1)
   const [saving, setSaving] = useState(false)
+  const [conversionError, setConversionError] = useState("")
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const raw = parseFloat(amount)
     if (!desc.trim() || isNaN(raw)) return
     setSaving(true)
+    setConversionError("")
+
+    const num = txType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
+
+    // Igual que en el alta de transacciones sueltas: si se elige una divisa
+    // distinta a la principal, se convierte una vez aquí (con la tasa del
+    // día) y la plantilla recurrente se queda ya en la divisa principal —
+    // no hace falta reconvertir cada vez que se genera una transacción real.
+    let finalAmount = num
+    if (currency !== homeCurrency) {
+      try {
+        finalAmount = await convertAmount(num, currency, homeCurrency, supabase)
+      } catch {
+        setSaving(false)
+        setConversionError("No se pudo obtener el tipo de cambio. Inténtalo de nuevo en un momento.")
+        return
+      }
+    }
+
     addRecurring({
       description: desc.trim(),
-      amount: txType === "gasto" ? -Math.abs(raw) : Math.abs(raw),
+      amount: finalAmount,
       category: category as RecurringTransaction["category"],
       active: true,
       frequency,
@@ -67,6 +91,7 @@ export function RecurringManagerDialog() {
     setDesc("")
     setTxType("gasto")
     setAmount("")
+    setCurrency(homeCurrency)
     setCategory(TRANSACTION_CATEGORIES[0])
     setFrequency("monthly")
     setPayDay(1)
@@ -257,13 +282,36 @@ export function RecurringManagerDialog() {
             </div>
 
             <Input placeholder="Ej: Alquiler" value={desc} onChange={(e) => setDesc(e.target.value)} />
-            <Input
-              type="number"
-              min="0"
-              placeholder="Cantidad en AUD"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+            <div className="space-y-1.5">
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Ej: 45.50"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="flex-1"
+                />
+                <select
+                  aria-label="Divisa"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {currency !== homeCurrency && (
+                <p className="text-xs text-muted-foreground">
+                  Se convertirá a {homeCurrency} al guardar, con el tipo de cambio de hoy.
+                </p>
+              )}
+              {conversionError && <p className="text-xs text-red-500">{conversionError}</p>}
+            </div>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
