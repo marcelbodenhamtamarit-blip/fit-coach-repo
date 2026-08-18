@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, RefreshCw, Watch, Coins } from "lucide-react"
+import { Check, Copy, Download, RefreshCw, Watch, Coins } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
@@ -104,24 +104,36 @@ function HomeCurrencyCard() {
   )
 }
 
-// Atajo de iOS/Apple Watch personal: pide cantidad, tipo y categoría a
-// mano (nada de leer notificaciones) y manda un GET a
-// /api/quick-transaction con tu token propio.
+// Atajo de iOS/Apple Watch: pide cantidad, tipo y categoría a mano (nada
+// de leer notificaciones) y manda la petición a /api/quick-transaction.
 //
-// Nota importante: desde iOS 15, Atajos exige que los archivos .shortcut
-// estén firmados por Apple para poder importarse (por URL o descarga) —
-// un archivo generado por nuestro servidor nunca puede tener esa firma,
-// así que el botón de "instalar directo" que había antes falla siempre
-// con "La dirección URL del atajo proporcionada no es válida". La única
-// forma real de tener el atajo en iPhone/Watch es crearlo a mano UNA vez
-// dentro de la app Atajos (pegando los valores de abajo), algo que además
-// coincide con lo que se pidió originalmente: un atajo manual.
+// Nota importante: los archivos .shortcut generados por nuestro servidor
+// nunca pueden llevar la firma de Apple que iOS exige desde la versión 15
+// para importarlos, así que un botón de "descargar .shortcut" propio
+// falla siempre con "La dirección URL del atajo proporcionada no es
+// válida". Un enlace de iCloud sí la lleva (Apple lo firma al alojarlo),
+// así que en vez de generar el archivo nosotros, compartimos un atajo
+// real creado una vez en la app Atajos y distribuido por su enlace de
+// iCloud — instalable con un toque para cualquier usuario.
+//
+// Ese atajo compartido no lleva el token de nadie incrustado: en su
+// primera ejecución en cada dispositivo pregunta el código (que cada
+// persona copia de su propia tarjeta de abajo) y lo guarda localmente
+// con "Almacenar contenido" / "Obtener contenido almacenado", así que un
+// único enlace sirve para todo el mundo sin mezclar cuentas. Si alguna
+// vez ese enlace deja de funcionar (o alguien prefiere construir su
+// propia copia), las instrucciones manuales de abajo siguen siendo
+// válidas como alternativa — ahí sí tiene sentido pegar el token fijo,
+// porque esa copia la usa una sola persona.
+const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/9187da9ab0c94ea688cdb927ea7cd167"
+
 function QuickAddShortcutCard() {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedField, setCopiedField] = useState<"token" | "url" | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [origin, setOrigin] = useState("")
+  const [showManual, setShowManual] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin)
@@ -205,15 +217,25 @@ function QuickAddShortcutCard() {
         <h3 className="text-sm font-semibold">Atajo rápido (iPhone / Apple Watch)</h3>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
-        Un Shortcut de Apple, personal tuyo, que pide la cantidad, el tipo y la categoría a mano y los guarda
-        directo en tu cuenta. iOS ya no deja instalar atajos descargados de una web (tienen que estar firmados
-        por Apple), así que se crea a mano en la app Atajos — son 5 pasos, 5 minutos.
+        Un Shortcut de Apple que pide la cantidad, el tipo y la categoría a mano y los guarda directo en tu
+        cuenta. Instálalo con un toque — la primera vez te pedirá tu código personal (lo tienes debajo) y lo
+        recordará para siempre en este dispositivo.
       </p>
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Preparando tus datos...</p>
       ) : (
         <div className="space-y-4">
+          <a
+            href={SHORTCUT_ICLOUD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}
+          >
+            <Download className="size-4" />
+            Instalar atajo (un toque)
+          </a>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">URL de la API</p>
@@ -258,12 +280,24 @@ function QuickAddShortcutCard() {
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Si crees que alguien más tiene tu código, regenéralo — el atajo dejará de funcionar hasta que
-            pegues el nuevo dentro (paso 4).
+            Al instalarlo te pedirá pegar el código de arriba, solo la primera vez. Si crees que alguien más
+            tiene tu código, regenéralo aquí — tendrás que abrir el atajo en la app Atajos, borrar el código
+            guardado dentro (o reinstalarlo) y pegar el nuevo para que vuelva a funcionar en tu dispositivo.
           </p>
 
+          <button
+            type="button"
+            onClick={() => setShowManual((v) => !v)}
+            className="text-xs font-medium text-primary underline underline-offset-2"
+          >
+            {showManual
+              ? "Ocultar instrucciones manuales"
+              : "¿Prefieres construirlo tú mismo (o el enlace no funciona)? Instrucciones manuales"}
+          </button>
+
+          {showManual && (
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            <p className="mb-2 font-medium text-foreground">Cómo crearlo en la app Atajos (una sola vez):</p>
+            <p className="mb-2 font-medium text-foreground">Cómo crearlo a mano en la app Atajos:</p>
             <ol className="list-decimal space-y-2 pl-4">
               <li>
                 Abre <span className="text-foreground">Atajos</span> → toca <span className="text-foreground">+</span> para
@@ -307,6 +341,7 @@ function QuickAddShortcutCard() {
               Atajos del reloj a los pocos segundos.
             </p>
           </div>
+          )}
         </div>
       )}
     </Card>
