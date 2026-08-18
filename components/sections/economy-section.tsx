@@ -15,8 +15,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
-import { todayISO, TRANSACTION_CATEGORIES, type Transaction } from "@/lib/types"
+import { todayISO, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
+import { supabase } from "@/lib/supabase"
+import { convertAmount } from "@/lib/exchange-rates"
 
 const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
@@ -57,9 +59,10 @@ function getWeekNumber(dateStr: string): number {
   return getWeekNumberFromISO(dateStr)
 }
 
-function fmt(amount: number): string {
+function fmt(amount: number, currency?: string | null): string {
+  const symbol = currencySymbol(currency)
   const abs = Math.abs(amount).toFixed(2)
-  return amount >= 0 ? `+$${abs}` : `-$${abs}`
+  return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -112,6 +115,7 @@ interface GroupedData {
 export function EconomySection() {
   const { data, addTransaction, updateTransaction, deleteTransaction } = useStore()
   const transactions: Transaction[] = data.transactions ?? []
+  const homeCurrency = data.homeCurrency
 
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
@@ -127,8 +131,10 @@ export function EconomySection() {
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
+  const [currency, setCurrency] = useState<string>(homeCurrency)
   const [date, setDate] = useState(todayISO())
   const [saving, setSaving] = useState(false)
+  const [conversionError, setConversionError] = useState("")
 
   const [editDesc, setEditDesc] = useState("")
   const [editType, setEditType] = useState<TxType>("gasto")
@@ -239,11 +245,34 @@ export function EconomySection() {
     const num = txType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
 
     setSaving(true)
+    setConversionError("")
+
+    // Si se registra en una divisa distinta a la principal, se convierte
+    // ahora (con la tasa del día) y se guardan ambos importes: el original
+    // (tal cual se pagó) y el convertido (con el que se suman los totales).
+    let finalAmount = num
+    let txCurrency: string | null = null
+    let txOriginalAmount: number | null = null
+
+    if (currency !== homeCurrency) {
+      try {
+        finalAmount = await convertAmount(num, currency, homeCurrency, supabase)
+        txCurrency = currency
+        txOriginalAmount = num
+      } catch {
+        setSaving(false)
+        setConversionError("No se pudo obtener el tipo de cambio. Inténtalo de nuevo en un momento.")
+        return
+      }
+    }
+
     const tx: Omit<Transaction, "id"> = {
       description: desc.trim(),
-      amount: num,
+      amount: finalAmount,
       category: category as Transaction["category"],
       date,
+      currency: txCurrency,
+      originalAmount: txOriginalAmount,
     }
 
     addTransaction(tx)
@@ -271,6 +300,7 @@ export function EconomySection() {
     setTxType("gasto")
     setAmount("")
     setCategory(TRANSACTION_CATEGORIES[0])
+    setCurrency(homeCurrency)
     setDate(todayISO())
     setShowForm(false)
     setSaving(false)
@@ -294,11 +324,16 @@ export function EconomySection() {
     if (!editDesc.trim() || isNaN(raw)) return
     setEditSaving(true)
     const num = editType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
+    // Editar cambia directamente el importe ya convertido (en tu divisa
+    // principal); si la transacción tenía una divisa original asociada, se
+    // limpia aquí para no dejar un importe original desincronizado.
     updateTransaction(id, {
       description: editDesc.trim(),
       amount: num,
       category: editCategory as Transaction["category"],
       date: editDate,
+      currency: null,
+      originalAmount: null,
     })
     setEditSaving(false)
     setEditingId(null)
@@ -359,11 +394,33 @@ export function EconomySection() {
               <Input id="tx-desc" placeholder="Ej: Compra semanal" value={desc} onChange={(e) => setDesc(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-amount">Cantidad en AUD</Label>
-              <Input id="tx-amount" type="number" min="0" placeholder="Ej: 45.50" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Label htmlFor="tx-amount">Cantidad</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="tx-amount"
+                  type="number"
+                  min="0"
+                  placeholder="Ej: 45.50"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="flex-1"
+                />
+                <select
+                  aria-label="Divisa"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Introduce solo el número positivo, el signo se aplica solo según el tipo elegido arriba.
+                {currency !== homeCurrency && ` Se convertirá a ${homeCurrency} al guardar, con el tipo de cambio de hoy.`}
               </p>
+              {conversionError && <p className="text-xs text-red-500">{conversionError}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="tx-category">Categoría</Label>
@@ -391,7 +448,14 @@ export function EconomySection() {
 
       {!showForm && (
         <div className="space-y-2">
-          <Button onClick={() => setShowForm(true)} className="w-full" style={{ backgroundColor: "#7c6fff" }}>
+          <Button
+            onClick={() => {
+              setCurrency(homeCurrency)
+              setShowForm(true)
+            }}
+            className="w-full"
+            style={{ backgroundColor: "#7c6fff" }}
+          >
             <Plus className="mr-2 size-4" />
             Añadir gasto o ganancia
           </Button>
@@ -410,7 +474,7 @@ export function EconomySection() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">Balance del mes</p>
             <p className={`text-lg font-bold ${ahorro >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-              {ahorro >= 0 ? "+" : "-"}${Math.abs(ahorro).toFixed(2)}
+              {ahorro >= 0 ? "+" : "-"}{currencySymbol(homeCurrency)}{Math.abs(ahorro).toFixed(2)}
             </p>
           </div>
           <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${showSummary ? "rotate-180" : ""}`} />
@@ -419,8 +483,8 @@ export function EconomySection() {
         {showSummary && (
           <div className="border-t border-border p-4">
             <div className="mb-4 grid grid-cols-2 gap-3">
-              <MiniStat label="Ingresado (mes)" value={`+$${ingresos.toFixed(2)}`} tone="green" />
-              <MiniStat label="Gastado (mes)" value={`-$${gastos.toFixed(2)}`} tone="red" />
+              <MiniStat label="Ingresado (mes)" value={`+${currencySymbol(homeCurrency)}${ingresos.toFixed(2)}`} tone="green" />
+              <MiniStat label="Gastado (mes)" value={`-${currencySymbol(homeCurrency)}${gastos.toFixed(2)}`} tone="red" />
             </div>
 
           </div>
@@ -440,7 +504,7 @@ export function EconomySection() {
                   contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
                   labelStyle={{ color: "#a1a1aa" }}
                   itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, "Ahorro"]}
+                  formatter={(value: number) => [`${currencySymbol(homeCurrency)}${value.toFixed(2)}`, "Ahorro"]}
                   labelFormatter={(label) => `Semana ${label.replace("W", "")}`}
                   cursor={{ fill: "rgba(255,255,255,0.06)" }}
                 />
@@ -453,9 +517,9 @@ export function EconomySection() {
             </ResponsiveContainer>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <MiniStat label="Total ahorrado" value={`${allSavings >= 0 ? "+" : "-"}$${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
-            {bestWeek && <MiniStat label="Mejor" value={`+$${bestWeek.savings.toFixed(2)}`} tone="green" />}
-            {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}$${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
+            <MiniStat label="Total ahorrado" value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
+            {bestWeek && <MiniStat label="Mejor" value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" />}
+            {worstWeek && <MiniStat label="Peor" value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
           </div>
         </Card>
       )}
@@ -491,7 +555,7 @@ export function EconomySection() {
                   <p className="text-sm font-medium">{group.label}</p>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold tabular-nums ${group.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                      {fmt(group.net)}
+                      {fmt(group.net, homeCurrency)}
                     </span>
                     {isGroupExpanded ? (
                       <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
@@ -532,7 +596,7 @@ export function EconomySection() {
                             </div>
                             <div className="shrink-0 text-right">
                               <p className={`text-sm font-semibold tabular-nums ${catGroup.net >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                                {fmt(catGroup.net)}
+                                {fmt(catGroup.net, homeCurrency)}
                               </p>
                               <p className="text-[9px] text-muted-foreground">
                                 {catGroup.net >= 0 ? "ingreso" : `${Math.round(catPct)}%`}
@@ -557,8 +621,13 @@ export function EconomySection() {
                                       <p className="truncate text-xs font-medium">{tx.description}</p>
                                       <p className="truncate text-xs text-muted-foreground">{tx.date}</p>
                                     </div>
-                                    <span className={`text-xs font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}>
-                                      {fmt(tx.amount)}
+                                    <span className={`text-right text-xs font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}>
+                                      {tx.currency && tx.currency !== homeCurrency && tx.originalAmount != null && (
+                                        <span className="mr-1.5 font-normal text-muted-foreground">
+                                          {fmt(tx.originalAmount, tx.currency)}
+                                        </span>
+                                      )}
+                                      {fmt(tx.amount, homeCurrency)}
                                     </span>
                                   </button>
                                   {expandedId === tx.id && (
