@@ -19,8 +19,16 @@ export type TransactionRow = {
   description: string
   category: string
   amount: number
+  currency: string | null
+  original_amount: number | null
   week_number: number | null
   created_at: string
+}
+
+export type UserPreferencesRow = {
+  user_id: string
+  home_currency: string
+  updated_at: string
 }
 
 export type RecurringTransactionRow = {
