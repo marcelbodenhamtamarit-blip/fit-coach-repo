@@ -199,6 +199,7 @@ export type AppData = {
   transactions: Transaction[]
   recurring: RecurringTransaction[]
   homeCurrency: string
+  language: string
 }
 
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
