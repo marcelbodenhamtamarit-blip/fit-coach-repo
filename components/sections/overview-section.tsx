@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
+import { currencySymbol } from "@/lib/types"
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -28,6 +29,7 @@ export function OverviewSection({
 }) {
   const { data } = useStore()
   const transactions = data.transactions ?? []
+  const symbol = currencySymbol(data.homeCurrency)
   const [period, setPeriod] = useState<Period>("diario")
 
   const today = todayISO()
@@ -95,7 +97,7 @@ export function OverviewSection({
           <StatCard
             icon={TrendingDown}
             label="Gastado"
-            value={`-$${spent.toFixed(2)}`}
+            value={`-${symbol}${spent.toFixed(2)}`}
             sub={`${periodTx.filter((t) => t.amount < 0).length} movimientos`}
             accent="red"
           />
@@ -105,7 +107,7 @@ export function OverviewSection({
           <StatCard
             icon={TrendingUp}
             label="Ingresado"
-            value={`+$${income.toFixed(2)}`}
+            value={`+${symbol}${income.toFixed(2)}`}
             sub={income > 0 ? "Registrado" : "Sin ingresos"}
             accent="green"
           />
@@ -115,7 +117,7 @@ export function OverviewSection({
           <StatCard
             icon={Wallet}
             label="Balance"
-            value={`${balance >= 0 ? "+" : "-"}$${Math.abs(balance).toFixed(2)}`}
+            value={`${balance >= 0 ? "+" : "-"}${symbol}${Math.abs(balance).toFixed(2)}`}
             sub={period === "diario" ? "Hoy" : period === "semanal" ? "Esta semana" : "Este mes"}
             accent={balance >= 0 ? "primary" : "amber"}
           />
@@ -126,7 +128,7 @@ export function OverviewSection({
             icon={PiggyBank}
             label="Top categoría"
             value={topCategory ? topCategory.category : "--"}
-            sub={topCategory ? `-$${topCategory.total.toFixed(2)}` : "Sin gastos"}
+            sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : "Sin gastos"}
             accent="pink"
           />
         </button>
