@@ -179,15 +179,6 @@ async function handle(req: NextRequest) {
     }
   }
 
-  const explicitDescription =
-    typeof body.description === "string" && body.description.trim()
-      ? body.description.trim()
-      : ""
-  const notifDescription = [body.subtitle, body.title]
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-    .join(" - ")
-  const description = explicitDescription || notifDescription || "Compra con tarjeta (Wallet)"
-
   const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
   const matchedCategory = categoryRaw
     ? (TRANSACTION_CATEGORIES as readonly string[]).find(
@@ -202,6 +193,20 @@ async function handle(req: NextRequest) {
     sourceText,
   ].join(" ")
   const category = matchedCategory ?? inferCategory(inferSource) ?? "Otros"
+
+  // El atajo manual (Ajustes) no pide un concepto de texto, solo cantidad,
+  // tipo y categoría — así que si no llega `description` explícita (ni
+  // viene de una notificación del Wallet automation antiguo), usamos la
+  // categoría como texto por defecto en vez de un genérico "Wallet" que ya
+  // no tiene sentido para este flujo.
+  const explicitDescription =
+    typeof body.description === "string" && body.description.trim()
+      ? body.description.trim()
+      : ""
+  const notifDescription = [body.subtitle, body.title]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .join(" - ")
+  const description = explicitDescription || notifDescription || category
 
   const dateRaw = typeof body.date === "string" ? body.date.trim() : ""
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw)
