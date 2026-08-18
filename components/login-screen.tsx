@@ -5,6 +5,19 @@ import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { translate, type Language } from "@/lib/i18n"
+
+// Antes de iniciar sesión no existe todavía una cuenta (ni fila en
+// user_preferences), así que el idioma elegido en Ajustes no está
+// disponible aquí — es el problema clásico del huevo y la gallina. En vez
+// de mostrar siempre español, adivinamos con el idioma del navegador la
+// primera vez, y dejamos un botón pequeño para cambiarlo a mano si acierta
+// mal. Esta elección es solo de esta pantalla; en cuanto la persona entra,
+// pasa a mandar su propia preferencia guardada en la cuenta.
+function detectBrowserLanguage(): Language {
+  if (typeof navigator === "undefined") return "es"
+  return navigator.language?.toLowerCase().startsWith("en") ? "en" : "es"
+}
 
 // Código de invitación simple para la fase "amigos": mientras esté puesto
 // en el entorno, hace falta conocerlo para poder crear cuenta. Cuando
@@ -15,6 +28,10 @@ const INVITE_CODE = process.env.NEXT_PUBLIC_INVITE_CODE ?? ""
 type ViewMode = "login" | "signup"
 
 export function LoginScreen() {
+  const [lang, setLang] = useState<Language>(detectBrowserLanguage)
+  const tr = (key: Parameters<typeof translate>[0], params?: Record<string, string | number>) =>
+    translate(key, lang, params)
+
   const [view, setView] = useState<ViewMode>("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -28,7 +45,7 @@ export function LoginScreen() {
     setInfo("")
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError("Email o contraseña incorrectos")
+    if (error) setError(tr("login.wrongCredentials"))
     setLoading(false)
   }
 
@@ -37,11 +54,11 @@ export function LoginScreen() {
     setInfo("")
 
     if (INVITE_CODE && inviteCode.trim() !== INVITE_CODE) {
-      setError("Código de invitación incorrecto")
+      setError(tr("login.wrongInvite"))
       return
     }
     if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres")
+      setError(tr("login.passwordTooShort"))
       return
     }
 
@@ -61,7 +78,7 @@ export function LoginScreen() {
       // detecta y te mete dentro de la app.
       return
     }
-    setInfo("Cuenta creada. Revisa tu email para confirmar la cuenta antes de entrar.")
+    setInfo(tr("login.accountCreated"))
   }
 
   async function handleGoogle() {
@@ -77,13 +94,36 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm p-6">
+        <div className="mb-4 flex justify-end">
+          <div className="flex gap-1 rounded-full border border-border bg-muted/40 p-0.5 text-[11px] font-medium">
+            <button
+              type="button"
+              onClick={() => setLang("es")}
+              className={`rounded-full px-2 py-0.5 transition-colors ${
+                lang === "es" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+              }`}
+            >
+              ES
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang("en")}
+              className={`rounded-full px-2 py-0.5 transition-colors ${
+                lang === "en" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+              }`}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon.svg" alt="ZentOS" className="size-11 rounded-xl shadow-sm" />
 
           <div>
             <p className="text-lg font-semibold">ZentOS</p>
-            <p className="text-xs text-muted-foreground">Tu economía, a tu manera</p>
+            <p className="text-xs text-muted-foreground">{tr("app.tagline")}</p>
           </div>
         </div>
 
@@ -95,7 +135,7 @@ export function LoginScreen() {
               view === "login" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
             }`}
           >
-            Iniciar sesión
+            {tr("login.signIn")}
           </button>
           <button
             type="button"
@@ -104,20 +144,20 @@ export function LoginScreen() {
               view === "signup" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
             }`}
           >
-            Crear cuenta
+            {tr("login.signUp")}
           </button>
         </div>
 
         <div className="space-y-3">
           <Input
-            placeholder="Email"
+            placeholder={tr("login.emailPlaceholder")}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
           <Input
-            placeholder="Contraseña"
+            placeholder={tr("login.passwordPlaceholder")}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -125,7 +165,7 @@ export function LoginScreen() {
           />
           {view === "signup" && INVITE_CODE && (
             <Input
-              placeholder="Código de invitación"
+              placeholder={tr("login.invitePlaceholder")}
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -134,18 +174,18 @@ export function LoginScreen() {
           {error && <p className="text-xs text-red-500">{error}</p>}
           {info && <p className="text-xs text-emerald-500">{info}</p>}
           <Button onClick={submit} disabled={loading || !email || !password} className="w-full">
-            {loading ? "Un momento..." : view === "login" ? "Entrar" : "Crear cuenta"}
+            {loading ? tr("login.wait") : view === "login" ? tr("login.enter") : tr("login.signUp")}
           </Button>
         </div>
 
         <div className="my-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">o</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{tr("login.or")}</span>
           <div className="h-px flex-1 bg-border" />
         </div>
 
         <Button variant="outline" onClick={handleGoogle} className="w-full">
-          Continuar con Google
+          {tr("login.google")}
         </Button>
       </Card>
     </div>
