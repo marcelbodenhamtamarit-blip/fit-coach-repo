@@ -171,6 +171,12 @@ export const TRANSLATIONS = {
   "recurringReview.done": { es: "Listo", en: "Done" },
 
   // Ajustes
+  "settings.account": { es: "Cuenta", en: "Account" },
+  "settings.accountDesc": {
+    es: "La cuenta con la que has iniciado sesión en este dispositivo.",
+    en: "The account you're signed in with on this device.",
+  },
+  "settings.signOut": { es: "Cerrar sesión", en: "Sign out" },
   "settings.about": { es: "Sobre esta app", en: "About this app" },
   "settings.homeCurrency": { es: "Divisa principal", en: "Main currency" },
   "settings.homeCurrencyDesc": {
