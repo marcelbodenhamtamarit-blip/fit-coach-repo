@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
+import { categoryLabel, type Language } from "@/lib/i18n"
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -27,7 +28,8 @@ export function OverviewSection({
 }: {
   onNavigate: (tab: string) => void
 }) {
-  const { data } = useStore()
+  const { data, t } = useStore()
+  const lang = (data.language as Language) ?? "es"
   const transactions = data.transactions ?? []
   const symbol = currencySymbol(data.homeCurrency)
   const [period, setPeriod] = useState<Period>("diario")
@@ -63,20 +65,24 @@ export function OverviewSection({
     return best
   }, [periodTx])
 
+  const locale = lang === "en" ? "en-US" : "es-ES"
   const periodLabel =
     period === "diario"
-      ? new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })
+      ? new Date().toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })
       : period === "semanal"
-        ? `Semana ${currentWeek}`
-        : new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })
+        ? t("economy.week", { n: currentWeek })
+        : new Date().toLocaleDateString(locale, { month: "long", year: "numeric" })
+
+  const movementsCount = periodTx.filter((t) => t.amount < 0).length
+  const movementsLabel = `${movementsCount} ${movementsCount === 1 ? t("common.movement") : t("common.movements")}`
 
   return (
     <div className="space-y-5">
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         {[
-          { id: "diario", label: "Diario" },
-          { id: "semanal", label: "Semanal" },
-          { id: "mensual", label: "Mensual" },
+          { id: "diario", label: t("common.daily") },
+          { id: "semanal", label: t("common.weekly") },
+          { id: "mensual", label: t("common.monthly") },
         ].map((p) => (
           <button
             key={p.id}
@@ -96,9 +102,9 @@ export function OverviewSection({
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard
             icon={TrendingDown}
-            label="Gastado"
+            label={t("overview.spent")}
             value={`-${symbol}${spent.toFixed(2)}`}
-            sub={`${periodTx.filter((t) => t.amount < 0).length} movimientos`}
+            sub={movementsLabel}
             accent="red"
           />
         </button>
@@ -106,9 +112,9 @@ export function OverviewSection({
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard
             icon={TrendingUp}
-            label="Ingresado"
+            label={t("overview.income")}
             value={`+${symbol}${income.toFixed(2)}`}
-            sub={income > 0 ? "Registrado" : "Sin ingresos"}
+            sub={income > 0 ? t("overview.registered") : t("overview.noIncome")}
             accent="green"
           />
         </button>
@@ -116,9 +122,9 @@ export function OverviewSection({
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard
             icon={Wallet}
-            label="Balance"
+            label={t("overview.balance")}
             value={`${balance >= 0 ? "+" : "-"}${symbol}${Math.abs(balance).toFixed(2)}`}
-            sub={period === "diario" ? "Hoy" : period === "semanal" ? "Esta semana" : "Este mes"}
+            sub={period === "diario" ? t("overview.today") : period === "semanal" ? t("overview.thisWeek") : t("overview.thisMonth")}
             accent={balance >= 0 ? "primary" : "amber"}
           />
         </button>
@@ -126,9 +132,9 @@ export function OverviewSection({
         <button onClick={() => onNavigate("economy")} className="text-left">
           <StatCard
             icon={PiggyBank}
-            label="Top categoría"
-            value={topCategory ? topCategory.category : "--"}
-            sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : "Sin gastos"}
+            label={t("overview.topCategory")}
+            value={topCategory ? categoryLabel(topCategory.category, lang) : "--"}
+            sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : t("overview.noExpenses")}
             accent="pink"
           />
         </button>
