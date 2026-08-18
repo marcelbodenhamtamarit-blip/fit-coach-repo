@@ -13,15 +13,21 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useStore } from "@/lib/store"
-import { CURRENCIES, TRANSACTION_CATEGORIES, type RecurringFrequency, type RecurringTransaction } from "@/lib/types"
+import {
+  CURRENCIES,
+  TRANSACTION_CATEGORIES,
+  currencySymbol,
+  type RecurringFrequency,
+  type RecurringTransaction,
+} from "@/lib/types"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
 
 type TxType = "gasto" | "ingreso"
 
-function fmt(amount: number): string {
+function fmt(amount: number, symbol: string): string {
   const abs = Math.abs(amount).toFixed(2)
-  return amount >= 0 ? `+$${abs}` : `-$${abs}`
+  return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
 
 const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
@@ -151,7 +157,7 @@ export function RecurringManagerDialog() {
                   <span
                     className={`text-sm font-semibold tabular-nums ${r.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}
                   >
-                    {fmt(r.amount)}
+                    {fmt(r.amount, currencySymbol(homeCurrency))}
                   </span>
                   <Button
                     size="icon-sm"
