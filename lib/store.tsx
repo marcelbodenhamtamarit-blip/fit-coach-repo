@@ -20,6 +20,7 @@ import type {
   RecurringFrequency,
 } from "./types"
 import { todayISO, uid } from "./types"
+import { translate, type Language, type TranslationKey } from "./i18n"
 import {
   supabase,
   type TransactionRow,
@@ -95,6 +96,7 @@ const EMPTY_DATA: AppData = {
   transactions: [],
   recurring: [],
   homeCurrency: "AUD",
+  language: "es",
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -279,50 +281,68 @@ async function fetchRecurring(): Promise<RecurringTransaction[]> {
   return (data ?? []).map(rowToRecurring)
 }
 
-// Divisa principal del usuario: la que se usa para sumar/mostrar todos los
-// totales. Si el usuario todavía no tiene fila en user_preferences (primera
-// vez), se crea con AUD por defecto (lo que se usaba antes de esta tabla).
-async function fetchHomeCurrency(): Promise<string> {
+// Preferencias del usuario: divisa principal (para sumar/mostrar todos los
+// totales) e idioma de la interfaz. Ambas viven en la misma fila de
+// user_preferences y se traen juntas en una sola consulta. Si el usuario
+// todavía no tiene fila (primera vez), se crea con los valores por defecto
+// que ya tiene la tabla (AUD / es).
+async function fetchUserPreferences(): Promise<{ homeCurrency: string; language: string }> {
+  const DEFAULTS = { homeCurrency: "AUD", language: "es" }
+
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData.user?.id
-  if (!userId) return "AUD"
+  if (!userId) return DEFAULTS
 
   const { data, error } = await supabase
     .from("user_preferences")
-    .select("home_currency")
+    .select("home_currency, language")
     .eq("user_id", userId)
     .maybeSingle()
 
   if (error) {
-    console.error("[supabase] fetchHomeCurrency error:", error.message)
-    return "AUD"
+    console.error("[supabase] fetchUserPreferences error:", error.message)
+    return DEFAULTS
   }
-  if (data?.home_currency) return data.home_currency
+  if (data?.home_currency) {
+    return { homeCurrency: data.home_currency, language: data.language ?? DEFAULTS.language }
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from("user_preferences")
     .insert({ user_id: userId })
-    .select("home_currency")
+    .select("home_currency, language")
     .single()
 
   if (insertError) {
-    console.error("[supabase] fetchHomeCurrency insert error:", insertError.message)
-    return "AUD"
+    console.error("[supabase] fetchUserPreferences insert error:", insertError.message)
+    return DEFAULTS
   }
-  return inserted?.home_currency ?? "AUD"
+  return {
+    homeCurrency: inserted?.home_currency ?? DEFAULTS.homeCurrency,
+    language: inserted?.language ?? DEFAULTS.language,
+  }
 }
 
 async function fetchAll(): Promise<AppData> {
-  const [profile, meals, metrics, pantry, transactions, recurring, homeCurrency] = await Promise.all([
+  const [profile, meals, metrics, pantry, transactions, recurring, preferences] = await Promise.all([
     fetchProfile(),
     fetchMeals(),
     fetchMetrics(),
     fetchPantry(),
     fetchTransactions(),
     fetchRecurring(),
-    fetchHomeCurrency(),
+    fetchUserPreferences(),
   ])
-  return { profile, meals, metrics, pantry, transactions, recurring, homeCurrency }
+  return {
+    profile,
+    meals,
+    metrics,
+    pantry,
+    transactions,
+    recurring,
+    homeCurrency: preferences.homeCurrency,
+    language: preferences.language,
+  }
 }
 
 type WeeklySupermarketState = {
@@ -356,6 +376,8 @@ type StoreContextType = {
   reviewOpen: boolean
   dismissReview: () => void
   setHomeCurrency: (code: string) => void
+  setLanguage: (code: string) => void
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
@@ -491,6 +513,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
     })()
   }
+
+  const setLanguage = (code: string) => {
+    setData((d) => ({ ...d, language: code }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, language: code })
+      if (error) {
+        console.error("[supabase] setLanguage error:", error.message)
+      }
+    })()
+  }
+
+  // Traduce una clave del diccionario (ver lib/i18n.ts) al idioma actual
+  // del usuario. Envuelto aquí para que todos los componentes lo saquen
+  // del mismo sitio que el resto del estado (useStore()), sin tener que
+  // leer data.language y llamar a translate() por su cuenta cada vez.
+  const t = (key: TranslationKey, params?: Record<string, string | number>) =>
+    translate(key, (data.language as Language) ?? "es", params)
 
   // Calculate weekly supermarket total and handle Saturday summary
   useEffect(() => {
@@ -1000,6 +1045,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reviewOpen,
         dismissReview,
         setHomeCurrency,
+        setLanguage,
+        t,
       }}
     >
       {children}
