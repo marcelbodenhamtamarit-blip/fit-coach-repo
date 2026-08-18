@@ -118,14 +118,15 @@ function HomeCurrencyCard() {
 //
 // Ese atajo compartido no lleva el token de nadie incrustado: en su
 // primera ejecución en cada dispositivo pregunta el código (que cada
-// persona copia de su propia tarjeta de abajo) y lo guarda localmente
-// con "Almacenar contenido" / "Obtener contenido almacenado", así que un
-// único enlace sirve para todo el mundo sin mezclar cuentas. Si alguna
+// persona copia de su propia tarjeta de abajo) y lo guarda localmente en
+// un archivo dentro de su iCloud Drive (compatible con iOS 26 y 27, a
+// diferencia de "Almacenar contenido", que solo existe en iOS 27), así
+// que un único enlace sirve para todo el mundo sin mezclar cuentas. Si alguna
 // vez ese enlace deja de funcionar (o alguien prefiere construir su
 // propia copia), las instrucciones manuales de abajo siguen siendo
 // válidas como alternativa — ahí sí tiene sentido pegar el token fijo,
 // porque esa copia la usa una sola persona.
-const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/9187da9ab0c94ea688cdb927ea7cd167"
+const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/c96f56de92fe4e27858c41358fd93489"
 
 function QuickAddShortcutCard() {
   const [token, setToken] = useState<string | null>(null)
