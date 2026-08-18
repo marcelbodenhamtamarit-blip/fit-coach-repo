@@ -125,12 +125,48 @@ export const TRANSACTION_CATEGORIES = [
 
 export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number]
 
+// Divisas soportadas para registrar transacciones. `amount` en Transaction
+// siempre queda en la divisa principal del usuario (home_currency); cuando
+// se registra en otra divisa, currency/originalAmount guardan el importe
+// tal cual se pagó, para poder mostrarlo junto al convertido.
+export const CURRENCIES = [
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "USD", symbol: "$", name: "Dólar estadounidense" },
+  { code: "AUD", symbol: "$", name: "Dólar australiano" },
+  { code: "ARS", symbol: "$", name: "Peso argentino" },
+  { code: "GBP", symbol: "£", name: "Libra esterlina" },
+  { code: "MXN", symbol: "$", name: "Peso mexicano" },
+  { code: "COP", symbol: "$", name: "Peso colombiano" },
+  { code: "CLP", symbol: "$", name: "Peso chileno" },
+  { code: "PEN", symbol: "S/", name: "Sol peruano" },
+  { code: "BRL", symbol: "R$", name: "Real brasileño" },
+  { code: "UYU", symbol: "$", name: "Peso uruguayo" },
+  { code: "JPY", symbol: "¥", name: "Yen japonés" },
+  { code: "CNY", symbol: "¥", name: "Yuan chino" },
+  { code: "CHF", symbol: "Fr", name: "Franco suizo" },
+  { code: "CAD", symbol: "$", name: "Dólar canadiense" },
+  { code: "NZD", symbol: "$", name: "Dólar neozelandés" },
+  { code: "THB", symbol: "฿", name: "Baht tailandés" },
+  { code: "VND", symbol: "₫", name: "Dong vietnamita" },
+  { code: "SGD", symbol: "$", name: "Dólar de Singapur" },
+  { code: "IDR", symbol: "Rp", name: "Rupia indonesia" },
+] as const
+
+export type CurrencyCode = (typeof CURRENCIES)[number]["code"]
+
+export function currencySymbol(code: string | null | undefined): string {
+  if (!code) return "$"
+  return CURRENCIES.find((c) => c.code === code)?.symbol ?? code
+}
+
 export type Transaction = {
   id: string
   date: string // ISO date yyyy-mm-dd
   description: string
   category: TransactionCategory
-  amount: number // negative = expense, positive = income (AUD)
+  amount: number // ya convertido a la divisa principal del usuario (home_currency)
+  currency?: string | null // divisa en la que se pagó, si es distinta de la principal
+  originalAmount?: number | null // importe en `currency`, mismo signo que amount
 }
 
 // Plantilla de gasto/ingreso recurrente (alquiler, suscripciones, nómina...).
@@ -162,6 +198,7 @@ export type AppData = {
   pantry: PantryItem[]
   transactions: Transaction[]
   recurring: RecurringTransaction[]
+  homeCurrency: string
 }
 
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
