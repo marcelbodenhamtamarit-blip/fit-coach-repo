@@ -29,20 +29,6 @@ type Tab = {
   icon: typeof Activity
 }
 
-const TABS: Tab[] = [
-  { id: "overview", label: "Resumen", icon: Activity },
-  // DIARIO desactivado:  // Diario: { id: "diario", label: "Diario", icon: CalendarDays },
-  { id: "economy", label: "Economía", icon: Wallet },
-  { id: "settings", label: "Ajustes", icon: Settings },
-]
-
-const TAB_TITLES: Record<string, string> = {
-  overview: "Resumen",
-  // DIARIO desactivado:  // Diario: diario: "Diario",
-  economy: "Economía",
-  settings: "Ajustes",
-}
-
 export function Dashboard() {
   const [active, setActive] = useState("overview")
   useEffect(() => {
@@ -52,13 +38,27 @@ export function Dashboard() {
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
-  const { data, ready } = useStore()
+  const { data, ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
+
+  const TABS: Tab[] = [
+    { id: "overview", label: t("nav.overview"), icon: Activity },
+    // DIARIO desactivado:  // Diario: { id: "diario", label: "Diario", icon: CalendarDays },
+    { id: "economy", label: t("nav.economy"), icon: Wallet },
+    { id: "settings", label: t("nav.settings"), icon: Settings },
+  ]
+
+  const TAB_TITLES: Record<string, string> = {
+    overview: t("nav.overview"),
+    // DIARIO desactivado:  // Diario: diario: "Diario",
+    economy: t("nav.economy"),
+    settings: t("nav.settings"),
+  }
 
   if (mode === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Cargando...
+        {t("common.loading")}
       </div>
     )
   }
@@ -73,7 +73,7 @@ export function Dashboard() {
   const displayName =
     (user?.user_metadata?.name as string | undefined) ||
     user?.email?.split("@")[0] ||
-    "de nuevo"
+    t("dashboard.greetingName.fallback")
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,7 +87,7 @@ export function Dashboard() {
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold">ZentOS</p>
-            <p className="text-xs text-muted-foreground">Tu economía, a tu manera</p>
+            <p className="text-xs text-muted-foreground">{t("app.tagline")}</p>
           </div>
         </div>
 
@@ -126,21 +126,21 @@ export function Dashboard() {
                 {TAB_TITLES[active] ?? active}
               </h1>
               <p className="hidden text-xs text-muted-foreground sm:block">
-                {greeting()}, {displayName}. Sigamos con la racha.
+                {t(greetingKey())}, {displayName}. {t("dashboard.subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => window.location.reload()}
                 className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                title="Recargar"
+                title={t("dashboard.reload")}
               >
                 <RotateCw className="size-4" />
               </button>
               <button
                 onClick={signOut}
                 className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                title="Salir"
+                title={t("dashboard.signOut")}
               >
                 <LogOut className="size-4" />
               </button>
@@ -151,7 +151,7 @@ export function Dashboard() {
         <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">
           {!ready ? (
             <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
-              Cargando datos...
+              {t("common.loadingData")}
             </div>
           ) : (
             <>
@@ -190,9 +190,9 @@ export function Dashboard() {
   )
 }
 
-function greeting() {
+function greetingKey(): "dashboard.greeting.morning" | "dashboard.greeting.afternoon" | "dashboard.greeting.evening" {
   const h = new Date().getHours()
-  if (h < 12) return "Buenos días"
-  if (h < 18) return "Buenas tardes"
-  return "Buenas noches"
+  if (h < 12) return "dashboard.greeting.morning"
+  if (h < 18) return "dashboard.greeting.afternoon"
+  return "dashboard.greeting.evening"
 }
