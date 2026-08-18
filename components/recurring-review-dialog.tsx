@@ -13,18 +13,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useStore } from "@/lib/store"
-import type { Transaction } from "@/lib/types"
+import { currencySymbol, type Transaction } from "@/lib/types"
 
-function fmt(amount: number): string {
+function fmt(amount: number, symbol: string): string {
   const abs = Math.abs(amount).toFixed(2)
-  return amount >= 0 ? `+$${abs}` : `-$${abs}`
+  return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
 
 // Popup que aparece cuando, al abrir la app, se han creado solas las
 // transacciones del mes a partir de las plantillas recurrentes activas.
 // Deja revisar el importe o borrar cualquiera antes de darlas por buenas.
 export function RecurringReviewDialog() {
-  const { pendingReview, reviewOpen, dismissReview, updateTransaction, deleteTransaction } = useStore()
+  const { data, pendingReview, reviewOpen, dismissReview, updateTransaction, deleteTransaction } = useStore()
+  const symbol = currencySymbol(data.homeCurrency)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editAmount, setEditAmount] = useState("")
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
@@ -94,7 +95,7 @@ export function RecurringReviewDialog() {
                   <span
                     className={`text-sm font-semibold tabular-nums ${t.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}
                   >
-                    {fmt(t.amount)}
+                    {fmt(t.amount, symbol)}
                   </span>
                   <Button size="icon-sm" variant="ghost" onClick={() => startEdit(t)}>
                     <Pencil className="size-3.5" />
