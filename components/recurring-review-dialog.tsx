@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useStore } from "@/lib/store"
 import { currencySymbol, type Transaction } from "@/lib/types"
+import { categoryLabel, type Language } from "@/lib/i18n"
 
 function fmt(amount: number, symbol: string): string {
   const abs = Math.abs(amount).toFixed(2)
@@ -24,7 +25,8 @@ function fmt(amount: number, symbol: string): string {
 // transacciones del mes a partir de las plantillas recurrentes activas.
 // Deja revisar el importe o borrar cualquiera antes de darlas por buenas.
 export function RecurringReviewDialog() {
-  const { data, pendingReview, reviewOpen, dismissReview, updateTransaction, deleteTransaction } = useStore()
+  const { data, pendingReview, reviewOpen, dismissReview, updateTransaction, deleteTransaction, t } = useStore()
+  const lang = (data.language as Language) ?? "es"
   const symbol = currencySymbol(data.homeCurrency)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editAmount, setEditAmount] = useState("")
@@ -60,24 +62,21 @@ export function RecurringReviewDialog() {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Gastos recurrentes de este mes</DialogTitle>
-          <DialogDescription>
-            Se han añadido solos porque los marcaste como recurrentes. Revisa que estén bien, edita el importe si
-            cambió, o bórralos si este mes no toca.
-          </DialogDescription>
+          <DialogTitle>{t("recurringReview.title")}</DialogTitle>
+          <DialogDescription>{t("recurringReview.desc")}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-80 space-y-2 overflow-y-auto">
           {items.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground">Nada más que revisar.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground">{t("recurringReview.empty")}</p>
           )}
-          {items.map((t) => (
-            <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border p-2.5">
+          {items.map((tx) => (
+            <div key={tx.id} className="flex items-center gap-2 rounded-lg border border-border p-2.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{t.description}</p>
-                <p className="text-xs text-muted-foreground">{t.category}</p>
+                <p className="truncate text-sm font-medium">{tx.description}</p>
+                <p className="text-xs text-muted-foreground">{categoryLabel(tx.category, lang)}</p>
               </div>
-              {editingId === t.id ? (
+              {editingId === tx.id ? (
                 <>
                   <Input
                     type="number"
@@ -86,25 +85,25 @@ export function RecurringReviewDialog() {
                     onChange={(e) => setEditAmount(e.target.value)}
                     className="h-8 w-24 text-sm"
                   />
-                  <Button size="icon-sm" variant="ghost" onClick={() => saveEdit(t)}>
+                  <Button size="icon-sm" variant="ghost" onClick={() => saveEdit(tx)}>
                     <Check className="size-4" />
                   </Button>
                 </>
               ) : (
                 <>
                   <span
-                    className={`text-sm font-semibold tabular-nums ${t.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}
+                    className={`text-sm font-semibold tabular-nums ${tx.amount >= 0 ? "text-emerald-500" : "text-red-400"}`}
                   >
-                    {fmt(t.amount, symbol)}
+                    {fmt(tx.amount, symbol)}
                   </span>
-                  <Button size="icon-sm" variant="ghost" onClick={() => startEdit(t)}>
+                  <Button size="icon-sm" variant="ghost" onClick={() => startEdit(tx)}>
                     <Pencil className="size-3.5" />
                   </Button>
                   <Button
                     size="icon-sm"
                     variant="ghost"
                     className="text-red-500 hover:text-red-500"
-                    onClick={() => remove(t)}
+                    onClick={() => remove(tx)}
                   >
                     <X className="size-3.5" />
                   </Button>
@@ -116,7 +115,7 @@ export function RecurringReviewDialog() {
 
         <DialogFooter>
           <Button onClick={dismissReview} className="w-full">
-            Listo
+            {t("recurringReview.done")}
           </Button>
         </DialogFooter>
       </DialogContent>
