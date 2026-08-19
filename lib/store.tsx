@@ -97,6 +97,8 @@ const EMPTY_DATA: AppData = {
   recurring: [],
   homeCurrency: "AUD",
   language: "es",
+  travelMode: false,
+  travelCurrency: null,
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -282,12 +284,18 @@ async function fetchRecurring(): Promise<RecurringTransaction[]> {
 }
 
 // Preferencias del usuario: divisa principal (para sumar/mostrar todos los
-// totales) e idioma de la interfaz. Ambas viven en la misma fila de
-// user_preferences y se traen juntas en una sola consulta. Si el usuario
-// todavía no tiene fila (primera vez), se crea con los valores por defecto
-// que ya tiene la tabla (AUD / es).
-async function fetchUserPreferences(): Promise<{ homeCurrency: string; language: string }> {
-  const DEFAULTS = { homeCurrency: "AUD", language: "es" }
+// totales), idioma de la interfaz, y modo viaje (divisa temporal para
+// nuevas transacciones mientras está fuera de casa). Todas viven en la
+// misma fila de user_preferences y se traen juntas en una sola consulta.
+// Si el usuario todavía no tiene fila (primera vez), se crea con los
+// valores por defecto que ya tiene la tabla (AUD / es / viaje desactivado).
+async function fetchUserPreferences(): Promise<{
+  homeCurrency: string
+  language: string
+  travelMode: boolean
+  travelCurrency: string | null
+}> {
+  const DEFAULTS = { homeCurrency: "AUD", language: "es", travelMode: false, travelCurrency: null }
 
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData.user?.id
@@ -295,7 +303,7 @@ async function fetchUserPreferences(): Promise<{ homeCurrency: string; language:
 
   const { data, error } = await supabase
     .from("user_preferences")
-    .select("home_currency, language")
+    .select("home_currency, language, travel_mode, travel_currency")
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -304,13 +312,18 @@ async function fetchUserPreferences(): Promise<{ homeCurrency: string; language:
     return DEFAULTS
   }
   if (data?.home_currency) {
-    return { homeCurrency: data.home_currency, language: data.language ?? DEFAULTS.language }
+    return {
+      homeCurrency: data.home_currency,
+      language: data.language ?? DEFAULTS.language,
+      travelMode: data.travel_mode ?? DEFAULTS.travelMode,
+      travelCurrency: data.travel_currency ?? DEFAULTS.travelCurrency,
+    }
   }
 
   const { data: inserted, error: insertError } = await supabase
     .from("user_preferences")
     .insert({ user_id: userId })
-    .select("home_currency, language")
+    .select("home_currency, language, travel_mode, travel_currency")
     .single()
 
   if (insertError) {
@@ -320,6 +333,8 @@ async function fetchUserPreferences(): Promise<{ homeCurrency: string; language:
   return {
     homeCurrency: inserted?.home_currency ?? DEFAULTS.homeCurrency,
     language: inserted?.language ?? DEFAULTS.language,
+    travelMode: inserted?.travel_mode ?? DEFAULTS.travelMode,
+    travelCurrency: inserted?.travel_currency ?? DEFAULTS.travelCurrency,
   }
 }
 
@@ -342,6 +357,8 @@ async function fetchAll(): Promise<AppData> {
     recurring,
     homeCurrency: preferences.homeCurrency,
     language: preferences.language,
+    travelMode: preferences.travelMode,
+    travelCurrency: preferences.travelCurrency,
   }
 }
 
@@ -377,6 +394,7 @@ type StoreContextType = {
   dismissReview: () => void
   setHomeCurrency: (code: string) => void
   setLanguage: (code: string) => void
+  setTravelMode: (active: boolean, currency: string) => void
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
@@ -526,6 +544,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .upsert({ user_id: userId, language: code })
       if (error) {
         console.error("[supabase] setLanguage error:", error.message)
+      }
+    })()
+  }
+
+  // Modo viaje: al activarlo, los formularios de nueva transacción (normal
+  // y recurrente) empiezan a usar `currency` como divisa por defecto en vez
+  // de homeCurrency. Se guarda travelCurrency incluso al desactivarlo, para
+  // que la próxima vez que se active recuerde la última divisa usada.
+  const setTravelMode = (active: boolean, currency: string) => {
+    setData((d) => ({ ...d, travelMode: active, travelCurrency: currency }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, travel_mode: active, travel_currency: currency })
+      if (error) {
+        console.error("[supabase] setTravelMode error:", error.message)
       }
     })()
   }
@@ -1046,6 +1084,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         dismissReview,
         setHomeCurrency,
         setLanguage,
+        setTravelMode,
         t,
       }}
     >
