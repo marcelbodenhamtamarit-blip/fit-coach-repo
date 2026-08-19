@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, RefreshCw, Watch, Coins, Languages, UserRound, LogOut } from "lucide-react"
+import { Check, Copy, Download, RefreshCw, Watch, SlidersHorizontal, LogOut } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
@@ -38,14 +38,7 @@ export function SettingsSection() {
     <div className="max-w-2xl space-y-6">
       <AccountCard />
 
-      <Card className="p-6">
-        <h3 className="mb-2 text-sm font-semibold">{t("settings.about")}</h3>
-        <p className="text-xs text-muted-foreground">ZentOS · {t("app.tagline")}</p>
-      </Card>
-
-      <HomeCurrencyCard />
-
-      <LanguageCard />
+      <PreferencesCard />
 
       <QuickAddShortcutCard />
 
@@ -65,106 +58,119 @@ export function SettingsSection() {
           {sending ? t("settings.sending") : t("settings.send")}
         </Button>
       </Card>
+
+      <p className="pb-2 text-center text-[11px] text-muted-foreground">
+        ZentOS · {t("app.tagline")}
+      </p>
     </div>
   )
 }
 
-// Muestra con qué cuenta está logueada la persona ahora mismo. Antes no
-// había forma de verlo en ningún sitio de la app — si te registrabas con
-// un email al vuelo (por ejemplo para probar), no había manera de recordar
-// cuál era. También sirve de acceso rápido para cerrar sesión.
+// Muestra con qué cuenta está logueada la persona ahora mismo, con un
+// pequeño avatar (la inicial del email) para que se sienta como el perfil
+// de quien ha entrado, no como un ajuste más suelto. Antes no había forma
+// de ver esto en ningún sitio de la app — si te registrabas con un email al
+// vuelo, no había manera de recordar cuál era. También sirve de acceso
+// rápido para cerrar sesión.
 function AccountCard() {
   const { user, signOut } = useAuth()
   const { t } = useStore()
+  const email = user?.email ?? "—"
+  const initial = user?.email ? user.email.charAt(0).toUpperCase() : "?"
 
   return (
-    <Card className="p-6">
-      <div className="mb-1 flex items-center gap-2">
-        <UserRound className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">{t("settings.account")}</h3>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">{t("settings.accountDesc")}</p>
-      <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">
-        <p className="min-w-0 truncate text-sm font-medium">{user?.email ?? "—"}</p>
-        <Button size="sm" variant="ghost" onClick={signOut} className="shrink-0 text-muted-foreground">
-          <LogOut className="mr-1.5 size-3.5" />
-          {t("settings.signOut")}
+    <Card className="p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-base font-semibold text-primary">
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{email}</p>
+          <p className="text-xs text-muted-foreground">{t("settings.accountDesc")}</p>
+        </div>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={signOut}
+          className="shrink-0 text-muted-foreground"
+          aria-label={t("settings.signOut")}
+        >
+          <LogOut className="size-4" />
         </Button>
       </div>
     </Card>
   )
 }
 
-// Divisa principal: en la que se suman y muestran todos los totales. Las
-// transacciones se pueden registrar en cualquier otra divisa (útil de
-// viaje) y se convierten automáticamente a esta al guardarlas.
-function HomeCurrencyCard() {
-  const { data, ready, setHomeCurrency, t } = useStore()
-  const [saved, setSaved] = useState(false)
-
-  function handleChange(code: string) {
-    setHomeCurrency(code)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
-  }
-
-  return (
-    <Card className="p-6">
-      <div className="mb-1 flex items-center gap-2">
-        <Coins className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">{t("settings.homeCurrency")}</h3>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">{t("settings.homeCurrencyDesc")}</p>
-      <select
-        value={data.homeCurrency}
-        disabled={!ready}
-        onChange={(e) => handleChange(e.target.value)}
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        {CURRENCIES.map((c) => (
-          <option key={c.code} value={c.code}>
-            {c.code} · {c.name}
-          </option>
-        ))}
-      </select>
-      {saved && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
-    </Card>
-  )
-}
-
-// Idioma de la app: se guarda por cuenta en user_preferences (igual que la
-// divisa principal), así que sigue a la persona entre dispositivos.
-function LanguageCard() {
-  const { data, ready, setLanguage, t } = useStore()
-  const [saved, setSaved] = useState(false)
+// Divisa principal e idioma: dos cosas distintas pero de la misma
+// naturaleza ("cómo se muestra la app"), así que van juntas en una lista
+// dentro de una sola tarjeta en vez de dos tarjetas casi idénticas
+// repitiendo icono + título + descripción.
+function PreferencesCard() {
+  const { data, ready, setHomeCurrency, setLanguage, t } = useStore()
   const lang = (data.language as Language) ?? "es"
+  const [savedField, setSavedField] = useState<"currency" | "language" | null>(null)
 
-  function handleChange(code: string) {
+  function flash(field: "currency" | "language") {
+    setSavedField(field)
+    setTimeout(() => setSavedField((f) => (f === field ? null : f)), 1500)
+  }
+
+  function handleCurrencyChange(code: string) {
+    setHomeCurrency(code)
+    flash("currency")
+  }
+
+  function handleLanguageChange(code: string) {
     setLanguage(code)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
+    flash("language")
   }
 
   return (
     <Card className="p-6">
       <div className="mb-1 flex items-center gap-2">
-        <Languages className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">{t("settings.language")}</h3>
+        <SlidersHorizontal className="size-4 text-primary" />
+        <h3 className="text-sm font-semibold">{t("settings.preferences")}</h3>
       </div>
-      <p className="mb-4 text-xs text-muted-foreground">{t("settings.languageDesc")}</p>
-      <select
-        value={lang}
-        disabled={!ready}
-        onChange={(e) => handleChange(e.target.value)}
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        {LANGUAGES.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.name}
-          </option>
-        ))}
-      </select>
-      {saved && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+      <p className="mb-4 text-xs text-muted-foreground">{t("settings.preferencesDesc")}</p>
+
+      <div className="divide-y divide-border rounded-lg border border-border">
+        <div className="p-3">
+          <p className="text-sm font-medium">{t("settings.homeCurrency")}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t("settings.homeCurrencyDesc")}</p>
+          <select
+            value={data.homeCurrency}
+            disabled={!ready}
+            onChange={(e) => handleCurrencyChange(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+              </option>
+            ))}
+          </select>
+          {savedField === "currency" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+        </div>
+
+        <div className="p-3">
+          <p className="text-sm font-medium">{t("settings.language")}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t("settings.languageDesc")}</p>
+          <select
+            value={lang}
+            disabled={!ready}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+          {savedField === "language" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+        </div>
+      </div>
     </Card>
   )
 }
