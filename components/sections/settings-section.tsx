@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, RefreshCw, Watch, SlidersHorizontal, LogOut } from "lucide-react"
+import { Check, Copy, Download, RefreshCw, Watch, SlidersHorizontal, LogOut, Plane } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
@@ -39,6 +39,8 @@ export function SettingsSection() {
       <AccountCard />
 
       <PreferencesCard />
+
+      <TravelModeCard />
 
       <QuickAddShortcutCard />
 
@@ -171,6 +173,73 @@ function PreferencesCard() {
           {savedField === "language" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
         </div>
       </div>
+    </Card>
+  )
+}
+
+// Modo viaje: mientras está activo, el formulario de nueva transacción (y
+// el de recurrentes) usan travelCurrency como divisa por defecto en vez de
+// homeCurrency, para no tener que cambiarla a mano en cada gasto durante un
+// viaje. Es un interruptor explícito (no detección automática de ubicación
+// ni "recordar la última usada") para que quede claro cuándo está activo y
+// se pueda desactivar al volver.
+function TravelModeCard() {
+  const { data, ready, setTravelMode, t } = useStore()
+  const active = data.travelMode
+  const currency = data.travelCurrency ?? data.homeCurrency
+
+  function toggle() {
+    setTravelMode(!active, currency)
+  }
+
+  function handleCurrencyChange(code: string) {
+    setTravelMode(true, code)
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Plane className="size-4 text-primary" />
+          <h3 className="text-sm font-semibold">{t("settings.travelMode")}</h3>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={active}
+          aria-label={t("settings.travelMode")}
+          onClick={toggle}
+          disabled={!ready}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+            active ? "bg-primary" : "bg-muted"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+              active ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{t("settings.travelModeDesc")}</p>
+
+      {active && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("settings.travelCurrency")}</p>
+          <select
+            value={currency}
+            disabled={!ready}
+            onChange={(e) => handleCurrencyChange(e.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} · {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </Card>
   )
 }
