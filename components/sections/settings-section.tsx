@@ -210,15 +210,11 @@ function TravelModeCard() {
           aria-label={t("settings.travelMode")}
           onClick={toggle}
           disabled={!ready}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-            active ? "bg-primary" : "bg-muted"
+          className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+            active ? "justify-end bg-primary" : "justify-start bg-muted"
           }`}
         >
-          <span
-            className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
-              active ? "translate-x-5" : "translate-x-0.5"
-            }`}
-          />
+          <span className="size-5 rounded-full bg-white shadow" />
         </button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{t("settings.travelModeDesc")}</p>
