@@ -46,6 +46,10 @@ export function RecurringManagerDialog() {
   const lang = (data.language as Language) ?? "es"
   const recurring: RecurringTransaction[] = data.recurring ?? []
   const homeCurrency = data.homeCurrency
+  // Igual que en el alta de transacciones sueltas: si el modo viaje está
+  // activo (ver Ajustes > Modo viaje), el formulario parte de esa divisa en
+  // vez de la principal.
+  const defaultCurrency = data.travelMode && data.travelCurrency ? data.travelCurrency : homeCurrency
 
   const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
     monthly: t("common.monthly"),
@@ -56,7 +60,7 @@ export function RecurringManagerDialog() {
   const [desc, setDesc] = useState("")
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
-  const [currency, setCurrency] = useState<string>(homeCurrency)
+  const [currency, setCurrency] = useState<string>(defaultCurrency)
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [frequency, setFrequency] = useState<RecurringFrequency>("monthly")
   const [payDay, setPayDay] = useState<number>(1)
@@ -97,7 +101,7 @@ export function RecurringManagerDialog() {
     setDesc("")
     setTxType("gasto")
     setAmount("")
-    setCurrency(homeCurrency)
+    setCurrency(defaultCurrency)
     setCategory(TRANSACTION_CATEGORIES[0])
     setFrequency("monthly")
     setPayDay(1)
