@@ -173,11 +173,16 @@ export const TRANSLATIONS = {
   // Ajustes
   "settings.account": { es: "Cuenta", en: "Account" },
   "settings.accountDesc": {
-    es: "La cuenta con la que has iniciado sesión en este dispositivo.",
-    en: "The account you're signed in with on this device.",
+    es: "Sesión iniciada en este dispositivo.",
+    en: "Signed in on this device.",
   },
   "settings.signOut": { es: "Cerrar sesión", en: "Sign out" },
   "settings.about": { es: "Sobre esta app", en: "About this app" },
+  "settings.preferences": { es: "Preferencias", en: "Preferences" },
+  "settings.preferencesDesc": {
+    es: "Cómo se muestran tus datos en la app.",
+    en: "How your data is shown in the app.",
+  },
   "settings.homeCurrency": { es: "Divisa principal", en: "Main currency" },
   "settings.homeCurrencyDesc": {
     es: "Todos tus totales y resúmenes se muestran en esta divisa. Si registras un gasto en otra (por ejemplo, de viaje), se convierte automáticamente a esta usando el tipo de cambio del día.",
