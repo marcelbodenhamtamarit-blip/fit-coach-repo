@@ -200,6 +200,13 @@ export type AppData = {
   recurring: RecurringTransaction[]
   homeCurrency: string
   language: string
+  // Modo viaje: mientras está activo, los formularios de nueva transacción
+  // (normal y recurrente) usan travelCurrency como divisa por defecto en
+  // vez de homeCurrency, para no tener que cambiarla a mano cada vez que
+  // se registra un gasto fuera de casa. travelCurrency guarda la última
+  // elegida aunque el modo esté desactivado, para no perderla al reactivar.
+  travelMode: boolean
+  travelCurrency: string | null
 }
 
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
