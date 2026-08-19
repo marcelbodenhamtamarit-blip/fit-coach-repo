@@ -118,6 +118,10 @@ export function EconomySection() {
   const locale = lang === "en" ? "en-US" : "es-ES"
   const transactions: Transaction[] = data.transactions ?? []
   const homeCurrency = data.homeCurrency
+  // Si el modo viaje está activo, las nuevas transacciones parten de la
+  // divisa de viaje en vez de la principal, para no tener que cambiarla a
+  // mano en cada gasto durante el viaje (ver Ajustes > Modo viaje).
+  const defaultCurrency = data.travelMode && data.travelCurrency ? data.travelCurrency : homeCurrency
 
   const [tab, setTab] = useState<TabId>("mensual")
   const [showForm, setShowForm] = useState(false)
@@ -133,7 +137,7 @@ export function EconomySection() {
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
-  const [currency, setCurrency] = useState<string>(homeCurrency)
+  const [currency, setCurrency] = useState<string>(defaultCurrency)
   const [date, setDate] = useState(todayISO())
   const [saving, setSaving] = useState(false)
   const [conversionError, setConversionError] = useState("")
@@ -303,7 +307,7 @@ export function EconomySection() {
     setTxType("gasto")
     setAmount("")
     setCategory(TRANSACTION_CATEGORIES[0])
-    setCurrency(homeCurrency)
+    setCurrency(defaultCurrency)
     setDate(todayISO())
     setShowForm(false)
     setSaving(false)
@@ -421,6 +425,11 @@ export function EconomySection() {
                 {t("economy.amountHint")}
                 {currency !== homeCurrency && t("economy.convertNotice", { currency: homeCurrency })}
               </p>
+              {data.travelMode && data.travelCurrency && currency === data.travelCurrency && (
+                <p className="text-xs text-primary">
+                  {t("economy.travelModeHint", { currency: data.travelCurrency })}
+                </p>
+              )}
               {conversionError && <p className="text-xs text-red-500">{conversionError}</p>}
             </div>
             <div className="space-y-1.5">
@@ -451,7 +460,7 @@ export function EconomySection() {
         <div className="space-y-2">
           <Button
             onClick={() => {
-              setCurrency(homeCurrency)
+              setCurrency(defaultCurrency)
               setShowForm(true)
             }}
             className="w-full"
