@@ -194,6 +194,20 @@ export const TRANSLATIONS = {
     es: "Elige en qué idioma quieres ver la app.",
     en: "Choose which language you want to see the app in.",
   },
+
+  // Modo viaje
+  "settings.travelMode": { es: "Modo viaje", en: "Travel mode" },
+  "settings.travelModeDesc": {
+    es: "Actívalo mientras estés fuera para que las nuevas transacciones usen esta divisa por defecto, sin tener que cambiarla cada vez. Recuerda desactivarlo al volver.",
+    en: "Turn it on while you're away so new transactions default to this currency instead of switching it every time. Remember to turn it off when you're back.",
+  },
+  "settings.travelModeOn": { es: "Activado", en: "On" },
+  "settings.travelModeOff": { es: "Desactivado", en: "Off" },
+  "settings.travelCurrency": { es: "Divisa de viaje", en: "Travel currency" },
+  "economy.travelModeHint": {
+    es: "Modo viaje activo: esta transacción se registrará en {currency} por defecto.",
+    en: "Travel mode is on: this transaction will default to {currency}.",
+  },
   "settings.feedback": { es: "Enviar feedback", en: "Send feedback" },
   "settings.feedbackDesc": {
     es: "¿Algo que arreglar, una idea o un problema? Escríbelo aquí y me llega directo.",
