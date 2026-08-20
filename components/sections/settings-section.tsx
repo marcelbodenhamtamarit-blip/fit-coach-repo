@@ -262,7 +262,7 @@ function TravelModeCard() {
 // propia copia), las instrucciones manuales de abajo siguen siendo
 // válidas como alternativa — ahí sí tiene sentido pegar el token fijo,
 // porque esa copia la usa una sola persona.
-const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/c96f56de92fe4e27858c41358fd93489"
+const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/c46a18939c604462a4d3df37b657b095"
 
 function QuickAddShortcutCard() {
   const { data, t } = useStore()
