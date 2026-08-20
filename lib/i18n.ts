@@ -275,6 +275,44 @@ export const TRANSLATIONS = {
     es: 'Ábrelo en Atajos en el iPhone → toca ⓘ → activa "Mostrar en Apple Watch". Debería aparecer en la app Atajos del reloj a los pocos segundos.',
     en: 'Open it in Shortcuts on the iPhone → tap ⓘ → turn on "Show on Apple Watch". It should appear in the Shortcuts app on the watch within a few seconds.',
   },
+  "settings.showTapToPay": {
+    es: "¿Lo quieres al usar la tarjeta (sin abrir nada)? Activar disparador automático",
+    en: "Want it to run just by tapping your card (no app needed)? Set up the automatic trigger",
+  },
+  "settings.hideTapToPay": { es: "Ocultar disparador automático", en: "Hide automatic trigger" },
+  "settings.tapToPayTitle": {
+    es: "Que se abra solo al pagar con tarjeta",
+    en: "Have it open automatically when you pay by card",
+  },
+  "settings.tapToPayNote": {
+    es: "Esto se hace una sola vez, en unos 30 segundos — después no vuelves a tocar nada, se abre solo al pagar con la tarjeta. No viene incluido al instalar el atajo porque Apple no deja compartir este paso por enlace (es a propósito, por privacidad: solo tú puedes vincular tu propio Apple Pay). Necesitas tener ya una tarjeta añadida en Apple Pay/Wallet para que te salga la opción.",
+    en: "This takes about 30 seconds, just once — after that you never touch anything again, it opens automatically when you pay by card. It doesn't come with the shortcut install because Apple doesn't allow sharing this step via link (on purpose, for privacy: only you can link your own Apple Pay). You need to already have a card added to Apple Pay/Wallet for the option to show up.",
+  },
+  "settings.tapToPayStep1Title": { es: "Abre Atajos", en: "Open Shortcuts" },
+  "settings.tapToPayStep1": {
+    es: 'Pestaña "Automatización" (abajo del todo).',
+    en: 'The "Automation" tab (bottom of the screen).',
+  },
+  "settings.tapToPayStep2Title": { es: "Automatización nueva", en: "New automation" },
+  "settings.tapToPayStep2": {
+    es: 'Toca el + de arriba a la derecha → "Crear automatización personal".',
+    en: 'Tap the + in the top right → "Create Personal Automation".',
+  },
+  "settings.tapToPayStep3Title": { es: "Elige Apple Pay", en: "Choose Apple Pay" },
+  "settings.tapToPayStep3": {
+    es: 'Baja hasta "Apple Pay" → "Tarjeta" → "Cualquier tarjeta" (o la que quieras) → Siguiente.',
+    en: '"Apple Pay" → "Card" → "Any Card" (or a specific one) → Next.',
+  },
+  "settings.tapToPayStep4Title": { es: "Enlaza el atajo", en: "Link the shortcut" },
+  "settings.tapToPayStep4": {
+    es: '"Añadir acción" → busca "Ejecutar atajo" → elige el atajo ZentOS que ya instalaste arriba.',
+    en: '"Add Action" → search "Run Shortcut" → pick the ZentOS shortcut you installed above.',
+  },
+  "settings.tapToPayStep5Title": { es: "Sin confirmaciones", en: "No confirmations" },
+  "settings.tapToPayStep5": {
+    es: 'Siguiente → desactiva "Preguntar antes de ejecutar" → Hecho. Ya está.',
+    en: 'Next → turn off "Ask Before Running" → Done. That\'s it.',
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
