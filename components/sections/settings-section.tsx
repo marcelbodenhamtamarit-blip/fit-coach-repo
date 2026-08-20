@@ -4,7 +4,21 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, RefreshCw, Watch, SlidersHorizontal, LogOut, Plane } from "lucide-react"
+import {
+  Check,
+  Copy,
+  Download,
+  RefreshCw,
+  Watch,
+  SlidersHorizontal,
+  LogOut,
+  Plane,
+  Smartphone,
+  Plus,
+  CreditCard,
+  PlayCircle,
+  BellOff,
+} from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
@@ -255,14 +269,37 @@ function TravelModeCard() {
 // Ese atajo compartido no lleva el token de nadie incrustado: en su
 // primera ejecución en cada dispositivo pregunta el código (que cada
 // persona copia de su propia tarjeta de abajo) y lo guarda localmente en
-// un archivo dentro de su iCloud Drive (compatible con iOS 26 y 27, a
-// diferencia de "Almacenar contenido", que solo existe en iOS 27), así
-// que un único enlace sirve para todo el mundo sin mezclar cuentas. Si alguna
-// vez ese enlace deja de funcionar (o alguien prefiere construir su
-// propia copia), las instrucciones manuales de abajo siguen siendo
-// válidas como alternativa — ahí sí tiene sentido pegar el token fijo,
-// porque esa copia la usa una sola persona.
-const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/c46a18939c604462a4d3df37b657b095"
+// un archivo ZentOSToken.txt dentro de una carpeta "ZentOS" en su iCloud
+// Drive. Esa carpeta NO es una carpeta marcada/bookmarked a nuestra cuenta
+// (eso fue justo el bug original: una marca fija solo existe en el iCloud
+// de quien construyó el atajo, así que revienta para cualquier otra
+// persona) — en vez de eso, el atajo busca una carpeta llamada "ZentOS" por
+// nombre dentro de iCloud Drive y, si no existe todavía en ese dispositivo,
+// la crea una única vez (no se repite en ejecuciones siguientes, porque la
+// búsqueda ya la encuentra a partir de la segunda vez). Así un único enlace
+// sirve para todo el mundo sin mezclar cuentas. Si alguna vez ese enlace
+// deja de funcionar (o alguien prefiere construir su propia copia), las
+// instrucciones manuales de abajo siguen siendo válidas como alternativa —
+// ahí sí tiene sentido pegar el token fijo, porque esa copia la usa una
+// sola persona.
+//
+// El disparador de "al usar tarjeta" (Apple Pay) es harina de otro costal:
+// Apple no permite compartir Automatizaciones Personales por enlace (solo
+// se comparten atajos, no automatizaciones) — es una restricción de
+// privacidad a propósito, no un descuido, así que cada persona tiene que
+// crear ese disparador ella misma, una única vez, en su propio dispositivo.
+// Por eso existe el bloque TAP_TO_PAY_STEPS de abajo: una guía visual (con
+// iconos en vez de un muro de texto) para que ese único paso de ~30
+// segundos se perciba como rápido en vez de como "trabajo".
+const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/8942dbe1aa364ad29198997fa1146015"
+
+const TAP_TO_PAY_STEPS = [
+  { icon: Smartphone, titleKey: "settings.tapToPayStep1Title", descKey: "settings.tapToPayStep1" },
+  { icon: Plus, titleKey: "settings.tapToPayStep2Title", descKey: "settings.tapToPayStep2" },
+  { icon: CreditCard, titleKey: "settings.tapToPayStep3Title", descKey: "settings.tapToPayStep3" },
+  { icon: PlayCircle, titleKey: "settings.tapToPayStep4Title", descKey: "settings.tapToPayStep4" },
+  { icon: BellOff, titleKey: "settings.tapToPayStep5Title", descKey: "settings.tapToPayStep5" },
+] as const
 
 function QuickAddShortcutCard() {
   const { data, t } = useStore()
@@ -273,6 +310,7 @@ function QuickAddShortcutCard() {
   const [regenerating, setRegenerating] = useState(false)
   const [origin, setOrigin] = useState("")
   const [showManual, setShowManual] = useState(false)
+  const [showTapToPay, setShowTapToPay] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin)
@@ -365,7 +403,7 @@ function QuickAddShortcutCard() {
         <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
       ) : (
         <div className="space-y-4">
-          <a
+          
             href={SHORTCUT_ICLOUD_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -446,6 +484,37 @@ function QuickAddShortcutCard() {
             </ol>
             <p className="mt-3 font-medium text-foreground">{t("settings.watchTitle")}</p>
             <p className="mt-1">{t("settings.watchDesc")}</p>
+          </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowTapToPay((v) => !v)}
+            className="text-xs font-medium text-primary underline underline-offset-2"
+          >
+            {showTapToPay ? t("settings.hideTapToPay") : t("settings.showTapToPay")}
+          </button>
+
+          {showTapToPay && (
+          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+            <p className="mb-1 font-medium text-foreground">{t("settings.tapToPayTitle")}</p>
+            <p className="mb-4">{t("settings.tapToPayNote")}</p>
+            <div>
+              {TAP_TO_PAY_STEPS.map((step, i) => (
+                <div key={step.titleKey} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                      <step.icon className="size-4" />
+                    </div>
+                    {i < TAP_TO_PAY_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
+                  </div>
+                  <div className={i < TAP_TO_PAY_STEPS.length - 1 ? "pb-4" : ""}>
+                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t(step.descKey)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           )}
         </div>
