@@ -402,13 +402,8 @@ function QuickAddShortcutCard() {
       {loading ? (
         <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
       ) : (
-        <div className="space-y-4">
-          
-            href={SHORTCUT_ICLOUD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}
-          >
+               <div className="space-y-4">
+          <a href={SHORTCUT_ICLOUD_URL} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
             <Download className="size-4" />
             {t("settings.installShortcut")}
           </a>
