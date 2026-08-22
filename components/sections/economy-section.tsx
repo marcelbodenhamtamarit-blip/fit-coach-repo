@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   PiggyBank,
   Plus,
@@ -112,7 +112,7 @@ interface GroupedData {
   categories: CategoryGroup[]
 }
 
-export function EconomySection() {
+export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } = {}) {
   const { data, addTransaction, updateTransaction, deleteTransaction, t } = useStore()
   const lang = (data.language as Language) ?? "es"
   const locale = lang === "en" ? "en-US" : "es-ES"
@@ -134,6 +134,7 @@ export function EconomySection() {
   const [toastError, setToastError] = useState<string | null>(null)
 
   const [desc, setDesc] = useState("")
+  const [showDescField, setShowDescField] = useState(false)
   const [txType, setTxType] = useState<TxType>("gasto")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
@@ -148,6 +149,17 @@ export function EconomySection() {
   const [editCategory, setEditCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [editDate, setEditDate] = useState(todayISO())
   const [editSaving, setEditSaving] = useState(false)
+
+  // El botón "Añadir gasto" de Resumen navega aquí y sube autoOpenSignal;
+  // lo escuchamos para abrir el formulario automáticamente (no solo al
+  // montar el componente, por eso comparamos con la señal anterior).
+  useEffect(() => {
+    if (autoOpenSignal) {
+      setCurrency(defaultCurrency)
+      setShowForm(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenSignal])
 
   const today = todayISO()
   const currentMonth = today.slice(0, 7)
@@ -247,7 +259,7 @@ export function EconomySection() {
 
   const handleSave = async () => {
     const raw = parseFloat(amount)
-    if (!desc.trim() || isNaN(raw)) return
+    if (isNaN(raw)) return
 
     const num = txType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
 
@@ -273,8 +285,11 @@ export function EconomySection() {
       }
     }
 
+    // La descripción es opcional: si no se rellena, usamos la categoría
+    // como descripción por defecto para que la transacción no quede sin
+    // texto en los listados.
     const tx: Omit<Transaction, "id"> = {
-      description: desc.trim(),
+      description: desc.trim() || categoryLabel(category, lang),
       amount: finalAmount,
       category: category as Transaction["category"],
       date,
@@ -304,6 +319,7 @@ export function EconomySection() {
     }
 
     setDesc("")
+    setShowDescField(false)
     setTxType("gasto")
     setAmount("")
     setCategory(TRANSACTION_CATEGORIES[0])
@@ -395,10 +411,6 @@ export function EconomySection() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tx-desc">{t("economy.description")}</Label>
-              <Input id="tx-desc" placeholder={t("economy.descPlaceholder")} value={desc} onChange={(e) => setDesc(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="tx-amount">{t("economy.amount")}</Label>
               <div className="flex gap-2">
                 <Input
@@ -449,7 +461,29 @@ export function EconomySection() {
               <Label htmlFor="tx-date">{t("economy.date")}</Label>
               <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-            <Button onClick={handleSave} disabled={saving || !desc.trim() || !amount} className="w-full">
+            <div>
+              {showDescField ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="tx-desc">{t("economy.description")}</Label>
+                  <Input
+                    id="tx-desc"
+                    placeholder={t("economy.descPlaceholder")}
+                    value={desc}
+                    onChange={(e) => setDesc(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDescField(true)}
+                  className="text-xs text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+                >
+                  {t("economy.addDescription")}
+                </button>
+              )}
+            </div>
+            <Button onClick={handleSave} disabled={saving || !amount} className="w-full">
               {saving ? t("common.saving") : t("common.save")}
             </Button>
           </div>
