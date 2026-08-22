@@ -6,6 +6,7 @@ import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
+import { useDesignPreview } from "@/lib/design-preview"
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -35,10 +36,18 @@ export function OverviewSection({
   const transactions = data.transactions ?? []
   const symbol = currencySymbol(data.homeCurrency)
   const [period, setPeriod] = useState<Period>("diario")
+  const preview = useDesignPreview()
 
   const today = todayISO()
   const currentWeek = getWeekNumberFromISO(today)
   const currentMonth = today.slice(0, 7)
+
+  // Resumen fijo de arriba (solo en preview, ver lib/design-preview.ts):
+  // balance del mes en curso, independiente del selector Diario/Semanal/
+  // Mensual de más abajo, para que no cambie de número al cambiar de tab.
+  const monthTx = useMemo(() => transactions.filter((t) => t.date.startsWith(currentMonth)), [transactions, currentMonth])
+  const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
+  const monthMovements = monthTx.length
 
   const inPeriod = (dateStr: string) => {
     if (period === "diario") return dateStr === today
@@ -80,6 +89,24 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
+      {preview && (
+        <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
+          <div className="flex items-baseline justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
+                {t("overview.monthBalanceLabel")}
+              </p>
+              <p className="mt-0.5 text-2xl font-bold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
+                {monthBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(monthBalance).toFixed(2)}
+              </p>
+            </div>
+            <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+              {monthMovements} {monthMovements === 1 ? t("common.movement") : t("common.movements")}
+            </p>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={onAddExpense}
         className="flex w-full items-center justify-center rounded-lg py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
@@ -117,6 +144,7 @@ export function OverviewSection({
             value={`-${symbol}${spent.toFixed(2)}`}
             sub={movementsLabel}
             accent="red"
+            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -127,6 +155,7 @@ export function OverviewSection({
             value={`+${symbol}${income.toFixed(2)}`}
             sub={income > 0 ? t("overview.registered") : t("overview.noIncome")}
             accent="green"
+            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -137,6 +166,7 @@ export function OverviewSection({
             value={`${balance >= 0 ? "+" : "-"}${symbol}${Math.abs(balance).toFixed(2)}`}
             sub={period === "diario" ? t("overview.today") : period === "semanal" ? t("overview.thisWeek") : t("overview.thisMonth")}
             accent={balance >= 0 ? "primary" : "amber"}
+            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -147,6 +177,7 @@ export function OverviewSection({
             value={topCategory ? categoryLabel(topCategory.category, lang) : "--"}
             sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : t("overview.noExpenses")}
             accent="pink"
+            variant={preview ? "light" : "default"}
           />
         </button>
       </div>
