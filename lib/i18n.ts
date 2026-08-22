@@ -112,6 +112,10 @@ export const TRANSLATIONS = {
   "overview.goalTitle": { es: "Objetivo de ahorro", en: "Savings goal" },
   "overview.goalSet": { es: "Poner objetivo", en: "Set goal" },
   "overview.goalEdit": { es: "Editar", en: "Edit" },
+  "overview.goalPeriodTotal": { es: "Total", en: "Total" },
+  "overview.goalDeadlineLabel": { es: "Fecha límite (opcional)", en: "Deadline (optional)" },
+  "overview.goalDeadlineUntil": { es: "Hasta el {date}", en: "Until {date}" },
+  "overview.goalDeadlinePassed": { es: "Fecha límite pasada", en: "Deadline passed" },
   "overview.goalPlaceholder": { es: "¿Cuánto quieres ahorrar?", en: "How much do you want to save?" },
   "overview.goalReached": { es: "¡Objetivo conseguido!", en: "Goal reached!" },
 
