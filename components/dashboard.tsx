@@ -31,6 +31,14 @@ type Tab = {
 
 export function Dashboard() {
   const [active, setActive] = useState("overview")
+  // Señal para abrir el formulario de "añadir gasto/ingreso" desde el botón
+  // que ahora también vive en Resumen: al pulsarlo navegamos a Economía y
+  // subimos este contador, que EconomySection escucha para auto-abrirse.
+  const [addSignal, setAddSignal] = useState(0)
+  const goAddTransaction = () => {
+    setActive("economy")
+    setAddSignal((n) => n + 1)
+  }
   useEffect(() => {
     const stored = localStorage.getItem("marcel-fit-coach:active-tab")
     if (stored) setActive(stored)
@@ -76,7 +84,19 @@ export function Dashboard() {
     t("dashboard.greetingName.fallback")
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen">
+      {/* Fondo fijo: más claro arriba, se difumina hacia el centro y queda
+          más oscuro hacia abajo. Es un elemento "fixed" independiente del
+          contenido para que no se mueva al hacer scroll (a diferencia de un
+          fondo puesto directamente en un contenedor que sí scrollea). */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background:
+            "linear-gradient(to bottom, oklch(0.26 0.02 250) 0%, oklch(0.16 0.012 250) 45%, oklch(0.1 0.01 250) 100%)",
+        }}
+      />
       <RecurringReviewDialog />
 
       {/* Sidebar (desktop) */}
@@ -156,10 +176,10 @@ export function Dashboard() {
           ) : (
             <>
               {active === "overview" && (
-                <OverviewSection onNavigate={setActive} />
+                <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
               )}
               {/* DIARIO desactivado: activeTab === "diario" && <DiarioSection /> */}
-              {active === "economy" && <EconomySection />}
+              {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
               {active === "settings" && <SettingsSection />}
             </>
           )}
