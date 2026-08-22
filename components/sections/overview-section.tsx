@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { TrendingDown, TrendingUp, Wallet, PiggyBank } from "lucide-react"
+import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
@@ -25,8 +25,10 @@ function getWeekNumberFromISO(dateStr: string): number {
 
 export function OverviewSection({
   onNavigate,
+  onAddExpense,
 }: {
   onNavigate: (tab: string) => void
+  onAddExpense: () => void
 }) {
   const { data, t } = useStore()
   const lang = (data.language as Language) ?? "es"
@@ -78,6 +80,15 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
+      <button
+        onClick={onAddExpense}
+        className="flex w-full items-center justify-center rounded-lg py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        style={{ backgroundColor: "#7c6fff" }}
+      >
+        <Plus className="mr-2 size-4" />
+        {t("economy.addButton")}
+      </button>
+
       <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
         {[
           { id: "diario", label: t("common.daily") },
