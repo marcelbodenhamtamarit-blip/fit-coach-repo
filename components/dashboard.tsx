@@ -22,8 +22,6 @@ import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { LogOut } from "lucide-react"
 import { useDesignPreview } from "@/lib/design-preview"
 
-
-
 type Tab = {
   id: string
   label: string
@@ -50,6 +48,25 @@ export function Dashboard() {
   const { data, ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
   const preview = useDesignPreview()
+
+  // El fondo con degradado va puesto directamente en <body> (con
+  // background-attachment: fixed) en vez de con un div "position: fixed"
+  // superpuesto: en iOS Safari un div fixed con z-index negativo puede no
+  // pintarse bien y solo aparecer durante el rebote del "tirar para
+  // recargar" — pasándolo al propio fondo de la página se evita ese lío de
+  // capas y funciona igual de "fijo" al hacer scroll.
+  useEffect(() => {
+    if (!preview) return
+    const prevBackground = document.body.style.background
+    const prevAttachment = document.body.style.backgroundAttachment
+    document.body.style.background =
+      "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
+    document.body.style.backgroundAttachment = "fixed"
+    return () => {
+      document.body.style.background = prevBackground
+      document.body.style.backgroundAttachment = prevAttachment
+    }
+  }, [preview])
 
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
@@ -86,21 +103,7 @@ export function Dashboard() {
     t("dashboard.greetingName.fallback")
 
   return (
-    <div className="relative min-h-screen">
-      {/* Fondo fijo (no se mueve al hacer scroll, es un elemento "fixed"
-          independiente del contenido). En preview: verde de marca arriba,
-          se transforma hacia el gris oscuro habitual de la app hacia la
-          mitad de la pantalla — ver lib/design-preview.ts. Fuera de
-          preview, degradado sutil de siempre. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background: preview
-            ? "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
-            : "linear-gradient(to bottom, oklch(0.26 0.02 250) 0%, oklch(0.16 0.012 250) 45%, oklch(0.1 0.01 250) 100%)",
-        }}
-      />
+    <div className="min-h-screen">
       <RecurringReviewDialog />
 
       {/* Sidebar (desktop) */}
