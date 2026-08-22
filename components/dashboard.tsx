@@ -49,24 +49,18 @@ export function Dashboard() {
   const { mode, user, signOut } = useAuth()
   const preview = useDesignPreview()
 
-  // El fondo con degradado va puesto directamente en <body> (con
-  // background-attachment: fixed) en vez de con un div "position: fixed"
-  // superpuesto: en iOS Safari un div fixed con z-index negativo puede no
-  // pintarse bien y solo aparecer durante el rebote del "tirar para
-  // recargar" — pasándolo al propio fondo de la página se evita ese lío de
-  // capas y funciona igual de "fijo" al hacer scroll.
-  useEffect(() => {
-    if (!preview) return
-    const prevBackground = document.body.style.background
-    const prevAttachment = document.body.style.backgroundAttachment
-    document.body.style.background =
-      "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
-    document.body.style.backgroundAttachment = "fixed"
-    return () => {
-      document.body.style.background = prevBackground
-      document.body.style.backgroundAttachment = prevAttachment
-    }
-  }, [preview])
+  // Fondo con degradado (solo preview): en vez de "background-attachment:
+  // fixed" (poco fiable en iOS Safari — muchas versiones lo ignoran y lo
+  // tratan como si hiciera scroll normal) o un div "position: fixed" con
+  // z-index negativo detrás del contenido (en iOS a veces no se pinta bien
+  // y solo aparece durante el rebote del "tirar para recargar"), aquí toda
+  // la app vive dentro de una caja "position: fixed" que cubre la pantalla
+  // (html/body dejan de hacer scroll), con el degradado como capa de fondo
+  // y el contenido en una capa hija que scrollea por dentro. Así el color
+  // de fondo nunca depende de repintados raros del navegador: sencillamente
+  // no se mueve nunca de sitio.
+  const PREVIEW_GRADIENT =
+    "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
 
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
@@ -102,8 +96,8 @@ export function Dashboard() {
     user?.email?.split("@")[0] ||
     t("dashboard.greetingName.fallback")
 
-  return (
-    <div className="min-h-screen">
+  const shellContent = (
+    <>
       <RecurringReviewDialog />
 
       {/* Sidebar (desktop) */}
@@ -236,6 +230,19 @@ export function Dashboard() {
           )
         })}
       </nav>
+    </>
+  )
+
+  if (!preview) {
+    return <div className="min-h-screen">{shellContent}</div>
+  }
+
+  return (
+    <div className="fixed inset-0 overflow-hidden">
+      <div aria-hidden className="absolute inset-0" style={{ background: PREVIEW_GRADIENT }} />
+      <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+        {shellContent}
+      </div>
     </div>
   )
 }
