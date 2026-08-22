@@ -17,6 +17,9 @@ type Period = "diario" | "semanal" | "mensual"
 // de ajustes.
 const GOAL_STORAGE_KEY = "marcel-fit-coach:savings-goal"
 
+type GoalPeriod = "month" | "total"
+type Goal = { amount: number; period: GoalPeriod; deadline: string | null }
+
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
 }
@@ -63,40 +66,62 @@ export function OverviewSection({
       : `${daysLeft} ${daysLeft === 1 ? t("overview.dayLeft") : t("overview.daysLeft")}`
 
   // Objetivo de ahorro (solo preview, ver comentario de GOAL_STORAGE_KEY).
-  const [goalAmount, setGoalAmount] = useState<number | null>(null)
+  // Puede ser sobre el balance de este mes o sobre el ahorro total, y
+  // opcionalmente con fecha límite.
+  const [goal, setGoal] = useState<Goal | null>(null)
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState("")
+  const [goalPeriodInput, setGoalPeriodInput] = useState<GoalPeriod>("month")
+  const [goalDeadlineInput, setGoalDeadlineInput] = useState("")
 
   useEffect(() => {
     const stored = localStorage.getItem(GOAL_STORAGE_KEY)
-    if (stored) {
+    if (!stored) return
+    // Formato nuevo: JSON con amount/period/deadline. Si falla el parseo,
+    // puede ser el formato antiguo (solo el número guardado tal cual).
+    try {
+      const parsed = JSON.parse(stored)
+      if (parsed && typeof parsed === "object" && typeof parsed.amount === "number" && parsed.amount > 0) {
+        setGoal({
+          amount: parsed.amount,
+          period: parsed.period === "total" ? "total" : "month",
+          deadline: typeof parsed.deadline === "string" && parsed.deadline ? parsed.deadline : null,
+        })
+      }
+    } catch {
       const n = Number(stored)
-      if (!Number.isNaN(n) && n > 0) setGoalAmount(n)
+      if (!Number.isNaN(n) && n > 0) setGoal({ amount: n, period: "month", deadline: null })
     }
   }, [])
 
   const startEditingGoal = () => {
-    setGoalInput(goalAmount != null ? String(goalAmount) : "")
+    setGoalInput(goal != null ? String(goal.amount) : "")
+    setGoalPeriodInput(goal?.period ?? "month")
+    setGoalDeadlineInput(goal?.deadline ?? "")
     setEditingGoal(true)
   }
 
-  // Escribir 0 o dejarlo vacío quita el objetivo (vuelve a "+ Poner
-  // objetivo"), para poder cancelarlo sin tener que borrar el campo a mano.
+  // Quita el objetivo directamente, sin pasar por "Editar" + "Guardar" — un
+  // solo toque para cancelarlo.
+  const removeGoal = () => {
+    setGoal(null)
+    localStorage.removeItem(GOAL_STORAGE_KEY)
+    setEditingGoal(false)
+    setGoalInput("")
+  }
+
+  // Escribir 0 o dejarlo vacío también quita el objetivo al guardar (por si
+  // se estaba editando y se decide no poner ninguno).
   const saveGoal = () => {
     const trimmed = goalInput.trim()
     const n = trimmed === "" ? 0 : Number(trimmed.replace(",", "."))
-    if (Number.isNaN(n)) {
-      setEditingGoal(false)
-      setGoalInput("")
+    if (Number.isNaN(n) || n <= 0) {
+      removeGoal()
       return
     }
-    if (n <= 0) {
-      setGoalAmount(null)
-      localStorage.removeItem(GOAL_STORAGE_KEY)
-    } else {
-      setGoalAmount(n)
-      localStorage.setItem(GOAL_STORAGE_KEY, String(n))
-    }
+    const newGoal: Goal = { amount: n, period: goalPeriodInput, deadline: goalDeadlineInput || null }
+    setGoal(newGoal)
+    localStorage.setItem(GOAL_STORAGE_KEY, JSON.stringify(newGoal))
     setEditingGoal(false)
     setGoalInput("")
   }
@@ -111,8 +136,13 @@ export function OverviewSection({
   const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
   const totalBalance = useMemo(() => transactions.reduce((s, t) => s + t.amount, 0), [transactions])
   const displayedBalance = balanceView === "month" ? monthBalance : totalBalance
-  const goalPct = goalAmount ? Math.min(100, Math.max(0, (monthBalance / goalAmount) * 100)) : 0
-  const goalReached = goalAmount != null && monthBalance >= goalAmount
+
+  // El objetivo compara contra el balance de este mes o el ahorro total,
+  // según lo que se eligiera al ponerlo.
+  const goalBase = goal?.period === "total" ? totalBalance : monthBalance
+  const goalPct = goal ? Math.min(100, Math.max(0, (goalBase / goal.amount) * 100)) : 0
+  const goalReached = goal != null && goalBase >= goal.amount
+  const goalDaysLeft = goal?.deadline ? Math.ceil((new Date(goal.deadline + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / (24 * 60 * 60 * 1000)) : null
 
   const inPeriod = (dateStr: string) => {
     if (period === "diario") return dateStr === today
@@ -194,18 +224,29 @@ export function OverviewSection({
                 {t("overview.goalTitle")}
               </span>
             </div>
-            {goalAmount != null && !editingGoal && (
-              <button
-                onClick={startEditingGoal}
-                className="text-[11px] font-medium underline-offset-2 hover:underline"
-                style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
-              >
-                {t("overview.goalEdit")}
-              </button>
+            {goal != null && !editingGoal && (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={startEditingGoal}
+                  className="text-[11px] font-medium underline-offset-2 hover:underline"
+                  style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
+                >
+                  {t("overview.goalEdit")}
+                </button>
+                {/* Quita el objetivo con un solo toque, sin tener que pasar
+                    por "Editar" + "Guardar". */}
+                <button
+                  onClick={removeGoal}
+                  className="text-[11px] font-medium underline-offset-2 hover:underline"
+                  style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
+                >
+                  {t("overview.goalRemove")}
+                </button>
+              </div>
             )}
           </div>
 
-          {goalAmount == null && !editingGoal && (
+          {goal == null && !editingGoal && (
             <button
               onClick={startEditingGoal}
               className="mt-2 text-xs font-medium underline-offset-2 hover:underline"
@@ -216,7 +257,7 @@ export function OverviewSection({
           )}
 
           {editingGoal && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 space-y-2">
               <input
                 type="number"
                 min="0"
@@ -230,24 +271,66 @@ export function OverviewSection({
                 // zoom automático de toda la página al enfocar el campo —
                 // "text-base" evita ese zoom (en pantallas grandes baja a
                 // 14px con md:text-sm, donde el zoom de iOS no aplica).
-                className="h-8 min-w-0 flex-1 rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
+                className="h-8 w-full rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
                 style={{ color: "oklch(0.18 0.04 150)" }}
               />
-              <button
-                onClick={saveGoal}
-                className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
-                style={{ backgroundColor: "oklch(0.4 0.1 150)" }}
-              >
-                {t("common.save")}
-              </button>
+
+              <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(0.22 0.05 150 / 10%)" }}>
+                {(["month", "total"] as GoalPeriod[]).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setGoalPeriodInput(p)}
+                    className="flex-1 rounded py-1 text-xs font-medium transition-colors"
+                    style={
+                      goalPeriodInput === p
+                        ? { background: "oklch(1 0 0 / 70%)", color: "oklch(0.18 0.04 150)" }
+                        : { color: "oklch(0.22 0.05 150 / 70%)" }
+                    }
+                  >
+                    {p === "month" ? t("overview.thisMonth") : t("overview.goalPeriodTotal")}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+                  {t("overview.goalDeadlineLabel")}
+                </label>
+                <input
+                  type="date"
+                  min={today}
+                  value={goalDeadlineInput}
+                  onChange={(e) => setGoalDeadlineInput(e.target.value)}
+                  className="mt-1 h-8 w-full rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
+                  style={{ color: "oklch(0.18 0.04 150)" }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={saveGoal}
+                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
+                  style={{ backgroundColor: "oklch(0.4 0.1 150)" }}
+                >
+                  {t("common.save")}
+                </button>
+              </div>
             </div>
           )}
 
-          {goalAmount != null && !editingGoal && (
+          {goal != null && !editingGoal && (
             <div className="mt-2">
-              <div className="flex items-baseline justify-between">
+              <p className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 65%)" }}>
+                {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
+                {goal.deadline &&
+                  (goalDaysLeft !== null && goalDaysLeft < 0
+                    ? ` · ${t("overview.goalDeadlinePassed")}`
+                    : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
                 <span className="text-sm font-semibold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
-                  {symbol}{Math.max(monthBalance, 0).toFixed(0)} / {symbol}{goalAmount.toFixed(0)}
+                  {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
                 </span>
                 <span className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
                   {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
