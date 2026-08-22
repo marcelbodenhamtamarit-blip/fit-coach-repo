@@ -101,6 +101,18 @@ export const TRANSLATIONS = {
   "overview.topCategory": { es: "Top categoría", en: "Top category" },
   "overview.noExpenses": { es: "Sin gastos", en: "No expenses" },
   "overview.monthBalanceLabel": { es: "Balance del mes", en: "This month's balance" },
+  "overview.appSummary": {
+    es: "ZentOS: controla lo que gastas e ingresas y ponte un objetivo de ahorro cada mes.",
+    en: "ZentOS: track what you spend and earn, and set a savings goal each month.",
+  },
+  "overview.lastDayOfMonth": { es: "Último día del mes", en: "Last day of the month" },
+  "overview.dayLeft": { es: "día para fin de mes", en: "day left this month" },
+  "overview.daysLeft": { es: "días para fin de mes", en: "days left this month" },
+  "overview.goalTitle": { es: "Objetivo de ahorro", en: "Savings goal" },
+  "overview.goalSet": { es: "Poner objetivo", en: "Set goal" },
+  "overview.goalEdit": { es: "Editar", en: "Edit" },
+  "overview.goalPlaceholder": { es: "¿Cuánto quieres ahorrar?", en: "How much do you want to save?" },
+  "overview.goalReached": { es: "¡Objetivo conseguido!", en: "Goal reached!" },
 
   // Economía
   "economy.noTransactions": { es: "Sin transacciones", en: "No transactions" },
