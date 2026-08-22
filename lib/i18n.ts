@@ -111,6 +111,7 @@ export const TRANSLATIONS = {
   "economy.type": { es: "Tipo", en: "Type" },
   "economy.description": { es: "Descripción", en: "Description" },
   "economy.descPlaceholder": { es: "Ej: Compra semanal", en: "E.g. Weekly shopping" },
+  "economy.addDescription": { es: "+ Añadir descripción (opcional)", en: "+ Add description (optional)" },
   "economy.amount": { es: "Cantidad", en: "Amount" },
   "economy.amountPlaceholder": { es: "Ej: 45.50", en: "E.g. 45.50" },
   "economy.amountHint": {
