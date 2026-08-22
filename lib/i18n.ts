@@ -100,6 +100,7 @@ export const TRANSLATIONS = {
   "overview.thisMonth": { es: "Este mes", en: "This month" },
   "overview.topCategory": { es: "Top categoría", en: "Top category" },
   "overview.noExpenses": { es: "Sin gastos", en: "No expenses" },
+  "overview.monthBalanceLabel": { es: "Balance del mes", en: "This month's balance" },
 
   // Economía
   "economy.noTransactions": { es: "Sin transacciones", en: "No transactions" },
