@@ -80,9 +80,20 @@ export function OverviewSection({
     setEditingGoal(true)
   }
 
+  // Escribir 0 o dejarlo vacío quita el objetivo (vuelve a "+ Poner
+  // objetivo"), para poder cancelarlo sin tener que borrar el campo a mano.
   const saveGoal = () => {
-    const n = Number(goalInput.replace(",", "."))
-    if (!Number.isNaN(n) && n > 0) {
+    const trimmed = goalInput.trim()
+    const n = trimmed === "" ? 0 : Number(trimmed.replace(",", "."))
+    if (Number.isNaN(n)) {
+      setEditingGoal(false)
+      setGoalInput("")
+      return
+    }
+    if (n <= 0) {
+      setGoalAmount(null)
+      localStorage.removeItem(GOAL_STORAGE_KEY)
+    } else {
       setGoalAmount(n)
       localStorage.setItem(GOAL_STORAGE_KEY, String(n))
     }
@@ -93,8 +104,13 @@ export function OverviewSection({
   // Resumen fijo de arriba (solo en preview, ver lib/design-preview.ts):
   // balance del mes en curso, independiente del selector Diario/Semanal/
   // Mensual de más abajo, para que no cambie de número al cambiar de tab.
+  // Se puede tocar la tarjeta para alternar entre el balance de este mes y
+  // el ahorro total acumulado (todas las transacciones).
+  const [balanceView, setBalanceView] = useState<"month" | "total">("month")
   const monthTx = useMemo(() => transactions.filter((t) => t.date.startsWith(currentMonth)), [transactions, currentMonth])
   const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
+  const totalBalance = useMemo(() => transactions.reduce((s, t) => s + t.amount, 0), [transactions])
+  const displayedBalance = balanceView === "month" ? monthBalance : totalBalance
   const goalPct = goalAmount ? Math.min(100, Math.max(0, (monthBalance / goalAmount) * 100)) : 0
   const goalReached = goalAmount != null && monthBalance >= goalAmount
 
@@ -145,21 +161,28 @@ export function OverviewSection({
       )}
 
       {preview && (
-        <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
+        <button
+          type="button"
+          onClick={() => setBalanceView((v) => (v === "month" ? "total" : "month"))}
+          className="w-full rounded-2xl p-4 text-left transition-opacity active:opacity-80"
+          style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}
+        >
           <div className="flex items-baseline justify-between gap-3">
             <div>
               <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
-                {t("overview.monthBalanceLabel")}
+                {balanceView === "month" ? t("overview.monthBalanceLabel") : t("overview.totalBalanceLabel")}
               </p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
-                {monthBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(monthBalance).toFixed(2)}
+                {displayedBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(displayedBalance).toFixed(2)}
               </p>
             </div>
             <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
-              {daysLeftLabel}
+              {balanceView === "month"
+                ? daysLeftLabel
+                : `${transactions.length} ${transactions.length === 1 ? t("common.movement") : t("common.movements")}`}
             </p>
           </div>
-        </div>
+        </button>
       )}
 
       {preview && (
@@ -203,7 +226,11 @@ export function OverviewSection({
                 onChange={(e) => setGoalInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && saveGoal()}
                 placeholder={t("overview.goalPlaceholder")}
-                className="h-8 min-w-0 flex-1 rounded-md border-0 bg-white/50 px-2.5 text-sm outline-none"
+                // text-base (16px): por debajo de 16px, Safari en iOS hace
+                // zoom automático de toda la página al enfocar el campo —
+                // "text-base" evita ese zoom (en pantallas grandes baja a
+                // 14px con md:text-sm, donde el zoom de iOS no aplica).
+                className="h-8 min-w-0 flex-1 rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
                 style={{ color: "oklch(0.18 0.04 150)" }}
               />
               <button
