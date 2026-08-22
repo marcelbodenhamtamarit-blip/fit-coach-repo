@@ -461,26 +461,23 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
               <Label htmlFor="tx-date">{t("economy.date")}</Label>
               <Input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-            <div>
-              {showDescField ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="tx-desc">{t("economy.description")}</Label>
-                  <Input
-                    id="tx-desc"
-                    placeholder={t("economy.descPlaceholder")}
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowDescField(true)}
-                  className="text-xs text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-                >
-                  {t("economy.addDescription")}
-                </button>
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => setShowDescField((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+              >
+                <ChevronDown className={`size-3 transition-transform ${showDescField ? "rotate-180" : ""}`} />
+                {showDescField ? t("economy.hideDescription") : t("economy.addDescription")}
+              </button>
+              {showDescField && (
+                <Input
+                  id="tx-desc"
+                  placeholder={t("economy.descPlaceholder")}
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  autoFocus
+                />
               )}
             </div>
             <Button onClick={handleSave} disabled={saving || !amount} className="w-full">
