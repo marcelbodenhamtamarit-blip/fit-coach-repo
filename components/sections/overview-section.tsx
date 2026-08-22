@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus, Target } from "lucide-react"
+import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus, Target, ChevronDown } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
@@ -217,44 +217,55 @@ export function OverviewSection({
 
       {preview && (
         <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <Target className="size-3.5" style={{ color: "oklch(0.22 0.05 150 / 75%)" }} />
-              <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
-                {t("overview.goalTitle")}
-              </span>
-            </div>
-            {goal != null && !editingGoal && (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={startEditingGoal}
-                  className="text-[11px] font-medium underline-offset-2 hover:underline"
-                  style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
-                >
-                  {t("overview.goalEdit")}
-                </button>
-                {/* Quita el objetivo con un solo toque, sin tener que pasar
-                    por "Editar" + "Guardar". */}
-                <button
-                  onClick={removeGoal}
-                  className="text-[11px] font-medium underline-offset-2 hover:underline"
-                  style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
-                >
-                  {t("overview.goalRemove")}
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-1.5">
+            <Target className="size-3.5" style={{ color: "oklch(0.16 0.05 150)" }} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "oklch(0.16 0.05 150)" }}>
+              {t("overview.goalTitle")}
+            </span>
           </div>
 
-          {goal == null && !editingGoal && (
-            <button
-              onClick={startEditingGoal}
-              className="mt-2 text-xs font-medium underline-offset-2 hover:underline"
-              style={{ color: "oklch(0.18 0.04 150)" }}
-            >
-              + {t("overview.goalSet")}
-            </button>
+          {/* Resumen/progreso: siempre visible si hay objetivo, se edite o no. */}
+          {goal != null && (
+            <div className="mt-2">
+              <p className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+                {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
+                {goal.deadline &&
+                  (goalDaysLeft !== null && goalDaysLeft < 0
+                    ? ` · ${t("overview.goalDeadlinePassed")}`
+                    : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
+              </p>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-sm font-bold tabular-nums" style={{ color: "oklch(0.16 0.05 150)" }}>
+                  {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
+                </span>
+                <span className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+                  {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.16 0.05 150 / 20%)" }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${goalPct}%`, background: "oklch(0.35 0.12 150)" }}
+                />
+              </div>
+            </div>
           )}
+
+          {/* Igual que el desplegable de descripción en Añadir gasto/ingreso:
+              un botón con flecha que abre y cierra el formulario, así se
+              puede mirar/cerrar sin tener que guardar ni quitar nada. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!editingGoal) startEditingGoal()
+              else setEditingGoal(false)
+            }}
+            className="mt-2 flex items-center gap-1 text-xs font-semibold transition-colors"
+            style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+          >
+            <ChevronDown className={`size-3 transition-transform ${editingGoal ? "rotate-180" : ""}`} />
+            {editingGoal ? t("overview.goalHideForm") : goal != null ? t("overview.goalEdit") : t("overview.goalSet")}
+          </button>
 
           {editingGoal && (
             <div className="mt-2 space-y-2">
@@ -271,21 +282,21 @@ export function OverviewSection({
                 // zoom automático de toda la página al enfocar el campo —
                 // "text-base" evita ese zoom (en pantallas grandes baja a
                 // 14px con md:text-sm, donde el zoom de iOS no aplica).
-                className="h-8 w-full rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
-                style={{ color: "oklch(0.18 0.04 150)" }}
+                className="h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
+                style={{ color: "oklch(0.16 0.05 150)" }}
               />
 
-              <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(0.22 0.05 150 / 10%)" }}>
+              <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(1 0 0 / 35%)" }}>
                 {(["month", "total"] as GoalPeriod[]).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setGoalPeriodInput(p)}
-                    className="flex-1 rounded py-1 text-xs font-medium transition-colors"
+                    className="flex-1 rounded py-1 text-xs font-semibold transition-colors"
                     style={
                       goalPeriodInput === p
-                        ? { background: "oklch(1 0 0 / 70%)", color: "oklch(0.18 0.04 150)" }
-                        : { color: "oklch(0.22 0.05 150 / 70%)" }
+                        ? { background: "oklch(0.2 0.05 150)", color: "oklch(0.98 0.01 150)" }
+                        : { color: "oklch(0.2 0.05 150 / 85%)" }
                     }
                   >
                     {p === "month" ? t("overview.thisMonth") : t("overview.goalPeriodTotal")}
@@ -294,7 +305,7 @@ export function OverviewSection({
               </div>
 
               <div>
-                <label className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+                <label className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 85%)" }}>
                   {t("overview.goalDeadlineLabel")}
                 </label>
                 <input
@@ -302,45 +313,31 @@ export function OverviewSection({
                   min={today}
                   value={goalDeadlineInput}
                   onChange={(e) => setGoalDeadlineInput(e.target.value)}
-                  className="mt-1 h-8 w-full rounded-md border-0 bg-white/50 px-2.5 text-base outline-none md:text-sm"
-                  style={{ color: "oklch(0.18 0.04 150)" }}
+                  className="mt-1 h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
+                  style={{ color: "oklch(0.16 0.05 150)" }}
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center justify-between gap-2">
+                {/* Quita el objetivo directamente, sin necesidad de guardar. */}
+                {goal != null ? (
+                  <button
+                    onClick={removeGoal}
+                    className="text-xs font-semibold underline-offset-2 hover:underline"
+                    style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+                  >
+                    {t("overview.goalRemove")}
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   onClick={saveGoal}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
-                  style={{ backgroundColor: "oklch(0.4 0.1 150)" }}
+                  className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-white"
+                  style={{ backgroundColor: "oklch(0.3 0.1 150)" }}
                 >
                   {t("common.save")}
                 </button>
-              </div>
-            </div>
-          )}
-
-          {goal != null && !editingGoal && (
-            <div className="mt-2">
-              <p className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 65%)" }}>
-                {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
-                {goal.deadline &&
-                  (goalDaysLeft !== null && goalDaysLeft < 0
-                    ? ` · ${t("overview.goalDeadlinePassed")}`
-                    : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-sm font-semibold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
-                  {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
-                </span>
-                <span className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
-                  {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.22 0.05 150 / 15%)" }}>
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${goalPct}%`, background: "oklch(0.4 0.12 150)" }}
-                />
               </div>
             </div>
           )}
