@@ -20,6 +20,7 @@ import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { LogOut } from "lucide-react"
+import { useDesignPreview } from "@/lib/design-preview"
 
 
 
@@ -48,6 +49,7 @@ export function Dashboard() {
   }, [active])
   const { data, ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
+  const preview = useDesignPreview()
 
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
@@ -85,16 +87,18 @@ export function Dashboard() {
 
   return (
     <div className="relative min-h-screen">
-      {/* Fondo fijo: más claro arriba, se difumina hacia el centro y queda
-          más oscuro hacia abajo. Es un elemento "fixed" independiente del
-          contenido para que no se mueva al hacer scroll (a diferencia de un
-          fondo puesto directamente en un contenedor que sí scrollea). */}
+      {/* Fondo fijo (no se mueve al hacer scroll, es un elemento "fixed"
+          independiente del contenido). En preview: verde de marca arriba,
+          se transforma hacia el gris oscuro habitual de la app hacia la
+          mitad de la pantalla — ver lib/design-preview.ts. Fuera de
+          preview, degradado sutil de siempre. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-10"
         style={{
-          background:
-            "linear-gradient(to bottom, oklch(0.26 0.02 250) 0%, oklch(0.16 0.012 250) 45%, oklch(0.1 0.01 250) 100%)",
+          background: preview
+            ? "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
+            : "linear-gradient(to bottom, oklch(0.26 0.02 250) 0%, oklch(0.16 0.012 250) 45%, oklch(0.1 0.01 250) 100%)",
         }}
       />
       <RecurringReviewDialog />
@@ -139,27 +143,50 @@ export function Dashboard() {
 
       {/* Main */}
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
+        <header
+          className={cn(
+            "sticky top-0 z-20 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8",
+            preview ? "bg-white/10" : "border-b border-border bg-background/80",
+          )}
+        >
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-balance text-lg font-semibold sm:text-xl">
+              <h1
+                className="text-balance text-lg font-semibold sm:text-xl"
+                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
+              >
                 {TAB_TITLES[active] ?? active}
               </h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">
+              <p
+                className={cn("hidden text-xs sm:block", !preview && "text-muted-foreground")}
+                style={preview ? { color: "oklch(0.32 0.05 150 / 80%)" } : undefined}
+              >
                 {t(greetingKey())}, {displayName}. {t("dashboard.subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => window.location.reload()}
-                className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg transition-colors",
+                  preview
+                    ? "bg-white/25 hover:bg-white/35"
+                    : "border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
                 title={t("dashboard.reload")}
               >
                 <RotateCw className="size-4" />
               </button>
               <button
                 onClick={signOut}
-                className="flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg transition-colors",
+                  preview
+                    ? "bg-white/25 hover:bg-white/35"
+                    : "border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
                 title={t("dashboard.signOut")}
               >
                 <LogOut className="size-4" />
