@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus, Target } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
@@ -9,6 +9,13 @@ import { categoryLabel, type Language } from "@/lib/i18n"
 import { useDesignPreview } from "@/lib/design-preview"
 
 type Period = "diario" | "semanal" | "mensual"
+
+// Objetivo de ahorro: de momento se guarda solo en este dispositivo
+// (localStorage), no en Supabase — es parte del preview de diseño (ver
+// lib/design-preview.ts). Si el resultado gusta, se pasa a la tabla
+// user_preferences para que se sincronice entre dispositivos como el resto
+// de ajustes.
+const GOAL_STORAGE_KEY = "marcel-fit-coach:savings-goal"
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
@@ -22,6 +29,14 @@ function getWeekNumberFromISO(dateStr: string): number {
   week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek)
   const diffDays = Math.floor((date.getTime() - week1Start.getTime()) / (24 * 60 * 60 * 1000))
   return 1 + Math.floor(diffDays / 7)
+}
+
+function daysLeftInMonth(dateStr: string): number {
+  const year = Number(dateStr.slice(0, 4))
+  const month = Number(dateStr.slice(5, 7))
+  const day = Number(dateStr.slice(8, 10))
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return Math.max(0, lastDay - day)
 }
 
 export function OverviewSection({
@@ -41,13 +56,47 @@ export function OverviewSection({
   const today = todayISO()
   const currentWeek = getWeekNumberFromISO(today)
   const currentMonth = today.slice(0, 7)
+  const daysLeft = daysLeftInMonth(today)
+  const daysLeftLabel =
+    daysLeft <= 0
+      ? t("overview.lastDayOfMonth")
+      : `${daysLeft} ${daysLeft === 1 ? t("overview.dayLeft") : t("overview.daysLeft")}`
+
+  // Objetivo de ahorro (solo preview, ver comentario de GOAL_STORAGE_KEY).
+  const [goalAmount, setGoalAmount] = useState<number | null>(null)
+  const [editingGoal, setEditingGoal] = useState(false)
+  const [goalInput, setGoalInput] = useState("")
+
+  useEffect(() => {
+    const stored = localStorage.getItem(GOAL_STORAGE_KEY)
+    if (stored) {
+      const n = Number(stored)
+      if (!Number.isNaN(n) && n > 0) setGoalAmount(n)
+    }
+  }, [])
+
+  const startEditingGoal = () => {
+    setGoalInput(goalAmount != null ? String(goalAmount) : "")
+    setEditingGoal(true)
+  }
+
+  const saveGoal = () => {
+    const n = Number(goalInput.replace(",", "."))
+    if (!Number.isNaN(n) && n > 0) {
+      setGoalAmount(n)
+      localStorage.setItem(GOAL_STORAGE_KEY, String(n))
+    }
+    setEditingGoal(false)
+    setGoalInput("")
+  }
 
   // Resumen fijo de arriba (solo en preview, ver lib/design-preview.ts):
   // balance del mes en curso, independiente del selector Diario/Semanal/
   // Mensual de más abajo, para que no cambie de número al cambiar de tab.
   const monthTx = useMemo(() => transactions.filter((t) => t.date.startsWith(currentMonth)), [transactions, currentMonth])
   const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
-  const monthMovements = monthTx.length
+  const goalPct = goalAmount ? Math.min(100, Math.max(0, (monthBalance / goalAmount) * 100)) : 0
+  const goalReached = goalAmount != null && monthBalance >= goalAmount
 
   const inPeriod = (dateStr: string) => {
     if (period === "diario") return dateStr === today
@@ -90,6 +139,12 @@ export function OverviewSection({
   return (
     <div className="space-y-5">
       {preview && (
+        <p className="text-xs leading-snug" style={{ color: "oklch(0.22 0.05 150 / 88%)" }}>
+          {t("overview.appSummary")}
+        </p>
+      )}
+
+      {preview && (
         <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
           <div className="flex items-baseline justify-between gap-3">
             <div>
@@ -101,9 +156,84 @@ export function OverviewSection({
               </p>
             </div>
             <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
-              {monthMovements} {monthMovements === 1 ? t("common.movement") : t("common.movements")}
+              {daysLeftLabel}
             </p>
           </div>
+        </div>
+      )}
+
+      {preview && (
+        <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Target className="size-3.5" style={{ color: "oklch(0.22 0.05 150 / 75%)" }} />
+              <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
+                {t("overview.goalTitle")}
+              </span>
+            </div>
+            {goalAmount != null && !editingGoal && (
+              <button
+                onClick={startEditingGoal}
+                className="text-[11px] font-medium underline-offset-2 hover:underline"
+                style={{ color: "oklch(0.22 0.05 150 / 70%)" }}
+              >
+                {t("overview.goalEdit")}
+              </button>
+            )}
+          </div>
+
+          {goalAmount == null && !editingGoal && (
+            <button
+              onClick={startEditingGoal}
+              className="mt-2 text-xs font-medium underline-offset-2 hover:underline"
+              style={{ color: "oklch(0.18 0.04 150)" }}
+            >
+              + {t("overview.goalSet")}
+            </button>
+          )}
+
+          {editingGoal && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                inputMode="decimal"
+                autoFocus
+                value={goalInput}
+                onChange={(e) => setGoalInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveGoal()}
+                placeholder={t("overview.goalPlaceholder")}
+                className="h-8 min-w-0 flex-1 rounded-md border-0 bg-white/50 px-2.5 text-sm outline-none"
+                style={{ color: "oklch(0.18 0.04 150)" }}
+              />
+              <button
+                onClick={saveGoal}
+                className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
+                style={{ backgroundColor: "oklch(0.4 0.1 150)" }}
+              >
+                {t("common.save")}
+              </button>
+            </div>
+          )}
+
+          {goalAmount != null && !editingGoal && (
+            <div className="mt-2">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-semibold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
+                  {symbol}{Math.max(monthBalance, 0).toFixed(0)} / {symbol}{goalAmount.toFixed(0)}
+                </span>
+                <span className="text-[11px] font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+                  {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.22 0.05 150 / 15%)" }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${goalPct}%`, background: "oklch(0.4 0.12 150)" }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -144,7 +274,6 @@ export function OverviewSection({
             value={`-${symbol}${spent.toFixed(2)}`}
             sub={movementsLabel}
             accent="red"
-            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -155,7 +284,6 @@ export function OverviewSection({
             value={`+${symbol}${income.toFixed(2)}`}
             sub={income > 0 ? t("overview.registered") : t("overview.noIncome")}
             accent="green"
-            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -166,7 +294,6 @@ export function OverviewSection({
             value={`${balance >= 0 ? "+" : "-"}${symbol}${Math.abs(balance).toFixed(2)}`}
             sub={period === "diario" ? t("overview.today") : period === "semanal" ? t("overview.thisWeek") : t("overview.thisMonth")}
             accent={balance >= 0 ? "primary" : "amber"}
-            variant={preview ? "light" : "default"}
           />
         </button>
 
@@ -177,7 +304,6 @@ export function OverviewSection({
             value={topCategory ? categoryLabel(topCategory.category, lang) : "--"}
             sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : t("overview.noExpenses")}
             accent="pink"
-            variant={preview ? "light" : "default"}
           />
         </button>
       </div>
