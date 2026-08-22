@@ -20,7 +20,6 @@ import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { LogOut } from "lucide-react"
-import { useDesignPreview } from "@/lib/design-preview"
 
 type Tab = {
   id: string
@@ -47,19 +46,18 @@ export function Dashboard() {
   }, [active])
   const { data, ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
-  const preview = useDesignPreview()
 
-  // Fondo con degradado (solo preview): en vez de "background-attachment:
-  // fixed" (poco fiable en iOS Safari — muchas versiones lo ignoran y lo
-  // tratan como si hiciera scroll normal) o un div "position: fixed" con
-  // z-index negativo detrás del contenido (en iOS a veces no se pinta bien
-  // y solo aparece durante el rebote del "tirar para recargar"), aquí toda
-  // la app vive dentro de una caja "position: fixed" que cubre la pantalla
-  // (html/body dejan de hacer scroll), con el degradado como capa de fondo
-  // y el contenido en una capa hija que scrollea por dentro. Así el color
-  // de fondo nunca depende de repintados raros del navegador: sencillamente
-  // no se mueve nunca de sitio.
-  const PREVIEW_GRADIENT =
+  // Fondo con degradado: en vez de "background-attachment: fixed" (poco
+  // fiable en iOS Safari — muchas versiones lo ignoran y lo tratan como si
+  // hiciera scroll normal) o un div "position: fixed" con z-index negativo
+  // detrás del contenido (en iOS a veces no se pinta bien y solo aparece
+  // durante el rebote del "tirar para recargar"), aquí toda la app vive
+  // dentro de una caja "position: fixed" que cubre la pantalla (html/body
+  // dejan de hacer scroll), con el degradado como capa de fondo y el
+  // contenido en una capa hija que scrollea por dentro. Así el color de
+  // fondo nunca depende de repintados raros del navegador: sencillamente no
+  // se mueve nunca de sitio.
+  const BACKGROUND_GRADIENT =
     "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
 
   const TABS: Tab[] = [
@@ -140,50 +138,29 @@ export function Dashboard() {
 
       {/* Main */}
       <div className="lg:pl-60">
-        <header
-          className={cn(
-            "sticky top-0 z-20 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8",
-            preview ? "bg-white/10" : "border-b border-border bg-background/80",
-          )}
-        >
+        <header className="sticky top-0 z-20 bg-white/10 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1
-                className="text-balance text-lg font-semibold sm:text-xl"
-                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
-              >
+              <h1 className="text-balance text-lg font-semibold sm:text-xl" style={{ color: "oklch(0.22 0.05 150)" }}>
                 {TAB_TITLES[active] ?? active}
               </h1>
-              <p
-                className={cn("hidden text-xs sm:block", !preview && "text-muted-foreground")}
-                style={preview ? { color: "oklch(0.32 0.05 150 / 80%)" } : undefined}
-              >
+              <p className="hidden text-xs sm:block" style={{ color: "oklch(0.32 0.05 150 / 80%)" }}>
                 {t(greetingKey())}, {displayName}. {t("dashboard.subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => window.location.reload()}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg transition-colors",
-                  preview
-                    ? "bg-white/25 hover:bg-white/35"
-                    : "border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
+                className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
+                style={{ color: "oklch(0.22 0.05 150)" }}
                 title={t("dashboard.reload")}
               >
                 <RotateCw className="size-4" />
               </button>
               <button
                 onClick={signOut}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg transition-colors",
-                  preview
-                    ? "bg-white/25 hover:bg-white/35"
-                    : "border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-                style={preview ? { color: "oklch(0.22 0.05 150)" } : undefined}
+                className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
+                style={{ color: "oklch(0.22 0.05 150)" }}
                 title={t("dashboard.signOut")}
               >
                 <LogOut className="size-4" />
@@ -233,13 +210,9 @@ export function Dashboard() {
     </>
   )
 
-  if (!preview) {
-    return <div className="min-h-screen">{shellContent}</div>
-  }
-
   return (
     <div className="fixed inset-0 overflow-hidden">
-      <div aria-hidden className="absolute inset-0" style={{ background: PREVIEW_GRADIENT }} />
+      <div aria-hidden className="absolute inset-0" style={{ background: BACKGROUND_GRADIENT }} />
       <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
         {shellContent}
       </div>
