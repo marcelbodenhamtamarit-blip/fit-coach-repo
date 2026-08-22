@@ -6,13 +6,11 @@ import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
-import { useDesignPreview } from "@/lib/design-preview"
 
 type Period = "diario" | "semanal" | "mensual"
 
 // Objetivo de ahorro: de momento se guarda solo en este dispositivo
-// (localStorage), no en Supabase — es parte del preview de diseño (ver
-// lib/design-preview.ts). Si el resultado gusta, se pasa a la tabla
+// (localStorage), no en Supabase. Si el resultado gusta, se pasa a la tabla
 // user_preferences para que se sincronice entre dispositivos como el resto
 // de ajustes.
 const GOAL_STORAGE_KEY = "marcel-fit-coach:savings-goal"
@@ -54,7 +52,6 @@ export function OverviewSection({
   const transactions = data.transactions ?? []
   const symbol = currencySymbol(data.homeCurrency)
   const [period, setPeriod] = useState<Period>("diario")
-  const preview = useDesignPreview()
 
   const today = todayISO()
   const currentWeek = getWeekNumberFromISO(today)
@@ -65,9 +62,9 @@ export function OverviewSection({
       ? t("overview.lastDayOfMonth")
       : `${daysLeft} ${daysLeft === 1 ? t("overview.dayLeft") : t("overview.daysLeft")}`
 
-  // Objetivo de ahorro (solo preview, ver comentario de GOAL_STORAGE_KEY).
-  // Puede ser sobre el balance de este mes o sobre el ahorro total, y
-  // opcionalmente con fecha límite.
+  // Objetivo de ahorro (ver comentario de GOAL_STORAGE_KEY). Puede ser
+  // sobre el balance de este mes o sobre el ahorro total, y opcionalmente
+  // con fecha límite.
   const [goal, setGoal] = useState<Goal | null>(null)
   const [editingGoal, setEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState("")
@@ -126,11 +123,11 @@ export function OverviewSection({
     setGoalInput("")
   }
 
-  // Resumen fijo de arriba (solo en preview, ver lib/design-preview.ts):
-  // balance del mes en curso, independiente del selector Diario/Semanal/
-  // Mensual de más abajo, para que no cambie de número al cambiar de tab.
-  // Se puede tocar la tarjeta para alternar entre el balance de este mes y
-  // el ahorro total acumulado (todas las transacciones).
+  // Resumen fijo de arriba: balance del mes en curso, independiente del
+  // selector Diario/Semanal/Mensual de más abajo, para que no cambie de
+  // número al cambiar de tab. Se puede tocar la tarjeta para alternar entre
+  // el balance de este mes y el ahorro total acumulado (todas las
+  // transacciones).
   const [balanceView, setBalanceView] = useState<"month" | "total">("month")
   const monthTx = useMemo(() => transactions.filter((t) => t.date.startsWith(currentMonth)), [transactions, currentMonth])
   const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
@@ -184,165 +181,159 @@ export function OverviewSection({
 
   return (
     <div className="space-y-5">
-      {preview && (
-        <p className="text-xs leading-snug" style={{ color: "oklch(0.22 0.05 150 / 88%)" }}>
-          {t("overview.appSummary")}
-        </p>
-      )}
+      <p className="text-xs leading-snug" style={{ color: "oklch(0.22 0.05 150 / 88%)" }}>
+        {t("overview.appSummary")}
+      </p>
 
-      {preview && (
-        <button
-          type="button"
-          onClick={() => setBalanceView((v) => (v === "month" ? "total" : "month"))}
-          className="w-full rounded-2xl p-4 text-left transition-opacity active:opacity-80"
-          style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
-                {balanceView === "month" ? t("overview.monthBalanceLabel") : t("overview.totalBalanceLabel")}
-              </p>
-              <p className="mt-0.5 text-2xl font-bold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
-                {displayedBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(displayedBalance).toFixed(2)}
-              </p>
-            </div>
-            <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
-              {balanceView === "month"
-                ? daysLeftLabel
-                : `${transactions.length} ${transactions.length === 1 ? t("common.movement") : t("common.movements")}`}
+      <button
+        type="button"
+        onClick={() => setBalanceView((v) => (v === "month" ? "total" : "month"))}
+        className="w-full rounded-2xl p-4 text-left transition-opacity active:opacity-80"
+        style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}
+      >
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
+              {balanceView === "month" ? t("overview.monthBalanceLabel") : t("overview.totalBalanceLabel")}
+            </p>
+            <p className="mt-0.5 text-2xl font-bold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
+              {displayedBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(displayedBalance).toFixed(2)}
             </p>
           </div>
-        </button>
-      )}
+          <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+            {balanceView === "month"
+              ? daysLeftLabel
+              : `${transactions.length} ${transactions.length === 1 ? t("common.movement") : t("common.movements")}`}
+          </p>
+        </div>
+      </button>
 
-      {preview && (
-        <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
-          <div className="flex items-center gap-1.5">
-            <Target className="size-3.5" style={{ color: "oklch(0.16 0.05 150)" }} />
-            <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "oklch(0.16 0.05 150)" }}>
-              {t("overview.goalTitle")}
-            </span>
-          </div>
+      <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
+        <div className="flex items-center gap-1.5">
+          <Target className="size-3.5" style={{ color: "oklch(0.16 0.05 150)" }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "oklch(0.16 0.05 150)" }}>
+            {t("overview.goalTitle")}
+          </span>
+        </div>
 
-          {/* Resumen/progreso: siempre visible si hay objetivo, se edite o no. */}
-          {goal != null && (
-            <div className="mt-2">
-              <p className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
-                {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
-                {goal.deadline &&
-                  (goalDaysLeft !== null && goalDaysLeft < 0
-                    ? ` · ${t("overview.goalDeadlinePassed")}`
-                    : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
-              </p>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-sm font-bold tabular-nums" style={{ color: "oklch(0.16 0.05 150)" }}>
-                  {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
-                </span>
-                <span className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
-                  {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
-                </span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.16 0.05 150 / 20%)" }}>
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${goalPct}%`, background: "oklch(0.35 0.12 150)" }}
-                />
-              </div>
+        {/* Resumen/progreso: siempre visible si hay objetivo, se edite o no. */}
+        {goal != null && (
+          <div className="mt-2">
+            <p className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+              {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
+              {goal.deadline &&
+                (goalDaysLeft !== null && goalDaysLeft < 0
+                  ? ` · ${t("overview.goalDeadlinePassed")}`
+                  : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
+            </p>
+            <div className="mt-1 flex items-baseline justify-between">
+              <span className="text-sm font-bold tabular-nums" style={{ color: "oklch(0.16 0.05 150)" }}>
+                {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
+              </span>
+              <span className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+                {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
+              </span>
             </div>
-          )}
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.16 0.05 150 / 20%)" }}>
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${goalPct}%`, background: "oklch(0.35 0.12 150)" }}
+              />
+            </div>
+          </div>
+        )}
 
-          {/* Igual que el desplegable de descripción en Añadir gasto/ingreso:
-              un botón con flecha que abre y cierra el formulario, así se
-              puede mirar/cerrar sin tener que guardar ni quitar nada. */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!editingGoal) startEditingGoal()
-              else setEditingGoal(false)
-            }}
-            className="mt-2 flex items-center gap-1 text-xs font-semibold transition-colors"
-            style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
-          >
-            <ChevronDown className={`size-3 transition-transform ${editingGoal ? "rotate-180" : ""}`} />
-            {editingGoal ? t("overview.goalHideForm") : goal != null ? t("overview.goalEdit") : t("overview.goalSet")}
-          </button>
+        {/* Igual que el desplegable de descripción en Añadir gasto/ingreso:
+            un botón con flecha que abre y cierra el formulario, así se
+            puede mirar/cerrar sin tener que guardar ni quitar nada. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!editingGoal) startEditingGoal()
+            else setEditingGoal(false)
+          }}
+          className="mt-2 flex items-center gap-1 text-xs font-semibold transition-colors"
+          style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+        >
+          <ChevronDown className={`size-3 transition-transform ${editingGoal ? "rotate-180" : ""}`} />
+          {editingGoal ? t("overview.goalHideForm") : goal != null ? t("overview.goalEdit") : t("overview.goalSet")}
+        </button>
 
-          {editingGoal && (
-            <div className="mt-2 space-y-2">
+        {editingGoal && (
+          <div className="mt-2 space-y-2">
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              autoFocus
+              value={goalInput}
+              onChange={(e) => setGoalInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveGoal()}
+              placeholder={t("overview.goalPlaceholder")}
+              // text-base (16px): por debajo de 16px, Safari en iOS hace
+              // zoom automático de toda la página al enfocar el campo —
+              // "text-base" evita ese zoom (en pantallas grandes baja a
+              // 14px con md:text-sm, donde el zoom de iOS no aplica).
+              className="h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
+              style={{ color: "oklch(0.16 0.05 150)" }}
+            />
+
+            <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(1 0 0 / 35%)" }}>
+              {(["month", "total"] as GoalPeriod[]).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setGoalPeriodInput(p)}
+                  className="flex-1 rounded py-1 text-xs font-semibold transition-colors"
+                  style={
+                    goalPeriodInput === p
+                      ? { background: "oklch(0.2 0.05 150)", color: "oklch(0.98 0.01 150)" }
+                      : { color: "oklch(0.2 0.05 150 / 85%)" }
+                  }
+                >
+                  {p === "month" ? t("overview.thisMonth") : t("overview.goalPeriodTotal")}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 85%)" }}>
+                {t("overview.goalDeadlineLabel")}
+              </label>
               <input
-                type="number"
-                min="0"
-                inputMode="decimal"
-                autoFocus
-                value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && saveGoal()}
-                placeholder={t("overview.goalPlaceholder")}
-                // text-base (16px): por debajo de 16px, Safari en iOS hace
-                // zoom automático de toda la página al enfocar el campo —
-                // "text-base" evita ese zoom (en pantallas grandes baja a
-                // 14px con md:text-sm, donde el zoom de iOS no aplica).
-                className="h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
+                type="date"
+                min={today}
+                value={goalDeadlineInput}
+                onChange={(e) => setGoalDeadlineInput(e.target.value)}
+                className="mt-1 h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
                 style={{ color: "oklch(0.16 0.05 150)" }}
               />
-
-              <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(1 0 0 / 35%)" }}>
-                {(["month", "total"] as GoalPeriod[]).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setGoalPeriodInput(p)}
-                    className="flex-1 rounded py-1 text-xs font-semibold transition-colors"
-                    style={
-                      goalPeriodInput === p
-                        ? { background: "oklch(0.2 0.05 150)", color: "oklch(0.98 0.01 150)" }
-                        : { color: "oklch(0.2 0.05 150 / 85%)" }
-                    }
-                  >
-                    {p === "month" ? t("overview.thisMonth") : t("overview.goalPeriodTotal")}
-                  </button>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 85%)" }}>
-                  {t("overview.goalDeadlineLabel")}
-                </label>
-                <input
-                  type="date"
-                  min={today}
-                  value={goalDeadlineInput}
-                  onChange={(e) => setGoalDeadlineInput(e.target.value)}
-                  className="mt-1 h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
-                  style={{ color: "oklch(0.16 0.05 150)" }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                {/* Quita el objetivo directamente, sin necesidad de guardar. */}
-                {goal != null ? (
-                  <button
-                    onClick={removeGoal}
-                    className="text-xs font-semibold underline-offset-2 hover:underline"
-                    style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
-                  >
-                    {t("overview.goalRemove")}
-                  </button>
-                ) : (
-                  <span />
-                )}
-                <button
-                  onClick={saveGoal}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-white"
-                  style={{ backgroundColor: "oklch(0.3 0.1 150)" }}
-                >
-                  {t("common.save")}
-                </button>
-              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            <div className="flex items-center justify-between gap-2">
+              {/* Quita el objetivo directamente, sin necesidad de guardar. */}
+              {goal != null ? (
+                <button
+                  onClick={removeGoal}
+                  className="text-xs font-semibold underline-offset-2 hover:underline"
+                  style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+                >
+                  {t("overview.goalRemove")}
+                </button>
+              ) : (
+                <span />
+              )}
+              <button
+                onClick={saveGoal}
+                className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-white"
+                style={{ backgroundColor: "oklch(0.3 0.1 150)" }}
+              >
+                {t("common.save")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <button
         onClick={onAddExpense}
