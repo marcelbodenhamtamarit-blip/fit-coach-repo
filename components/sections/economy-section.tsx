@@ -89,15 +89,6 @@ const CATEGORY_COLOR: Record<string, string> = {
   Otros: "#8a8a93",
 }
 
-interface WeeklyCategory {
-  category: string
-  total: number
-  count: number
-  history: { week: number; total: number }[]
-  trend: number | null
-  transactions: Transaction[]
-}
-
 interface CategoryGroup {
   category: string
   net: number
@@ -127,7 +118,6 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const [showForm, setShowForm] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
-  const [expandedSpendCat, setExpandedSpendCat] = useState<string | null>(null)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
