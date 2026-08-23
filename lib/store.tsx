@@ -31,6 +31,7 @@ import {
   type MealIngredientRow,
   type RecurringTransactionRow,
 } from "./supabase"
+import { useAuth } from "./use-auth"
 
 const SUPERMARKET_CATEGORIES = ["Supermercado", "Comida Supermercado", "MENJAR SUPER", "COMIDA SUPER", "Menjar super", "Menjar SUPER"]
 
@@ -59,7 +60,7 @@ function getWeekStart(date: Date): Date {
 function currentPeriodKey(frequency: RecurringFrequency): string {
   const today = todayISO()
   if (frequency === "weekly") {
-    const weekNumber = getWeekNumber(new Date(today + "T00:00:00"))
+    const weekNumber = getWeekNumberFromISO ? getWeekNumberFromISO(today) : getWeekNumber(new Date(today + "T00:00:00"))
     return `${today.slice(0, 4)}-W${weekNumber}`
   }
   return today.slice(0, 7)
@@ -401,6 +402,7 @@ type StoreContextType = {
 const StoreContext = createContext<StoreContextType | undefined>(undefined)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { mode, user } = useAuth()
   const [data, setData] = useState<AppData>(EMPTY_DATA)
   const [ready, setReady] = useState(false)
   const [weeklySupermarket, setWeeklySupermarket] = useState<WeeklySupermarketState>({
@@ -458,8 +460,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return created
   }
 
-  // Load everything from Supabase on mount
+  // Load everything from Supabase una vez que useAuth() confirma la sesión
+  // (mode === "in"). Antes esto se disparaba nada más montar el
+  // componente, sin esperar a que se restaurase la sesión guardada — al
+  // recargar la página, Supabase tarda un poco en recuperarla de forma
+  // asíncrona, así que esta carga a veces se adelantaba y llamaba a
+  // fetchUserPreferences() (y al resto de fetch*) sin usuario todavía
+  // disponible, devolviendo los valores por defecto (AUD, es...) en vez de
+  // los guardados — y como el efecto solo se ejecutaba una vez al montar,
+  // nunca se reintentaba, así que la app se quedaba con esos valores por
+  // defecto hasta el siguiente recargado (donde podía volver a pasar lo
+  // mismo). Ahora se espera a que useAuth() confirme sesión antes de pedir
+  // nada, y se vuelve a cargar si cambia de usuario (login/logout).
   useEffect(() => {
+    if (mode !== "in") {
+      if (mode === "out") {
+        setData(EMPTY_DATA)
+        setReady(false)
+      }
+      return
+    }
+
     let cancelled = false
 
     async function load() {
@@ -494,7 +515,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [mode, user?.id])
 
   const refreshTransactions = async () => {
     const transactions = await fetchTransactions()
