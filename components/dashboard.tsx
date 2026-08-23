@@ -6,7 +6,6 @@ import {
   Settings,
   Dumbbell,
   Wallet,
-  CalendarDays,
   RotateCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -14,8 +13,6 @@ import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-// Diario desactivado (no se usa). Reactivar: descomentar estas 4 lineas marcadas "Diario".
-// DIARIO desactivado: import { DiarioSection } from "@/components/sections/diario-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
@@ -44,7 +41,7 @@ export function Dashboard() {
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
-  const { data, ready, t } = useStore()
+  const { ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
 
   // Fondo con degradado: en vez de "background-attachment: fixed" (poco
@@ -57,19 +54,20 @@ export function Dashboard() {
   // contenido en una capa hija que scrollea por dentro. Así el color de
   // fondo nunca depende de repintados raros del navegador: sencillamente no
   // se mueve nunca de sitio.
+  // Verde más oscuro/intenso (antes empezaba en un verde lima muy claro):
+  // ahora arranca en un verde bosque y se mantiene más rato antes de pasar
+  // al degradado neutro oscuro de abajo.
   const BACKGROUND_GRADIENT =
-    "linear-gradient(to bottom, oklch(0.85 0.19 135) 0%, oklch(0.78 0.17 138) 8%, oklch(0.55 0.10 150) 24%, oklch(0.30 0.03 220) 40%, oklch(0.16 0.012 250) 56%, oklch(0.16 0.012 250) 100%)"
+    "linear-gradient(to bottom, oklch(0.68 0.17 145) 0%, oklch(0.56 0.15 148) 10%, oklch(0.40 0.10 152) 28%, oklch(0.26 0.05 190) 44%, oklch(0.16 0.012 250) 60%, oklch(0.16 0.012 250) 100%)"
 
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
-    // DIARIO desactivado:  // Diario: { id: "diario", label: "Diario", icon: CalendarDays },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
 
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
-    // DIARIO desactivado:  // Diario: diario: "Diario",
     economy: t("nav.economy"),
     settings: t("nav.settings"),
   }
@@ -119,7 +117,7 @@ export function Dashboard() {
                 key={tab.id}
                 onClick={() => setActive(tab.id)}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                   isActive
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
@@ -127,9 +125,12 @@ export function Dashboard() {
               >
                 <Icon className="size-4 shrink-0" />
                 {tab.label}
-                {isActive && (
-                  <span className="ml-auto size-1.5 rounded-full bg-primary" />
-                )}
+                <span
+                  className={cn(
+                    "ml-auto size-1.5 rounded-full bg-primary transition-all duration-200",
+                    isActive ? "scale-100 opacity-100" : "scale-0 opacity-0",
+                  )}
+                />
               </button>
             )
           })}
@@ -175,14 +176,17 @@ export function Dashboard() {
               {t("common.loadingData")}
             </div>
           ) : (
-            <>
+            // key={active}: al cambiar de pestaña React desmonta y vuelve a
+            // montar este div, lo que reinicia la animación de entrada
+            // (tw-animate-css) cada vez — un fundido + deslizamiento sutil en
+            // vez de un cambio seco.
+            <div key={active} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
               {active === "overview" && (
                 <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
               )}
-              {/* DIARIO desactivado: activeTab === "diario" && <DiarioSection /> */}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
               {active === "settings" && <SettingsSection />}
-            </>
+            </div>
           )}
         </main>
       </div>
@@ -197,8 +201,8 @@ export function Dashboard() {
               key={tab.id}
               onClick={() => setActive(tab.id)}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-colors",
-                isActive ? "text-primary" : "text-muted-foreground",
+                "flex flex-1 flex-col items-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-all duration-200 active:scale-95",
+                isActive ? "bg-primary/10 text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className="size-5" />
