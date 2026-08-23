@@ -302,8 +302,7 @@ const TAP_TO_PAY_STEPS = [
 ] as const
 
 function QuickAddShortcutCard() {
-  const { data, t } = useStore()
-  const lang = (data.language as Language) ?? "es"
+  const { t } = useStore()
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedField, setCopiedField] = useState<"token" | "url" | null>(null)
