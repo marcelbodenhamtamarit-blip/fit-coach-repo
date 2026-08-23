@@ -60,7 +60,7 @@ function getWeekStart(date: Date): Date {
 function currentPeriodKey(frequency: RecurringFrequency): string {
   const today = todayISO()
   if (frequency === "weekly") {
-    const weekNumber = getWeekNumberFromISO ? getWeekNumberFromISO(today) : getWeekNumber(new Date(today + "T00:00:00"))
+    const weekNumber = getWeekNumber(new Date(today + "T00:00:00"))
     return `${today.slice(0, 4)}-W${weekNumber}`
   }
   return today.slice(0, 7)
