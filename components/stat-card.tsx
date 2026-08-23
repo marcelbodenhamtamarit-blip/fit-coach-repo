@@ -6,12 +6,8 @@ type StatCardProps = {
   icon: LucideIcon
   label: string
   value: string
-  unit?: string
   sub?: string
   accent?: "primary" | "blue" | "amber" | "pink" | "teal" | "lime" | "rose" | "green" | "red"
-  // "light": variante clara (fondo casi blanco, texto oscuro) para cuando
-  // la tarjeta va sobre un fondo con degradado — ver lib/design-preview.ts.
-  variant?: "default" | "light"
 }
 
 const accentMap: Record<NonNullable<StatCardProps["accent"]>, string> = {
@@ -30,23 +26,13 @@ export function StatCard({
   icon: Icon,
   label,
   value,
-  unit,
   sub,
   accent = "primary",
-  variant = "default",
 }: StatCardProps) {
-  const isLight = variant === "light"
   return (
-    <Card
-      className={cn(
-        "gap-0 p-4",
-        isLight && "bg-[oklch(0.97_0.006_250)] text-[oklch(0.2_0.01_250)] ring-0 shadow-sm",
-      )}
-    >
+    <Card className="gap-0 p-4">
       <div className="flex items-center justify-between">
-        <span className={cn("text-xs font-medium", isLight ? "text-[oklch(0.45_0.01_250)]" : "text-muted-foreground")}>
-          {label}
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <span
           className={cn(
             "flex size-8 items-center justify-center rounded-lg",
@@ -57,12 +43,9 @@ export function StatCard({
         </span>
       </div>
       <div className="mt-3 flex items-baseline gap-1">
-        <span className={cn("text-2xl font-semibold tabular-nums", isLight && "text-[oklch(0.2_0.01_250)]")}>{value}</span>
-        {unit && (
-          <span className={cn("text-sm", isLight ? "text-[oklch(0.45_0.01_250)]" : "text-muted-foreground")}>{unit}</span>
-        )}
+        <span className="text-2xl font-semibold tabular-nums">{value}</span>
       </div>
-      {sub && <p className={cn("mt-1 text-xs", isLight ? "text-[oklch(0.5_0.01_250)]" : "text-muted-foreground")}>{sub}</p>}
+      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </Card>
   )
 }
