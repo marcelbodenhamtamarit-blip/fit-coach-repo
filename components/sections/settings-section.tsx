@@ -319,12 +319,29 @@ const NOTIFICATION_AUTO_STEPS = [
   { icon: CheckCircle2, titleKey: "settings.notifAutoStep5Title", descKey: "settings.notifAutoStep5" },
 ] as const
 
+// Formato relativo simple ("hace 5 min", "hace 3 h", "hace 2 días") para el
+// aviso de "último uso" — no hace falta más precisión que esa para que
+// alguien note un uso raro de su código.
+function formatRelativeTime(iso: string, locale: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffMin = Math.round(diffMs / 60000)
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+  if (diffMin < 1) return rtf.format(0, "minute")
+  if (diffMin < 60) return rtf.format(-diffMin, "minute")
+  const diffHours = Math.round(diffMin / 60)
+  if (diffHours < 24) return rtf.format(-diffHours, "hour")
+  const diffDays = Math.round(diffHours / 24)
+  return rtf.format(-diffDays, "day")
+}
+
 function QuickAddShortcutCard() {
-  const { t } = useStore()
+  const { t, data } = useStore()
+  const lang = (data.language as string) ?? "es"
   const { user } = useAuth()
   // Guía de detección automática al pagar: en pruebas, ver lib/beta.ts.
   const notifAutoBetaEnabled = isBetaUser(user?.email)
   const [token, setToken] = useState<string | null>(null)
+  const [lastUsedAt, setLastUsedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [copiedField, setCopiedField] = useState<"token" | "url" | "notifUrl" | null>(null)
   const [regenerating, setRegenerating] = useState(false)
@@ -347,7 +364,7 @@ function QuickAddShortcutCard() {
 
       const { data } = await supabase
         .from("quick_add_tokens")
-        .select("token")
+        .select("token, last_used_at")
         .eq("user_id", userId)
         .maybeSingle()
 
@@ -355,6 +372,7 @@ function QuickAddShortcutCard() {
 
       if (data?.token) {
         setToken(data.token)
+        setLastUsedAt(data.last_used_at ?? null)
         setLoading(false)
         return
       }
@@ -362,11 +380,12 @@ function QuickAddShortcutCard() {
       const { data: inserted } = await supabase
         .from("quick_add_tokens")
         .insert({ user_id: userId })
-        .select("token")
+        .select("token, last_used_at")
         .single()
 
       if (!cancelled) {
         if (inserted?.token) setToken(inserted.token)
+        setLastUsedAt(inserted?.last_used_at ?? null)
         setLoading(false)
       }
     }
@@ -389,15 +408,20 @@ function QuickAddShortcutCard() {
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")
 
+    // last_used_at se resetea a mano: es un código nuevo, así que el
+    // "último uso" del anterior ya no pinta nada aquí.
     const { data } = await supabase
       .from("quick_add_tokens")
-      .update({ token: newToken })
+      .update({ token: newToken, last_used_at: null })
       .eq("user_id", userId)
-      .select("token")
+      .select("token, last_used_at")
       .single()
 
     setRegenerating(false)
-    if (data?.token) setToken(data.token)
+    if (data?.token) {
+      setToken(data.token)
+      setLastUsedAt(data.last_used_at ?? null)
+    }
   }
 
   function copy(value: string, field: "token" | "url" | "notifUrl") {
@@ -484,6 +508,9 @@ function QuickAddShortcutCard() {
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">{t("settings.regenHint")}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {lastUsedAt ? t("settings.lastUsed", { when: formatRelativeTime(lastUsedAt, lang) }) : t("settings.lastUsedNever")}
+          </p>
 
           <button
             type="button"
