@@ -372,18 +372,20 @@ export const TRANSLATIONS = {
     en: "If someone using ZentOS is still on iOS 26 or earlier, Shortcuts won't offer them the \"Notification\" trigger — for those accounts, the \"pay with card\" (Apple Pay) shortcut above is still the best option: it needs one tap to confirm, but works on any version.",
   },
 
-  // Navegación: Automatizaciones
-  "nav.automations": { es: "Automatizaciones", en: "Automations" },
+  // Recordatorios (antes una pestaña de navegación propia "Automatizaciones";
+  // ahora vive como un apartado desplegable más dentro de Ajustes).
+  "settings.remindersTitle": { es: "Recordatorios", en: "Reminders" },
 
-  // Automatizaciones
+  // Recordatorios (antes "Automatizaciones" — mismo sistema por dentro,
+  // solo cambia cómo se llama y dónde vive de cara al usuario)
   "automations.subtitle": {
     es: "Recordatorios y alertas propias, tipo Atajos: eliges cuándo (o bajo qué condición) y qué avisos recibir.",
     en: "Your own reminders and alerts, Shortcuts-style: choose when (or under what condition) and what to be notified about.",
   },
   "automations.pushCardTitle": { es: "Notificaciones del sistema", en: "System notifications" },
   "automations.pushCardDescOn": {
-    es: "Activadas en este dispositivo. Las automatizaciones con acción \"Notificación\" te avisarán aunque tengas la app cerrada.",
-    en: "Enabled on this device. Automations with the \"Notification\" action will reach you even with the app closed.",
+    es: "Activadas en este dispositivo. Los recordatorios con acción \"Notificación\" te avisarán aunque tengas la app cerrada.",
+    en: "Enabled on this device. Reminders with the \"Notification\" action will reach you even with the app closed.",
   },
   "automations.pushCardDescOff": {
     es: "Actívalas para recibir avisos del sistema aunque no tengas la app abierta. En iPhone, instala primero la app en la pantalla de inicio (Compartir → Añadir a pantalla de inicio).",
@@ -401,14 +403,14 @@ export const TRANSLATIONS = {
     es: "Permiso de notificaciones denegado. Actívalo desde los ajustes del navegador/sistema.",
     en: "Notification permission denied. Enable it from your browser/system settings.",
   },
-  "automations.empty": { es: "Aún no tienes ninguna automatización.", en: "You don't have any automations yet." },
+  "automations.empty": { es: "Aún no tienes ningún recordatorio.", en: "You don't have any reminders yet." },
   "automations.emptyHint": {
-    es: "Crea la primera con el botón de abajo: un recordatorio programado o una alerta cuando algo pase en tu Economía.",
+    es: "Crea el primero con el botón de abajo: un recordatorio programado o una alerta cuando algo pase en tu Economía.",
     en: "Create your first one below: a scheduled reminder, or an alert when something happens in your finances.",
   },
-  "automations.addNew": { es: "Nueva automatización", en: "New automation" },
-  "automations.dialogTitleNew": { es: "Nueva automatización", en: "New automation" },
-  "automations.dialogTitleEdit": { es: "Editar automatización", en: "Edit automation" },
+  "automations.addNew": { es: "Nuevo recordatorio", en: "New reminder" },
+  "automations.dialogTitleNew": { es: "Nuevo recordatorio", en: "New reminder" },
+  "automations.dialogTitleEdit": { es: "Editar recordatorio", en: "Edit reminder" },
   "automations.name": { es: "Nombre", en: "Name" },
   "automations.namePlaceholder": { es: "Ej: Revisar gastos del lunes", en: "E.g. Monday expense check-in" },
   "automations.triggerType": { es: "Disparador", en: "Trigger" },
@@ -443,7 +445,7 @@ export const TRANSLATIONS = {
   "automations.messageTitlePlaceholder": { es: "Ej: Revisa tus gastos", en: "E.g. Check your expenses" },
   "automations.messageBody": { es: "Mensaje", en: "Message" },
   "automations.messageBodyPlaceholder": { es: "Ej: Han pasado 7 días, échale un ojo a la Economía.", en: "E.g. It's been a week — take a look at your finances." },
-  "automations.save": { es: "Guardar automatización", en: "Save automation" },
+  "automations.save": { es: "Guardar recordatorio", en: "Save reminder" },
   "automations.testNow": { es: "Probar ahora", en: "Test now" },
   "automations.testSent": { es: "Enviada.", en: "Sent." },
   "automations.active": { es: "Activa", en: "Active" },
