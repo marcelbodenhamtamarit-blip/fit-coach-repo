@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,6 +21,9 @@ import {
   Bell,
   Link2,
   CheckCircle2,
+  ChevronDown,
+  Zap,
+  MessageSquare,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CURRENCIES } from "@/lib/types"
@@ -28,8 +31,100 @@ import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/use-auth"
 import { isBetaUser } from "@/lib/beta"
 import { LANGUAGES, type Language } from "@/lib/i18n"
+import { RemindersCard } from "@/components/sections/automations-section"
 
 export function SettingsSection() {
+  const { t } = useStore()
+  const { user } = useAuth()
+  // Recordatorios en pruebas: solo visible para quien esté en lib/beta.ts
+  // mientras se valida con un grupo pequeño (antes esto decidía si se
+  // mostraba la pestaña "Automatizaciones" en dashboard.tsx; ahora decide si
+  // se muestra este apartado desplegable). Cuando se decida abrirlo a todo
+  // el mundo, basta con cambiar esa lista — ver el comentario ahí.
+  const remindersBetaEnabled = isBetaUser(user?.email)
+
+  return (
+    <div className="max-w-2xl space-y-3">
+      <AccountCard />
+
+      <CollapsibleCard icon={SlidersHorizontal} title={t("settings.preferences")} description={t("settings.preferencesDesc")}>
+        <PreferencesCard />
+      </CollapsibleCard>
+
+      <CollapsibleCard icon={Plane} title={t("settings.travelMode")} description={t("settings.travelModeDesc")}>
+        <TravelModeCard />
+      </CollapsibleCard>
+
+      {remindersBetaEnabled && (
+        <CollapsibleCard icon={Zap} title={t("settings.remindersTitle")} description={t("automations.subtitle")}>
+          <RemindersCard />
+        </CollapsibleCard>
+      )}
+
+      <CollapsibleCard icon={Watch} title={t("settings.shortcutTitle")} description={t("settings.shortcutDesc")}>
+        <QuickAddShortcutCard />
+      </CollapsibleCard>
+
+      <CollapsibleCard icon={MessageSquare} title={t("settings.feedback")} description={t("settings.feedbackDesc")}>
+        <FeedbackCard />
+      </CollapsibleCard>
+
+      <p className="pb-2 text-center text-[11px] text-muted-foreground">
+        ZentOS · {t("app.tagline")}
+      </p>
+    </div>
+  )
+}
+
+// Apartado desplegable genérico de Ajustes: un título con icono (siempre
+// visible, para saber qué hay dentro sin tener que abrirlo) que al tocarlo
+// muestra/oculta su contenido. Casi todo Ajustes se construye encadenando
+// varios de estos — la única excepción es AccountCard, que se deja siempre
+// visible por ser corta y por servir de identificación de la cuenta activa,
+// no un ajuste que haya que "abrir".
+function CollapsibleCard({
+  icon: Icon,
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  icon: typeof SlidersHorizontal
+  title: string
+  description?: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <Card className="overflow-hidden p-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/30"
+      >
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Icon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>}
+        </div>
+        <ChevronDown
+          className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && <div className="border-t border-border p-4">{children}</div>}
+    </Card>
+  )
+}
+
+// Caja de feedback: vive en su propio componente (igual que el resto de
+// tarjetas de Ajustes) para llevar su propio estado, en vez de vivir suelta
+// dentro de SettingsSection como antes.
+function FeedbackCard() {
   const { t } = useStore()
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
@@ -53,35 +148,19 @@ export function SettingsSection() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <AccountCard />
-
-      <PreferencesCard />
-
-      <TravelModeCard />
-
-      <QuickAddShortcutCard />
-
-      <Card className="p-6">
-        <h3 className="mb-1 text-sm font-semibold">{t("settings.feedback")}</h3>
-        <p className="mb-3 text-xs text-muted-foreground">{t("settings.feedbackDesc")}</p>
-        <Textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder={t("settings.feedbackPlaceholder")}
-          rows={4}
-          className="text-sm"
-        />
-        {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
-        {sent && <p className="mt-2 text-xs text-emerald-500">{t("settings.feedbackSent")}</p>}
-        <Button onClick={sendFeedback} disabled={sending || !message.trim()} className="mt-3">
-          {sending ? t("settings.sending") : t("settings.send")}
-        </Button>
-      </Card>
-
-      <p className="pb-2 text-center text-[11px] text-muted-foreground">
-        ZentOS · {t("app.tagline")}
-      </p>
+    <div>
+      <Textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder={t("settings.feedbackPlaceholder")}
+        rows={4}
+        className="text-sm"
+      />
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {sent && <p className="mt-2 text-xs text-emerald-500">{t("settings.feedbackSent")}</p>}
+      <Button onClick={sendFeedback} disabled={sending || !message.trim()} className="mt-3">
+        {sending ? t("settings.sending") : t("settings.send")}
+      </Button>
     </div>
   )
 }
@@ -147,13 +226,7 @@ function PreferencesCard() {
   }
 
   return (
-    <Card className="p-6">
-      <div className="mb-1 flex items-center gap-2">
-        <SlidersHorizontal className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">{t("settings.preferences")}</h3>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">{t("settings.preferencesDesc")}</p>
-
+    <div>
       <div className="divide-y divide-border rounded-lg border border-border">
         <div className="p-3">
           <p className="text-sm font-medium">{t("settings.homeCurrency")}</p>
@@ -191,7 +264,7 @@ function PreferencesCard() {
           {savedField === "language" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -215,12 +288,11 @@ function TravelModeCard() {
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Plane className="size-4 text-primary" />
-          <h3 className="text-sm font-semibold">{t("settings.travelMode")}</h3>
-        </div>
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">
+          {active ? t("settings.travelModeOn") : t("settings.travelModeOff")}
+        </p>
         <button
           type="button"
           role="switch"
@@ -235,7 +307,6 @@ function TravelModeCard() {
           <span className="size-5 rounded-full bg-white shadow" />
         </button>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{t("settings.travelModeDesc")}</p>
 
       {active && (
         <div className="mt-4">
@@ -254,7 +325,7 @@ function TravelModeCard() {
           </select>
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -448,17 +519,11 @@ function QuickAddShortcutCard() {
     : ""
 
   return (
-    <Card className="p-6">
-      <div className="mb-1 flex items-center gap-2">
-        <Watch className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">{t("settings.shortcutTitle")}</h3>
-      </div>
-      <p className="mb-4 text-xs text-muted-foreground">{t("settings.shortcutDesc")}</p>
-
+    <div>
       {loading ? (
         <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
       ) : (
-               <div className="space-y-4">
+        <div className="space-y-4">
           <a href={SHORTCUT_ICLOUD_URL} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
             <Download className="size-4" />
             {t("settings.installShortcut")}
@@ -621,6 +686,6 @@ function QuickAddShortcutCard() {
           )}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
