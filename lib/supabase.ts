@@ -86,6 +86,46 @@ export type MealRow = {
   created_at: string
 }
 
+export type AutomationRow = {
+  id: string
+  name: string
+  active: boolean
+  trigger_type: string
+  schedule_frequency: string | null
+  schedule_time: string | null
+  schedule_weekday: number | null
+  condition_metric: string | null
+  condition_operator: string | null
+  condition_value: number | null
+  condition_category: string | null
+  condition_cooldown_hours: number
+  action_type: string
+  message_title: string
+  message_body: string
+  last_triggered_at: string | null
+  created_at: string
+}
+
+export type AutomationEventRow = {
+  id: string
+  automation_id: string | null
+  title: string
+  body: string
+  action_type: string
+  push_sent: boolean
+  popup_seen: boolean
+  created_at: string
+}
+
+export type PushSubscriptionRow = {
+  id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent: string | null
+  created_at: string
+}
+
 export type MealIngredientRow = {
   id: string
   meal_id: string

@@ -12,6 +12,7 @@ const supabase = createClient(
 
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 import { convertAmount } from "@/lib/exchange-rates"
+import { sendPushToUser } from "@/lib/send-push.server"
 
 function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
@@ -109,6 +110,12 @@ async function handle(req: NextRequest) {
 
   let amountRaw = Number(body.amount)
   let sourceText = ""
+  // true cuando el importe salió de leer el texto de una notificación
+  // (disparador "Notificación" de Atajos, iOS 27+), no de un campo `amount`
+  // explícito — es decir, el caso 100% silencioso sin pantalla de
+  // confirmación. Se usa más abajo para avisar por push del sistema, ya
+  // que aquí no hay ninguna pantalla de ZentOS que muestre el "Guardado".
+  let detectedFromNotificationText = false
 
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
     const notifTitle = typeof body.title === "string" ? body.title : ""
@@ -124,6 +131,7 @@ async function handle(req: NextRequest) {
         .replace(/,(?=\d{2}$)/, ".")
         .replace(/,(?=\d{3})/g, "")
       amountRaw = Number(cleaned)
+      detectedFromNotificationText = true
     }
   }
 
@@ -274,10 +282,35 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Confirmación por notificación push: solo para el camino 100% silencioso
+  // (disparador "Notificación" de Atajos leyendo el aviso del banco/Wallet,
+  // sin ninguna pantalla de ZentOS de por medio) — el alta manual desde
+  // /quick-add o /quick-confirm ya muestra su propio "Guardado" en
+  // pantalla, así que ahí no hace falta duplicar el aviso. Si el usuario no
+  // tiene notificaciones activadas (o el envío falla), no rompe el alta:
+  // la transacción ya quedó guardada de todas formas.
+  if (detectedFromNotificationText && data && data.length > 0) {
+    const first = data[0] as { amount: number; description: string; category: string }
+    const total = data.reduce((sum: number, r: { amount: number }) => sum + Number(r.amount), 0)
+    const sign = total < 0 ? "-" : "+"
+    const summary = `${first.description} · ${first.category} · ${sign}$${Math.abs(total).toFixed(2)}`
+    try {
+      await sendPushToUser(supabase, ownerUserId, {
+        title: "Gasto detectado",
+        body: summary,
+        url: "/",
+        tag: "zentos-quick-transaction",
+      })
+    } catch (err) {
+      console.error("[quick-transaction] error enviando confirmación push:", err)
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     transaction: data?.[0] ?? null,
     transactions: data,
+    pushConfirmationSent: detectedFromNotificationText,
   })
 }
 

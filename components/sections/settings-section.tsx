@@ -18,11 +18,15 @@ import {
   CreditCard,
   PlayCircle,
   BellOff,
+  Bell,
+  Link2,
+  CheckCircle2,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/use-auth"
+import { isBetaUser } from "@/lib/beta"
 import { LANGUAGES, type Language } from "@/lib/i18n"
 
 export function SettingsSection() {
@@ -301,15 +305,33 @@ const TAP_TO_PAY_STEPS = [
   { icon: BellOff, titleKey: "settings.tapToPayStep5Title", descKey: "settings.tapToPayStep5" },
 ] as const
 
+// Disparador "Notificación" de Atajos (iOS 27+): lee el aviso de pago del
+// banco/Wallet solo y registra el gasto sin abrir nada en pantalla — el
+// paso siguiente natural del Tap-to-Pay de arriba, para quien ya tenga
+// acceso a este disparador. Quien siga en iOS 26 o anterior no lo verá en
+// la app Atajos todavía; para esas cuentas sigue siendo mejor el atajo de
+// Apple Pay de arriba (pide un toque, pero funciona en cualquier versión).
+const NOTIFICATION_AUTO_STEPS = [
+  { icon: Smartphone, titleKey: "settings.notifAutoStep1Title", descKey: "settings.notifAutoStep1" },
+  { icon: Bell, titleKey: "settings.notifAutoStep2Title", descKey: "settings.notifAutoStep2" },
+  { icon: Link2, titleKey: "settings.notifAutoStep3Title", descKey: "settings.notifAutoStep3" },
+  { icon: BellOff, titleKey: "settings.notifAutoStep4Title", descKey: "settings.notifAutoStep4" },
+  { icon: CheckCircle2, titleKey: "settings.notifAutoStep5Title", descKey: "settings.notifAutoStep5" },
+] as const
+
 function QuickAddShortcutCard() {
   const { t } = useStore()
+  const { user } = useAuth()
+  // Guía de detección automática al pagar: en pruebas, ver lib/beta.ts.
+  const notifAutoBetaEnabled = isBetaUser(user?.email)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [copiedField, setCopiedField] = useState<"token" | "url" | null>(null)
+  const [copiedField, setCopiedField] = useState<"token" | "url" | "notifUrl" | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [origin, setOrigin] = useState("")
   const [showManual, setShowManual] = useState(false)
   const [showTapToPay, setShowTapToPay] = useState(false)
+  const [showNotificationAuto, setShowNotificationAuto] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin)
@@ -378,7 +400,7 @@ function QuickAddShortcutCard() {
     if (data?.token) setToken(data.token)
   }
 
-  function copy(value: string, field: "token" | "url") {
+  function copy(value: string, field: "token" | "url" | "notifUrl") {
     navigator.clipboard.writeText(value)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 1500)
@@ -390,6 +412,16 @@ function QuickAddShortcutCard() {
   // final — ella sola pide la cantidad/categoría con una pantalla propia
   // de ZentOS en vez de encadenar varios popups nativos de Atajos.
   const apiUrl = origin ? `${origin}/quick-confirm` : ""
+
+  // Para el disparador "Notificación" de Atajos (iOS 27+): el atajo llama
+  // directo a la API con GET, pasando el texto de la notificación como
+  // título/subtítulo/cuerpo — nada de abrir /quick-confirm, así que no hay
+  // pantalla que confirmar a mano. /api/quick-transaction ya sabe extraer
+  // el importe de ese texto con una expresión regular (ver el código) y,
+  // si lo consigue, manda una notificación push de confirmación sola.
+  const notifAutoUrl = origin
+    ? `${origin}/api/quick-transaction?token=TU_CODIGO&title=[Título]&subtitle=[Subtítulo]&body=[Cuerpo]`
+    : ""
 
   return (
     <Card className="p-6">
@@ -501,6 +533,63 @@ function QuickAddShortcutCard() {
                 </div>
               ))}
             </div>
+          </div>
+          )}
+
+          {notifAutoBetaEnabled && (
+          <button
+            type="button"
+            onClick={() => setShowNotificationAuto((v) => !v)}
+            className="text-xs font-medium text-primary underline underline-offset-2"
+          >
+            {showNotificationAuto ? t("settings.hideNotifAuto") : t("settings.showNotifAuto")}
+          </button>
+          )}
+
+          {notifAutoBetaEnabled && showNotificationAuto && (
+          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
+            <p className="mb-1 font-medium text-foreground">{t("settings.notifAutoTitle")}</p>
+            <p className="mb-4">{t("settings.notifAutoNote")}</p>
+            <div>
+              {NOTIFICATION_AUTO_STEPS.map((step, i) => (
+                <div key={step.titleKey} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                      <step.icon className="size-4" />
+                    </div>
+                    {i < NOTIFICATION_AUTO_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
+                  </div>
+                  <div className={i < NOTIFICATION_AUTO_STEPS.length - 1 ? "pb-4" : ""}>
+                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {step.titleKey === "settings.notifAutoStep3Title" ? (
+                        <>
+                          {t(step.descKey)}
+                          <span className="mt-2 flex items-center gap-2">
+                            <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px]">
+                              {notifAutoUrl}
+                            </code>
+                            <Button
+                              size="icon-sm"
+                              variant="outline"
+                              onClick={() => copy(notifAutoUrl, "notifUrl")}
+                              aria-label={t("settings.copyUrl")}
+                            >
+                              {copiedField === "notifUrl" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                            </Button>
+                          </span>
+                        </>
+                      ) : (
+                        t(step.descKey)
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 rounded-md bg-amber-500/10 p-2.5 text-[11px] text-amber-500">
+              {t("settings.notifAutoOlderIos")}
+            </p>
           </div>
           )}
         </div>
