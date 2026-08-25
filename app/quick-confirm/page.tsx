@@ -7,6 +7,13 @@
 // /quick-confirm?token=TU_CODIGO — una sola apertura, una sola pantalla,
 // con la marca de ZentOS.
 //
+// Se pinta como una hoja/popup pegada abajo (fondo oscuro semitransparente
+// detrás + tarjeta con esquinas redondeadas solo arriba, deslizándose desde
+// abajo) en vez de ocupar toda la pantalla con el degradado verde: Safari
+// siempre abre a pantalla completa cuando Atajos ejecuta "Abrir URLs" (eso
+// no lo podemos cambiar), pero así se percibe como un popup pequeño que
+// aparece encima, no como si se hubiese abierto una página entera nueva.
+//
 // No usa lib/store.tsx ni useAuth a propósito: no hace falta tener sesión
 // iniciada en el Safari que abre el atajo (normalmente no la tiene). La
 // identidad viene del token personal (el mismo que ya se genera en
@@ -100,15 +107,14 @@ function QuickConfirmInner() {
   }
 
   return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center gap-6 overflow-hidden px-5 py-10"
-      style={{
-        background:
-          "linear-gradient(to bottom, oklch(0.62 0.16 145) 0%, oklch(0.48 0.13 150) 18%, oklch(0.30 0.07 175) 42%, oklch(0.17 0.015 250) 70%, oklch(0.17 0.015 250) 100%)",
-      }}
-    >
-      <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-300 ease-out">
-        <div className="rounded-3xl border border-white/10 bg-[#141416]/90 p-6 shadow-2xl backdrop-blur-md">
+    <div className="flex min-h-screen flex-col justify-end bg-black/55">
+      <div className="w-full animate-in slide-in-from-bottom duration-300 ease-out">
+        <div
+          className="mx-auto w-full max-w-sm rounded-t-3xl border-t border-white/10 bg-[#141416] p-6 shadow-2xl"
+          style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
+
           <div className="mb-5 text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/40">ZentOS</p>
             <h1 className="mt-1 text-base font-semibold text-white">Nuevo movimiento</h1>
