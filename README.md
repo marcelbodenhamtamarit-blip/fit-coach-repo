@@ -32,10 +32,35 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 
 At the start of each period (month or week, depending on the template), active templates automatically generate a real transaction on their configured pay day. `lib/store.tsx`'s `runRecurringGeneration` handles this and tracks `lastCreatedPeriod` per template to avoid duplicates; `components/recurring-review-dialog.tsx` shows a popup when the app is opened so the user can review what got created.
 
+## Automatizaciones (recordatorios y alertas, tipo Atajos de Apple)
+
+New nav tab **Automatizaciones** lets each user create their own rules — a trigger plus an action, à la Shortcuts automations:
+
+- **Trigger**: either a **schedule** (daily, or a specific weekday, at a fixed time) or a **condition** on their own finance data (`weekly_savings`, `monthly_expenses`, or `category_monthly_expenses`, compared with `<`/`≤`/`>`/`≥` against a value the user sets — e.g. "weekly savings below $50"). Condition alerts have a configurable cooldown (hours) so they don't re-fire nonstop while the condition stays true.
+- **Action**: a real **push notification** (Web Push API — reaches the device even with the app closed), an **in-app pop-up** (shown next time the app is opened, same pattern as the recurring-transactions review dialog), or both.
+
+Pieces involved:
+
+- `supabase-migrations/automations.sql` — `automations`, `automation_events` (fired history / pending pop-ups), `push_subscriptions` (one row per browser/device that enabled notifications). All RLS-scoped per user like the rest of the app.
+- `lib/automations-store.tsx` — a second provider (`AutomationsProvider`/`useAutomations()`), mounted next to `StoreProvider` in `app/page.tsx`, so Economía's code stays untouched.
+- `lib/push.ts` — client-side subscribe/unsubscribe to Web Push, backed by `public/sw.js` (a minimal service worker: only handles `push`/`notificationclick`, no offline caching).
+- `app/api/automations/evaluate` — the worker. Two ways to call it: (1) `?secret=CRON_SECRET` (or the `Authorization: Bearer <CRON_SECRET>` header Vercel Cron sends automatically) evaluates **every** active automation for **every** user — this is what the hourly cron in `vercel.json` hits; (2) a logged-in user's session token + `?automationId=...` force-fires one specific automation for themselves only, for the "Probar ahora" button, without touching its real schedule state.
+- `app/api/push/test` — session-authenticated "send me a test notification" endpoint.
+- `lib/send-push.server.ts` — shared server-only helper (uses the `web-push` npm package + the VAPID private key; self-prunes subscriptions the browser reports as gone).
+
+**Environment variables to add** (Vercel project settings): generate a VAPID key pair once with `npx web-push generate-vapid-keys`, then set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and pick your own `VAPID_SUBJECT` (a `mailto:` address) and `CRON_SECRET` (any random string).
+
+**Run the migration**: paste `supabase-migrations/automations.sql` into the Supabase SQL editor once, same as the other files in that folder.
+
+**iPhone**: Web Push needs iOS 16.4+ *and* the app installed to the home screen (Safari → Share → Add to Home Screen) — opened inside plain Safari, iOS doesn't expose the permission at all.
+
+**Vercel Cron on the free (Hobby) plan**: historically limited to once-a-day execution — check your plan's current limits in the Vercel dashboard. If hourly isn't available, either upgrade to Pro, or point a free external pinger (cron-job.org, EasyCron...) at `/api/automations/evaluate?secret=...` on whatever schedule you want; the endpoint doesn't care who calls it, only the secret.
+
 ## Supabase tables
 
 - `transactions` — income/expense entries (date, description, category, amount, week_number). Insert/update/delete from the Economía screen.
 - `recurring_transactions` — recurring templates (description, category, amount, active, frequency, `pay_day`, `last_created_month`). RLS-scoped per user.
+- `automations` / `automation_events` / `push_subscriptions` — see "Automatizaciones" above.
 - `feedback` — free-text messages from the Ajustes screen (`message`, timestamp). Write-only from the app's point of view; read by Marcel directly in Supabase.
 - `profile`, `pantry_items`, `meals`, `meal_ingredients`, `body_metrics` — leftover from an earlier fitness/nutrition-tracking version of the app, no longer written to or read by the current UI. Safe to ignore or drop later.
 
@@ -75,8 +100,8 @@ Worth doing if the goal is discoverability in the stores or features only native
 
 ## Bank expense import
 
-1. **Manual quick-add from iPhone (working now)**: `POST /api/quick-transaction`, used by an iOS Shortcut triggered from the "when I use this card" Wallet automation. Auth via `?secret=...` (or `secret` in the body, or an `Authorization: Bearer` header) checked against `QUICK_ADD_SECRET`. Body: `amount` (required), `description`, `category`, `type` ("gasto"/"ingreso"), `date`, plus optional `weekOffset`/`weeks` for scheduling a charge into a future week or splitting it across several.
-2. **iOS 27 automatic path (built, not active yet)**: same endpoint also accepts raw `title`/`subtitle`/`body` text from iOS 27's Notification automation trigger and extracts the amount via regex — no manual typing needed once the phone is updated past 26.5.2.
+1. **Manual quick-add from iPhone (working now)**: `POST`/`GET /api/quick-transaction`, used either by the shared iCloud Shortcut (`/quick-confirm?token=...`, per-user token, one small confirmation screen) or an iOS Shortcut triggered from the "when I use this card" Wallet automation (see the "Tap to Pay" guide in Ajustes). Auth via a per-user token (`quick_add_tokens`) or the legacy `?secret=...` checked against `QUICK_ADD_SECRET`. Body/query: `amount` (required), `description`, `category`, `type` ("gasto"/"ingreso"), `date`, plus optional `weekOffset`/`weeks`.
+2. **iOS 27 automatic path (active)**: same endpoint also accepts raw `title`/`subtitle`/`body` query params from iOS 27's Notification automation trigger and extracts the amount via regex — no manual typing, no confirmation screen, runs fully in the background from a "when I get a notification from [bank app]" Personal Automation. When the amount is detected this way, the endpoint also sends the user a **push confirmation notification** (via `lib/send-push.server.ts`, same mechanism as Automatizaciones) summarizing what it logged, since there's no ZentOS screen open to show a "Guardado" state. Step-by-step setup guide lives in Ajustes → Atajo rápido → "¿Tienes iOS 27? Detección 100% automática". Users still on iOS 26 or earlier don't get the Notification trigger from Shortcuts yet — for them, the Tap-to-Pay (Apple Pay) guide above stays the best option, and still works.
 3. **CommBank direct integration**: not built. If picked up later, keep it to a safe approach — CommBank NetBank CSV/OFX import, or an Open Banking (CDR) aggregator like Basiq with OAuth — never storing or entering CommBank login credentials in this app.
 
 ## Historic transaction data (imported once from Google Sheets)
@@ -99,6 +124,10 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for all charts (Area for savings trend, Bar for sleep, Line for steps)
 
 ## Changelog
+
+### 25 Aug 2026
+- **Automatizaciones**: new nav tab for user-defined reminders/alerts, Shortcuts-style (trigger + action) — see the dedicated section above for the full breakdown. New tables (`automations`, `automation_events`, `push_subscriptions`), a new hourly worker (`app/api/automations/evaluate`, wired via `vercel.json`), real Web Push notifications (`lib/push.ts`, `public/sw.js`), and an in-app pop-up for events marked "popup". Needs a one-time Supabase migration and four new env vars (VAPID keys + `CRON_SECRET`) — see above.
+- **Detección automática al pagar (iOS 27+)**: the previously inactive "read the bank notification and extract the amount" path in `/api/quick-transaction` is now wired to also send a push confirmation (reusing the same push infrastructure as Automatizaciones) whenever it logs a transaction this way — closing the loop so a fully silent, no-tap entry still gets a visible confirmation. Added a step-by-step setup guide in Ajustes for the iOS 27 "Notification" Shortcuts trigger, clearly marked as separate from (and complementary to) the existing Tap-to-Pay guide for accounts still on iOS 26 or earlier.
 
 ### 17 Aug 2026
 - **App rebranded ZentOS**, multi-tenant with Supabase Auth (email/password + Google OAuth) — every user's data is now isolated by row-level security instead of the old single-user setup.

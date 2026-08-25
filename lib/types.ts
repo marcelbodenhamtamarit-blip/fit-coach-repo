@@ -92,6 +92,62 @@ export type AppData = {
   travelCurrency: string | null
 }
 
+// ---------- Automatizaciones ----------
+// Reglas estilo "Atajos de Apple": un disparador + una acción. Ver
+// supabase-migrations/automations.sql para el detalle de cada campo.
+
+export const AUTOMATION_TRIGGER_TYPES = ["schedule", "condition"] as const
+export type AutomationTriggerType = (typeof AUTOMATION_TRIGGER_TYPES)[number]
+
+export const AUTOMATION_ACTION_TYPES = ["push", "popup", "both"] as const
+export type AutomationActionType = (typeof AUTOMATION_ACTION_TYPES)[number]
+
+export const SCHEDULE_FREQUENCIES = ["daily", "weekly"] as const
+export type ScheduleFrequency = (typeof SCHEDULE_FREQUENCIES)[number]
+
+// weekly_savings: ingresos - gastos de la semana en curso.
+// monthly_expenses: suma de gastos del mes en curso (todas las categorías).
+// category_monthly_expenses: igual, pero solo de conditionCategory.
+export const CONDITION_METRICS = ["weekly_savings", "monthly_expenses", "category_monthly_expenses"] as const
+export type ConditionMetric = (typeof CONDITION_METRICS)[number]
+
+export const CONDITION_OPERATORS = ["lt", "lte", "gt", "gte"] as const
+export type ConditionOperator = (typeof CONDITION_OPERATORS)[number]
+
+export type Automation = {
+  id: string
+  name: string
+  active: boolean
+  triggerType: AutomationTriggerType
+
+  scheduleFrequency: ScheduleFrequency | null
+  scheduleTime: string | null // "HH:MM"
+  scheduleWeekday: number | null // 0=domingo..6=sábado, solo si weekly
+
+  conditionMetric: ConditionMetric | null
+  conditionOperator: ConditionOperator | null
+  conditionValue: number | null
+  conditionCategory: TransactionCategory | null
+  conditionCooldownHours: number
+
+  actionType: AutomationActionType
+  messageTitle: string
+  messageBody: string
+
+  lastTriggeredAt: string | null
+}
+
+export type AutomationEvent = {
+  id: string
+  automationId: string | null
+  title: string
+  body: string
+  actionType: AutomationActionType
+  pushSent: boolean
+  popupSeen: boolean
+  createdAt: string
+}
+
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
 // Evita que a primera hora de la manana en Australia se registre el dia anterior.
 export const todayISO = () => {
