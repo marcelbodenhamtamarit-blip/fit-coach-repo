@@ -12,9 +12,9 @@
 //     otra vez, con cambiar esta única línea (y hacer commit + deploy) basta.
 
 export const AUTOMATIONS_BETA_EMAILS: string[] | "*" = [
+  "marcelbodenham@gmail.com",
   "marcelbodenhamtamarit@gmail.com",
 ]
-
 export function isBetaUser(email: string | null | undefined): boolean {
   if (AUTOMATIONS_BETA_EMAILS === "*") return true
   if (!email) return false
