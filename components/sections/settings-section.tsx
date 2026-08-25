@@ -20,7 +20,7 @@ import {
   BellOff,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { TRANSACTION_CATEGORIES, CURRENCIES } from "@/lib/types"
+import { CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/use-auth"
 import { LANGUAGES, type Language } from "@/lib/i18n"
@@ -384,11 +384,12 @@ function QuickAddShortcutCard() {
     setTimeout(() => setCopiedField(null), 1500)
   }
 
-  const apiUrl = origin ? `${origin}/api/quick-transaction` : ""
-  // Las opciones de categoría del atajo mandan siempre el nombre en
-  // español (es el valor que compara la API), incluso con la app en
-  // inglés — por eso aquí no se usa categoryLabel().
-  const categoriesList = TRANSACTION_CATEGORIES.join(", ")
+  // Antes esta tarjeta mostraba /api/quick-transaction (para pegar en
+  // "Obtener contenido de URL" con varios parámetros de consulta a mano).
+  // Ahora el atajo solo tiene que abrir esta página con el token pegado al
+  // final — ella sola pide la cantidad/categoría con una pantalla propia
+  // de ZentOS en vez de encadenar varios popups nativos de Atajos.
+  const apiUrl = origin ? `${origin}/quick-confirm` : ""
 
   return (
     <Card className="p-6">
@@ -465,16 +466,7 @@ function QuickAddShortcutCard() {
             <p className="mb-2 font-medium text-foreground">{t("settings.manualTitle")}</p>
             <ol className="list-decimal space-y-2 pl-4">
               <li>{t("settings.manualStep1")}</li>
-              <li>{t("settings.manualStep2")}</li>
-              <li>{t("settings.manualStep3")}</li>
-              <li>
-                {t("settings.manualStep4", {
-                  count: TRANSACTION_CATEGORIES.length,
-                  categories: categoriesList,
-                })}
-              </li>
-              <li>{t("settings.manualStep5")}</li>
-              <li>{t("settings.manualStep6")}</li>
+              <li>{t("settings.manualStep2", { url: apiUrl })}</li>
             </ol>
             <p className="mt-3 font-medium text-foreground">{t("settings.watchTitle")}</p>
             <p className="mt-1">{t("settings.watchDesc")}</p>
