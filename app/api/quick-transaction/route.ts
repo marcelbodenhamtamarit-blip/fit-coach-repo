@@ -18,6 +18,13 @@ function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
 }
 
+// Tope de seguridad por movimiento: si este endpoint quedara expuesto con
+// un token filtrado, limita cuanto puede mover una sola peticion (en la
+// divisa que sea, antes de cualquier conversion). 20.000 cubre con margen
+// cualquier gasto/ingreso real de este grupo, asi que un valor por encima
+// es casi con toda seguridad un error o un abuso, no un movimiento legitimo.
+const MAX_AMOUNT = 20_000
+
 const CATEGORY_KEYWORDS: Array<{ category: (typeof TRANSACTION_CATEGORIES)[number]; keywords: string[] }> = [
   { category: "Supermercado", keywords: ["woolworths", "coles", "aldi", "iga", "supermercado", "super"] },
   { category: "Comida fuera", keywords: ["uber eats", "menulog", "doordash", "restaurant", "restaurante", "cafe", "mcdonald", "kfc", "subway", "pizza", "sushi"] },
@@ -167,6 +174,13 @@ async function handle(req: NextRequest) {
           rawBodyText: rawText.slice(0, 300),
         },
       },
+      { status: 400 },
+    )
+  }
+
+  if (Math.abs(amountRaw) > MAX_AMOUNT) {
+    return NextResponse.json(
+      { error: `El importe supera el maximo permitido por movimiento (${MAX_AMOUNT.toLocaleString("es")}).` },
       { status: 400 },
     )
   }
