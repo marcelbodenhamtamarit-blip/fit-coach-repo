@@ -7,12 +7,14 @@
 // /quick-confirm?token=TU_CODIGO — una sola apertura, una sola pantalla,
 // con la marca de ZentOS.
 //
-// Se pinta como una hoja/popup pegada abajo (fondo oscuro semitransparente
-// detrás + tarjeta con esquinas redondeadas solo arriba, deslizándose desde
-// abajo) en vez de ocupar toda la pantalla con el degradado verde: Safari
-// siempre abre a pantalla completa cuando Atajos ejecuta "Abrir URLs" (eso
-// no lo podemos cambiar), pero así se percibe como un popup pequeño que
-// aparece encima, no como si se hubiese abierto una página entera nueva.
+// Se pinta como una alerta nativa de iOS: una tarjeta pequeña y centrada
+// (no ocupa el ancho de la pantalla), con las cuatro esquinas redondeadas y
+// un fondo oscuro difuminado alrededor, en vez de una pantalla entera de
+// color verde. Safari siempre abre a pantalla completa cuando Atajos
+// ejecuta "Abrir URLs" (eso no lo podemos cambiar), pero así se percibe
+// como un popup pequeño flotando encima, igual que el aviso nativo de
+// Atajos que reemplaza ("¿Cuánto?"), no como si se hubiese abierto una
+// página entera nueva.
 //
 // No usa lib/store.tsx ni useAuth a propósito: no hace falta tener sesión
 // iniciada en el Safari que abre el atajo (normalmente no la tiene). La
@@ -107,15 +109,10 @@ function QuickConfirmInner() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-end bg-black/55">
-      <div className="w-full animate-in slide-in-from-bottom duration-300 ease-out">
-        <div
-          className="mx-auto w-full max-w-sm rounded-t-3xl border-t border-white/10 bg-[#141416] p-6 shadow-2xl"
-          style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-        >
-          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
-
-          <div className="mb-5 text-center">
+    <div className="flex min-h-screen items-center justify-center bg-black/60 px-6 backdrop-blur-sm">
+      <div className="w-full max-w-[320px] animate-in fade-in zoom-in-95 duration-200 ease-out">
+        <div className="rounded-3xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl">
+          <div className="mb-4 text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/40">ZentOS</p>
             <h1 className="mt-1 text-base font-semibold text-white">Nuevo movimiento</h1>
           </div>
