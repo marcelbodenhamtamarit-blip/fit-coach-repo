@@ -1,10 +1,15 @@
 "use client"
 
-// Pantalla "Automatizaciones": reglas tipo Atajos de Apple (disparador +
-// acción) que el usuario crea y gestiona él mismo. Dos piezas:
+// Apartado "Recordatorios" de Ajustes: reglas tipo Atajos de Apple
+// (disparador + acción) que el usuario crea y gestiona él mismo. De cara al
+// usuario ya no es una pestaña de navegación propia, sino un desplegable más
+// dentro de Ajustes (ver RemindersCard, usado desde settings-section.tsx) —
+// pero por dentro sigue siendo el mismo sistema de "automatizaciones"
+// (mismas tablas, mismo store, mismo worker) para no reescribir nada que ya
+// funcionaba; solo cambia el nombre y el sitio donde vive. Dos piezas:
 //   1. Tarjeta de notificaciones push (activar/desactivar/probar en este
 //      dispositivo).
-//   2. Lista de automatizaciones, con un diálogo para crear/editar.
+//   2. Lista de recordatorios, con un diálogo para crear/editar.
 //
 // El envío real (push del sistema, o el marcado de "toca revisar" para el
 // pop-up) lo hace el worker de servidor (app/api/automations/evaluate),
@@ -20,7 +25,6 @@ import {
   Trash2,
   Zap,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -62,24 +66,20 @@ async function getAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
-export function AutomationsSection() {
+// Contenido del desplegable "Recordatorios" en Ajustes. El título y la
+// descripción cortas ya los pone el CollapsibleCard que lo envuelve
+// (settings-section.tsx, con t("settings.remindersTitle") / t("automations.subtitle"))
+// — aquí solo va lo que aparece una vez abierto.
+export function RemindersCard() {
   const { t } = useStore()
   const { automations, ready } = useAutomations()
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <p className="text-xs text-muted-foreground">{t("automations.subtitle")}</p>
-      </div>
-
+    <div className="space-y-4">
       <PushCard />
 
-      <Card className="p-6">
-        <div className="mb-1 flex items-center gap-2">
-          <Zap className="size-4 text-primary" />
-          <h3 className="text-sm font-semibold">{t("nav.automations")}</h3>
-        </div>
-        <p className="mb-4 text-xs text-muted-foreground">{t("automations.cronNote")}</p>
+      <div>
+        <p className="mb-3 text-xs text-muted-foreground">{t("automations.cronNote")}</p>
 
         {!ready ? (
           <p className="text-xs text-muted-foreground">{t("common.loadingData")}</p>
@@ -107,7 +107,7 @@ export function AutomationsSection() {
             </>
           }
         />
-      </Card>
+      </div>
     </div>
   )
 }
@@ -170,7 +170,7 @@ function PushCard() {
   }
 
   return (
-    <Card className="p-6">
+    <div className="rounded-lg border border-border p-4">
       <div className="mb-1 flex items-center gap-2">
         {subscribed ? <BellRing className="size-4 text-primary" /> : <Bell className="size-4 text-primary" />}
         <h3 className="text-sm font-semibold">{t("automations.pushCardTitle")}</h3>
@@ -203,7 +203,7 @@ function PushCard() {
 
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       {permission === "denied" && <p className="mt-2 text-xs text-red-500">{t("automations.pushDenied")}</p>}
-    </Card>
+    </div>
   )
 }
 
