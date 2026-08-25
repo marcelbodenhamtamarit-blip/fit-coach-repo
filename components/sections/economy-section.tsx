@@ -535,7 +535,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                   contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
                   labelStyle={{ color: "#a1a1aa" }}
                   itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
-                  formatter={(value: number) => [`${currencySymbol(homeCurrency)}${value.toFixed(2)}`, t("economy.savingsLabel")]}
+                  formatter={(value: unknown) => [`${currencySymbol(homeCurrency)}${(Number(value) || 0).toFixed(2)}`, t("economy.savingsLabel")]}
                   labelFormatter={(label) => t("economy.week", { n: label.replace("W", "") })}
                   cursor={{ fill: "rgba(255,255,255,0.06)" }}
                 />
