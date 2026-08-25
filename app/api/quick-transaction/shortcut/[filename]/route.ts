@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { buildQuickAddShortcut } from "@/lib/build-quick-add-shortcut"
+import { resolveUserIdByQuickAddToken, touchQuickAddTokenLastUsed } from "@/lib/quick-add-token.server"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,14 +17,11 @@ export async function GET(req: NextRequest) {
   if (!token) {
     return NextResponse.json({ error: "Falta el parámetro token" }, { status: 400 })
   }
-  const { data } = await supabase
-    .from("quick_add_tokens")
-    .select("user_id")
-    .eq("token", token)
-    .maybeSingle()
-  if (!data?.user_id) {
+  const ownerUserId = await resolveUserIdByQuickAddToken(supabase, token)
+  if (!ownerUserId) {
     return NextResponse.json({ error: "Token no válido" }, { status: 401 })
   }
+  touchQuickAddTokenLastUsed(supabase, token)
   const baseUrl = req.nextUrl.origin
   const buffer = buildQuickAddShortcut({ baseUrl, token })
   return new NextResponse(new Uint8Array(buffer), {
