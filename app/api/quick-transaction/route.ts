@@ -13,9 +13,10 @@ const supabase = createClient(
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 import { convertAmount } from "@/lib/exchange-rates"
 import { sendPushToUser } from "@/lib/send-push.server"
+import { resolveUserIdByQuickAddToken, touchQuickAddTokenLastUsed } from "@/lib/quick-add-token.server"
 
 function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+    return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
 }
 
 const CATEGORY_KEYWORDS: Array<{ category: (typeof TRANSACTION_CATEGORIES)[number]; keywords: string[] }> = [
@@ -33,6 +34,25 @@ function inferCategory(text: string): (typeof TRANSACTION_CATEGORIES)[number] | 
     if (item.keywords.some((k) => norm.includes(normalize(k)))) return item.category
   }
   return null
+}
+
+// --- Límites de seguridad ---
+// Este endpoint se autentica con un token opaco de larga duración (el que
+// vive en el atajo/URL de cada uno), sin contraseña ni segundo factor. Si a
+// alguien se le filtra su token (comparte el archivo .shortcut sin querer,
+// captura de pantalla con el código visible, etc.), estos límites acotan el
+// daño: no evitan que ese token siga sirviendo para meter movimientos, pero
+// impiden que una sola llamada (o una ráfaga de llamadas) pueda inundar la
+// cuenta de datos basura o números disparatados.
+const MAX_AMOUNT = 1_000_000 // en la divisa que sea: nadie de este grupo mueve más que esto en un solo movimiento
+const MAX_WEEKS = 52 // tope de filas que puede generar una sola llamada al repartir un pago en semanas
+const MAX_WEEK_OFFSET = 208 // ~4 años vista, de sobra para programar un pago futuro
+const MAX_TEXT_LEN = 300 // cualquier texto libre (título/cuerpo de notificación, descripción...) se corta aquí
+const RATE_LIMIT_WINDOW_MINUTES = 10
+const RATE_LIMIT_MAX_INSERTS = 40 // filas insertadas por este usuario en la ventana anterior
+
+function clampText(v: unknown, max = MAX_TEXT_LEN): string {
+  return typeof v === "string" ? v.slice(0, max) : ""
 }
 
 // El Shortcut nuevo (uno por usuario, generado desde Ajustes) manda todo
@@ -74,12 +94,11 @@ async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown
     ""
   const token = tokenRaw.trim()
   if (token) {
-    const { data } = await supabase
-      .from("quick_add_tokens")
-      .select("user_id")
-      .eq("token", token)
-      .maybeSingle()
-    if (data?.user_id) return data.user_id as string
+    const userId = await resolveUserIdByQuickAddToken(supabase, token)
+    if (userId) {
+      touchQuickAddTokenLastUsed(supabase, token)
+      return userId
+    }
   }
 
   // Vía 2 (antigua, un solo dueño): QUICK_ADD_SECRET + QUICK_ADD_OWNER_USER_ID,
@@ -108,6 +127,27 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // Límite de frecuencia: cuenta cuántas filas se han insertado para este
+  // usuario en los últimos RATE_LIMIT_WINDOW_MINUTES (usa el created_at que
+  // ya tiene la tabla transactions, no hace falta ninguna tabla ni migración
+  // nueva) y corta antes de insertar nada más si ya se ha pasado. Protege
+  // tanto contra una ráfaga de llamadas sueltas como contra una sola llamada
+  // con weeks= alto — el tope de weeks de más abajo ya lo acota, pero esto
+  // cubre también a alguien repitiendo la llamada muchas veces seguidas.
+  const rateLimitWindowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString()
+  const { count: recentInserts } = await supabase
+    .from("transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", ownerUserId)
+    .gte("created_at", rateLimitWindowStart)
+
+  if ((recentInserts ?? 0) >= RATE_LIMIT_MAX_INSERTS) {
+    return NextResponse.json(
+      { error: "Demasiados movimientos seguidos. Espera unos minutos e inténtalo de nuevo." },
+      { status: 429 },
+    )
+  }
+
   let amountRaw = Number(body.amount)
   let sourceText = ""
   // true cuando el importe salió de leer el texto de una notificación
@@ -118,9 +158,9 @@ async function handle(req: NextRequest) {
   let detectedFromNotificationText = false
 
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
-    const notifTitle = typeof body.title === "string" ? body.title : ""
-    const notifSubtitle = typeof body.subtitle === "string" ? body.subtitle : ""
-    const notifBody = typeof body.body === "string" ? body.body : ""
+    const notifTitle = clampText(body.title)
+    const notifSubtitle = clampText(body.subtitle)
+    const notifBody = clampText(body.body)
     sourceText = `${notifBody} ${notifSubtitle} ${notifTitle}`.trim()
 
     const match = sourceText.match(/(-?\$?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/)
@@ -147,6 +187,13 @@ async function handle(req: NextRequest) {
           rawBodyText: rawText.slice(0, 300),
         },
       },
+      { status: 400 },
+    )
+  }
+
+  if (Math.abs(amountRaw) > MAX_AMOUNT) {
+    return NextResponse.json(
+      { error: `El importe es demasiado grande (máximo ${MAX_AMOUNT.toLocaleString("es")}).` },
       { status: 400 },
     )
   }
@@ -187,7 +234,7 @@ async function handle(req: NextRequest) {
     }
   }
 
-  const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
+  const categoryRaw = clampText(body.category, 50).trim()
   const matchedCategory = categoryRaw
     ? (TRANSACTION_CATEGORIES as readonly string[]).find(
         (c) => normalize(c) === normalize(categoryRaw),
@@ -195,9 +242,9 @@ async function handle(req: NextRequest) {
     : undefined
 
   const inferSource = [
-    typeof body.description === "string" ? body.description : "",
-    typeof body.subtitle === "string" ? body.subtitle : "",
-    typeof body.title === "string" ? body.title : "",
+    clampText(body.description),
+    clampText(body.subtitle),
+    clampText(body.title),
     sourceText,
   ].join(" ")
   const category = matchedCategory ?? inferCategory(inferSource) ?? "Otros"
@@ -207,12 +254,9 @@ async function handle(req: NextRequest) {
   // viene de una notificación del Wallet automation antiguo), usamos la
   // categoría como texto por defecto en vez de un genérico "Wallet" que ya
   // no tiene sentido para este flujo.
-  const explicitDescription =
-    typeof body.description === "string" && body.description.trim()
-      ? body.description.trim()
-      : ""
-  const notifDescription = [body.subtitle, body.title]
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+  const explicitDescription = clampText(body.description).trim()
+  const notifDescription = [clampText(body.subtitle), clampText(body.title)]
+    .filter((v) => v.trim().length > 0)
     .join(" - ")
   const description = explicitDescription || notifDescription || category
 
@@ -228,9 +272,9 @@ async function handle(req: NextRequest) {
   //                 (pagar 2 semanas de hostel por adelantado: weeks=2)
   // Ambos opcionales y combinables. Sin ellos, el comportamiento no cambia.
   const weeksRaw = Number(body.weeks)
-  const weeks = Number.isFinite(weeksRaw) && weeksRaw >= 1 ? Math.floor(weeksRaw) : 1
+  const weeks = Number.isFinite(weeksRaw) && weeksRaw >= 1 ? Math.min(Math.floor(weeksRaw), MAX_WEEKS) : 1
   const offsetRaw = Number(body.weekoffset ?? body.weekOffset)
-  const weekOffset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw) : 0
+  const weekOffset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.min(Math.floor(offsetRaw), MAX_WEEK_OFFSET) : 0
 
   function addWeeks(iso: string, n: number): string {
     const d = new Date(iso + "T00:00:00")
