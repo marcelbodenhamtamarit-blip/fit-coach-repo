@@ -119,6 +119,7 @@ export const TRANSLATIONS = {
   "overview.goalDeadlinePassed": { es: "Fecha límite pasada", en: "Deadline passed" },
   "overview.goalPlaceholder": { es: "¿Cuánto quieres ahorrar?", en: "How much do you want to save?" },
   "overview.goalReached": { es: "¡Objetivo conseguido!", en: "Goal reached!" },
+  "overview.goalRemove": { es: "Quitar objetivo", en: "Remove goal" },
 
   // Economía
   "economy.noTransactions": { es: "Sin transacciones", en: "No transactions" },
@@ -257,6 +258,14 @@ export const TRANSLATIONS = {
   "settings.regenHint": {
     es: "Al instalarlo te pedirá pegar el código de arriba, solo la primera vez. Si crees que alguien más tiene tu código, regenéralo aquí — tendrás que abrir el atajo en la app Atajos, borrar el código guardado dentro (o reinstalarlo) y pegar el nuevo para que vuelva a funcionar en tu dispositivo.",
     en: "When you install it, it'll ask you to paste the code above, just the first time. If you think someone else has your code, regenerate it here — you'll need to open the shortcut in the Shortcuts app, delete the code saved inside (or reinstall it) and paste the new one so it works again on your device.",
+  },
+  "settings.lastUsed": {
+    es: "Último uso de tu código: {when}. Si te suena raro, regenéralo arriba.",
+    en: "Your code was last used: {when}. If that looks off, regenerate it above.",
+  },
+  "settings.lastUsedNever": {
+    es: "Tu código todavía no se ha usado nunca.",
+    en: "Your code hasn't been used yet.",
   },
   "settings.showManual": {
     es: "¿Prefieres construirlo tú mismo (o el enlace no funciona)? Instrucciones manuales",
