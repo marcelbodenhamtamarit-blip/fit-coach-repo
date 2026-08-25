@@ -244,12 +244,12 @@ export const TRANSLATIONS = {
   "settings.sending": { es: "Enviando...", en: "Sending..." },
   "settings.shortcutTitle": { es: "Atajo rápido (iPhone / Apple Watch)", en: "Quick add shortcut (iPhone / Apple Watch)" },
   "settings.shortcutDesc": {
-    es: "Un Shortcut de Apple que pide la cantidad, el tipo y la categoría a mano y los guarda directo en tu cuenta. Instálalo con un toque — la primera vez te pedirá tu código personal (lo tienes debajo) y lo recordará para siempre en este dispositivo.",
-    en: "An Apple Shortcut that asks for the amount, type and category by hand and saves them straight to your account. Install it with one tap — the first time it'll ask for your personal code (you have it below) and remember it on this device from then on.",
+    es: "Un Shortcut de Apple que abre una pantalla propia de ZentOS para apuntar el gasto en un par de toques y lo guarda directo en tu cuenta. Instálalo con un toque — la primera vez te pedirá tu código personal (lo tienes debajo) y lo recordará para siempre en este dispositivo.",
+    en: "An Apple Shortcut that opens a ZentOS confirmation screen to log the expense in a couple of taps and saves it straight to your account. Install it with one tap — the first time it'll ask for your personal code (you have it below) and remember it on this device from then on.",
   },
   "settings.preparing": { es: "Preparando tus datos...", en: "Preparing your data..." },
   "settings.installShortcut": { es: "Instalar atajo (un toque)", en: "Install shortcut (one tap)" },
-  "settings.apiUrl": { es: "URL de la API", en: "API URL" },
+  "settings.apiUrl": { es: "Enlace de confirmación", en: "Confirmation link" },
   "settings.copyUrl": { es: "Copiar URL", en: "Copy URL" },
   "settings.yourCode": { es: "Tu código personal", en: "Your personal code" },
   "settings.copyCode": { es: "Copiar código", en: "Copy code" },
@@ -272,24 +272,8 @@ export const TRANSLATIONS = {
     en: 'Open Shortcuts → tap + to create a new one. Name it "ZentOS".',
   },
   "settings.manualStep2": {
-    es: 'Añade la acción Preguntar (busca "preguntar" o "ask"): tipo Número, pregunta "¿Cuánto? (AUD)".',
-    en: 'Add the Ask action (search "ask"): type Number, question "How much?".',
-  },
-  "settings.manualStep3": {
-    es: 'Añade Elegir de un menú ("choose from menu"): pregunta "¿Gasto o ingreso?", con opciones Gasto e Ingreso. Dentro de cada opción añade la acción Texto con "gasto" o "ingreso" (en minúscula) respectivamente.',
-    en: 'Add Choose from Menu: question "Expense or income?", with options Expense and Income. Inside each option add a Text action with "gasto" or "ingreso" (lowercase) respectively — the app matches these exact words.',
-  },
-  "settings.manualStep4": {
-    es: 'Añade otro Elegir de un menú: pregunta "Categoría", con estas {count} opciones: {categories}. Dentro de cada opción, un Texto con ese mismo nombre.',
-    en: 'Add another Choose from Menu: question "Category", with these {count} options: {categories}. Inside each option, add a Text action with that exact name (in Spanish — the app matches these exact words).',
-  },
-  "settings.manualStep5": {
-    es: "Añade Obtener contenido de URL: método GET, URL = la de arriba (pégala). Toca Mostrar más → añade estos parámetros de consulta: token (pega tu código), amount (variable del paso 2), type (resultado del menú del paso 3) y category (resultado del menú del paso 4).",
-    en: "Add Get Contents of URL: method GET, URL = the one above (paste it). Tap Show More → add these query parameters: token (paste your code), amount (variable from step 2), type (menu result from step 3) and category (menu result from step 4).",
-  },
-  "settings.manualStep6": {
-    es: 'Añade Mostrar notificación: título "ZentOS", texto "Movimiento guardado". Guarda el atajo.',
-    en: 'Add Show Notification: title "ZentOS", text "Transaction saved". Save the shortcut.',
+    es: 'Añade la acción Abrir URLs (busca "abrir url"). Pega esta dirección completa, sustituyendo TU_CODIGO por tu código personal de abajo: {url}?token=TU_CODIGO. Guarda el atajo — ya está, no hace falta nada más.',
+    en: 'Add the Open URLs action (search "open url"). Paste this full address, replacing TU_CODIGO with your personal code below: {url}?token=TU_CODIGO. Save the shortcut — that\'s the whole thing, nothing else needed.',
   },
   "settings.watchTitle": { es: "Para usarlo en el Apple Watch:", en: "To use it on Apple Watch:" },
   "settings.watchDesc": {
