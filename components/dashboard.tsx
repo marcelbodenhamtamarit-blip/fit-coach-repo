@@ -6,7 +6,6 @@ import {
   Settings,
   Dumbbell,
   Wallet,
-  Bell,
   RotateCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -14,12 +13,10 @@ import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-import { AutomationsSection } from "@/components/sections/automations-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { AutomationPopup } from "@/components/automation-popup"
-import { isBetaUser } from "@/lib/beta"
 import { LogOut } from "lucide-react"
 
 type Tab = {
@@ -48,16 +45,6 @@ export function Dashboard() {
   const { ready, t } = useStore()
   const { mode, user, signOut } = useAuth()
 
-  // Automatizaciones en pruebas: solo visible para quien esté en
-  // lib/beta.ts mientras se valida con un grupo pequeño. Cuando se decida
-  // abrirlo a todo el mundo, basta con cambiar esa lista (ver el comentario
-  // ahí) — no hace falta tocar nada de este archivo.
-  const automationsBetaEnabled = isBetaUser(user?.email)
-
-  useEffect(() => {
-    if (active === "automations" && !automationsBetaEnabled) setActive("overview")
-  }, [active, automationsBetaEnabled])
-
   // Fondo con degradado: en vez de "background-attachment: fixed" (poco
   // fiable en iOS Safari — muchas versiones lo ignoran y lo tratan como si
   // hiciera scroll normal) o un div "position: fixed" con z-index negativo
@@ -77,14 +64,12 @@ export function Dashboard() {
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
-    ...(automationsBetaEnabled ? [{ id: "automations", label: t("nav.automations"), icon: Bell }] : []),
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
 
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
-    automations: t("nav.automations"),
     settings: t("nav.settings"),
   }
 
@@ -202,7 +187,6 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
-              {active === "automations" && automationsBetaEnabled && <AutomationsSection />}
               {active === "settings" && <SettingsSection />}
             </div>
           )}
