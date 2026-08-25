@@ -318,6 +318,136 @@ export const TRANSLATIONS = {
     es: 'Siguiente → desactiva "Preguntar antes de ejecutar" → Hecho. Ya está.',
     en: 'Next → turn off "Ask Before Running" → Done. That\'s it.',
   },
+
+  // Detección automática al pagar leyendo la notificación (iOS 27+)
+  "settings.showNotifAuto": {
+    es: "¿Tienes iOS 27? Detección 100% automática (sin tocar nada)",
+    en: "On iOS 27? Fully automatic detection (no tapping required)",
+  },
+  "settings.hideNotifAuto": { es: "Ocultar detección automática", en: "Hide automatic detection" },
+  "settings.notifAutoTitle": {
+    es: "Registrar el gasto solo, al recibir la notificación del banco",
+    en: "Log the expense automatically when the bank notification arrives",
+  },
+  "settings.notifAutoNote": {
+    es: "En iOS 27+, Atajos puede leer el texto de una notificación en cuanto llega. Con esto, en vez de abrir una pantalla de ZentOS para confirmar, el gasto se registra solo en segundo plano — y ZentOS te manda su propia notificación confirmando lo que detectó, para que lo puedas revisar.",
+    en: "On iOS 27+, Shortcuts can read a notification's text the moment it arrives. With this, instead of opening a ZentOS screen to confirm, the expense is logged silently in the background — and ZentOS sends its own notification confirming what it detected, so you can review it.",
+  },
+  "settings.notifAutoStep1Title": { es: "Abre Atajos", en: "Open Shortcuts" },
+  "settings.notifAutoStep1": {
+    es: 'Pestaña "Automatización" (abajo del todo).',
+    en: 'The "Automation" tab (bottom of the screen).',
+  },
+  "settings.notifAutoStep2Title": { es: "Automatización nueva", en: "New automation" },
+  "settings.notifAutoStep2": {
+    es: 'Toca el + de arriba a la derecha → "Crear automatización personal" → busca "Notificación" en la lista y elige la app de tu banco o Wallet.',
+    en: 'Tap the + in the top right → "Create Personal Automation" → find "Notification" in the list and pick your bank or Wallet app.',
+  },
+  "settings.notifAutoStep3Title": { es: "Añade la acción", en: "Add the action" },
+  "settings.notifAutoStep3": {
+    es: 'Añade "Obtener contenido de URL" (método GET) apuntando a esta dirección, sustituyendo TU_CODIGO por tu código personal de abajo. Los textos entre corchetes son variables mágicas: tócalos y elige el campo correspondiente de la notificación (Título/Subtítulo/Cuerpo) que te ofrece Atajos.',
+    en: 'Add "Get Contents of URL" (GET method) pointing to this address, replacing TU_CODIGO with your personal code below. The bracketed text is a magic variable: tap it and pick the matching notification field (Title/Subtitle/Body) that Shortcuts offers.',
+  },
+  "settings.notifAutoStep4Title": { es: "Sin confirmaciones", en: "No confirmations" },
+  "settings.notifAutoStep4": {
+    es: 'Siguiente → desactiva "Preguntar antes de ejecutar" y "Notificar cuando se ejecute" → Hecho. Así corre en segundo plano, sin abrir nada en pantalla.',
+    en: 'Next → turn off "Ask Before Running" and "Notify When Run" → Done. It then runs in the background without opening anything on screen.',
+  },
+  "settings.notifAutoStep5Title": { es: "Confirmación por notificación", en: "Confirmation notification" },
+  "settings.notifAutoStep5": {
+    es: 'ZentOS detecta que el importe vino del texto de una notificación y te manda su propia notificación push confirmando el gasto (activa las notificaciones en la pestaña Automatizaciones si no lo has hecho).',
+    en: "ZentOS detects that the amount came from reading a notification's text and sends its own push notification confirming the expense (enable notifications in the Automations tab if you haven't already).",
+  },
+  "settings.notifAutoOlderIos": {
+    es: "Si usas ZentOS con alguien que todavía está en iOS 26 o anterior, Atajos no le ofrecerá el disparador \"Notificación\" — para esas cuentas, el atajo de \"al pagar con la tarjeta\" de arriba (Apple Pay) sigue siendo la mejor opción: pide un toque para confirmar, pero funciona en cualquier versión.",
+    en: "If someone using ZentOS is still on iOS 26 or earlier, Shortcuts won't offer them the \"Notification\" trigger — for those accounts, the \"pay with card\" (Apple Pay) shortcut above is still the best option: it needs one tap to confirm, but works on any version.",
+  },
+
+  // Navegación: Automatizaciones
+  "nav.automations": { es: "Automatizaciones", en: "Automations" },
+
+  // Automatizaciones
+  "automations.subtitle": {
+    es: "Recordatorios y alertas propias, tipo Atajos: eliges cuándo (o bajo qué condición) y qué avisos recibir.",
+    en: "Your own reminders and alerts, Shortcuts-style: choose when (or under what condition) and what to be notified about.",
+  },
+  "automations.pushCardTitle": { es: "Notificaciones del sistema", en: "System notifications" },
+  "automations.pushCardDescOn": {
+    es: "Activadas en este dispositivo. Las automatizaciones con acción \"Notificación\" te avisarán aunque tengas la app cerrada.",
+    en: "Enabled on this device. Automations with the \"Notification\" action will reach you even with the app closed.",
+  },
+  "automations.pushCardDescOff": {
+    es: "Actívalas para recibir avisos del sistema aunque no tengas la app abierta. En iPhone, instala primero la app en la pantalla de inicio (Compartir → Añadir a pantalla de inicio).",
+    en: "Turn them on to get system-level alerts even when the app isn't open. On iPhone, first install the app to your home screen (Share → Add to Home Screen).",
+  },
+  "automations.pushEnable": { es: "Activar notificaciones", en: "Enable notifications" },
+  "automations.pushDisable": { es: "Desactivar", en: "Disable" },
+  "automations.pushTest": { es: "Enviar prueba", en: "Send test" },
+  "automations.pushTestSent": { es: "Prueba enviada.", en: "Test sent." },
+  "automations.pushUnsupported": {
+    es: "Este navegador no soporta notificaciones push. En iPhone, añade la app a la pantalla de inicio primero.",
+    en: "This browser doesn't support push notifications. On iPhone, add the app to your home screen first.",
+  },
+  "automations.pushDenied": {
+    es: "Permiso de notificaciones denegado. Actívalo desde los ajustes del navegador/sistema.",
+    en: "Notification permission denied. Enable it from your browser/system settings.",
+  },
+  "automations.empty": { es: "Aún no tienes ninguna automatización.", en: "You don't have any automations yet." },
+  "automations.emptyHint": {
+    es: "Crea la primera con el botón de abajo: un recordatorio programado o una alerta cuando algo pase en tu Economía.",
+    en: "Create your first one below: a scheduled reminder, or an alert when something happens in your finances.",
+  },
+  "automations.addNew": { es: "Nueva automatización", en: "New automation" },
+  "automations.dialogTitleNew": { es: "Nueva automatización", en: "New automation" },
+  "automations.dialogTitleEdit": { es: "Editar automatización", en: "Edit automation" },
+  "automations.name": { es: "Nombre", en: "Name" },
+  "automations.namePlaceholder": { es: "Ej: Revisar gastos del lunes", en: "E.g. Monday expense check-in" },
+  "automations.triggerType": { es: "Disparador", en: "Trigger" },
+  "automations.triggerSchedule": { es: "Recordatorio programado", en: "Scheduled reminder" },
+  "automations.triggerScheduleDesc": { es: "A una hora fija, a diario o un día concreto.", en: "At a fixed time, daily or on a specific day." },
+  "automations.triggerCondition": { es: "Alerta por condición", en: "Condition alert" },
+  "automations.triggerConditionDesc": { es: "Cuando algo en tu Economía cruce un umbral.", en: "When something in your finances crosses a threshold." },
+  "automations.frequency": { es: "Frecuencia", en: "Frequency" },
+  "automations.time": { es: "Hora", en: "Time" },
+  "automations.weekday": { es: "Día", en: "Day" },
+  "automations.metric": { es: "Métrica", en: "Metric" },
+  "automations.metric.weekly_savings": { es: "Ahorro semanal", en: "Weekly savings" },
+  "automations.metric.monthly_expenses": { es: "Gasto total del mes", en: "Total monthly expenses" },
+  "automations.metric.category_monthly_expenses": { es: "Gasto del mes en una categoría", en: "Monthly expenses in a category" },
+  "automations.operator": { es: "Condición", en: "Condition" },
+  "automations.operator.lt": { es: "es menor que", en: "is less than" },
+  "automations.operator.lte": { es: "es menor o igual que", en: "is less than or equal to" },
+  "automations.operator.gt": { es: "es mayor que", en: "is greater than" },
+  "automations.operator.gte": { es: "es mayor o igual que", en: "is greater than or equal to" },
+  "automations.value": { es: "Valor", en: "Value" },
+  "automations.category": { es: "Categoría", en: "Category" },
+  "automations.cooldown": { es: "No repetir antes de (horas)", en: "Don't repeat within (hours)" },
+  "automations.cooldownHint": {
+    es: "Mientras la condición se mantenga cierta, no se volverá a avisar hasta que pasen estas horas desde el último aviso.",
+    en: "While the condition stays true, you won't be notified again until this many hours have passed since the last alert.",
+  },
+  "automations.actionType": { es: "Acción", en: "Action" },
+  "automations.actionPush": { es: "Notificación", en: "Notification" },
+  "automations.actionPopup": { es: "Pop-up en la app", en: "In-app pop-up" },
+  "automations.actionBoth": { es: "Ambas", en: "Both" },
+  "automations.messageTitle": { es: "Título del aviso", en: "Alert title" },
+  "automations.messageTitlePlaceholder": { es: "Ej: Revisa tus gastos", en: "E.g. Check your expenses" },
+  "automations.messageBody": { es: "Mensaje", en: "Message" },
+  "automations.messageBodyPlaceholder": { es: "Ej: Han pasado 7 días, échale un ojo a la Economía.", en: "E.g. It's been a week — take a look at your finances." },
+  "automations.save": { es: "Guardar automatización", en: "Save automation" },
+  "automations.testNow": { es: "Probar ahora", en: "Test now" },
+  "automations.testSent": { es: "Enviada.", en: "Sent." },
+  "automations.active": { es: "Activa", en: "Active" },
+  "automations.paused": { es: "Pausada", en: "Paused" },
+  "automations.lastTriggered": { es: "Último aviso: {date}", en: "Last fired: {date}" },
+  "automations.neverTriggered": { es: "Todavía no se ha disparado", en: "Hasn't fired yet" },
+  "automations.scheduleSummaryDaily": { es: "Cada día a las {time}", en: "Every day at {time}" },
+  "automations.scheduleSummaryWeekly": { es: "Cada {weekday} a las {time}", en: "Every {weekday} at {time}" },
+  "automations.conditionSummary": { es: "{metric} {operator} {value}", en: "{metric} {operator} {value}" },
+  "automations.cronNote": {
+    es: "Las alertas y recordatorios se revisan cada hora en el servidor. Si acabas de crear uno, puede tardar hasta esa hora en dispararse por primera vez — usa \"Probar ahora\" para verlo al momento.",
+    en: "Alerts and reminders are checked hourly on the server. A newly created one may take up to an hour to fire for the first time — use \"Test now\" to see it right away.",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
