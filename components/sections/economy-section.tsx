@@ -648,7 +648,6 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                       type="date"
                       value={row.date}
                       onChange={(e) => updateBatchRow(row.key, { date: e.target.value })}
-                      className="h-8 text-xs"
                     />
                   </div>
                 ))}
