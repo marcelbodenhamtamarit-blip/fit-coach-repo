@@ -47,25 +47,43 @@ export function SettingsSection() {
     <div className="max-w-2xl space-y-3">
       <AccountCard />
 
-      <CollapsibleCard icon={SlidersHorizontal} title={t("settings.preferences")} description={t("settings.preferencesDesc")}>
+      <TravelModeCard />
+
+      <CollapsibleCard
+        icon={SlidersHorizontal}
+        title={t("settings.preferences")}
+        description={t("settings.preferencesDesc")}
+        color="#60a5fa"
+      >
         <PreferencesCard />
       </CollapsibleCard>
 
-      <CollapsibleCard icon={Plane} title={t("settings.travelMode")} description={t("settings.travelModeDesc")}>
-        <TravelModeCard />
-      </CollapsibleCard>
-
       {remindersBetaEnabled && (
-        <CollapsibleCard icon={Zap} title={t("settings.remindersTitle")} description={t("automations.subtitle")}>
+        <CollapsibleCard
+          icon={Zap}
+          title={t("settings.remindersTitle")}
+          description={t("automations.subtitle")}
+          color="#fbbf24"
+        >
           <RemindersCard />
         </CollapsibleCard>
       )}
 
-      <CollapsibleCard icon={Watch} title={t("settings.shortcutTitle")} description={t("settings.shortcutDesc")}>
+      <CollapsibleCard
+        icon={Watch}
+        title={t("settings.shortcutTitle")}
+        description={t("settings.shortcutDesc")}
+        color="#a78bfa"
+      >
         <QuickAddShortcutCard />
       </CollapsibleCard>
 
-      <CollapsibleCard icon={MessageSquare} title={t("settings.feedback")} description={t("settings.feedbackDesc")}>
+      <CollapsibleCard
+        icon={MessageSquare}
+        title={t("settings.feedback")}
+        description={t("settings.feedbackDesc")}
+        color="#34d399"
+      >
         <FeedbackCard />
       </CollapsibleCard>
 
@@ -86,12 +104,14 @@ function CollapsibleCard({
   icon: Icon,
   title,
   description,
+  color = "#7c6fff",
   defaultOpen = false,
   children,
 }: {
   icon: typeof SlidersHorizontal
   title: string
   description?: string
+  color?: string
   defaultOpen?: boolean
   children: ReactNode
 }) {
@@ -105,7 +125,10 @@ function CollapsibleCard({
         aria-expanded={open}
         className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/30"
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+        <div
+          className="flex size-8 shrink-0 items-center justify-center rounded-full"
+          style={{ backgroundColor: color + "26", color }}
+        >
           <Icon className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -178,26 +201,25 @@ function AccountCard() {
   const initial = user?.email ? user.email.charAt(0).toUpperCase() : "?"
 
   return (
-    <Card className="p-4">
+    <div className="px-1 py-2">
       <div className="flex items-center gap-3">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-base font-semibold text-primary">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-lg font-semibold text-primary">
           {initial}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{email}</p>
+          <p className="truncate text-base font-semibold">{email}</p>
           <p className="text-xs text-muted-foreground">{t("settings.accountDesc")}</p>
         </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={signOut}
-          className="shrink-0 text-muted-foreground"
-          aria-label={t("settings.signOut")}
-        >
-          <LogOut className="size-4" />
-        </Button>
       </div>
-    </Card>
+      <button
+        type="button"
+        onClick={signOut}
+        className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+      >
+        <LogOut className="size-3.5" />
+        {t("settings.signOut")}
+      </button>
+    </div>
   )
 }
 
@@ -288,11 +310,20 @@ function TravelModeCard() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">
-          {active ? t("settings.travelModeOn") : t("settings.travelModeOff")}
-        </p>
+    <Card className="p-4">
+      <div className="flex items-center gap-3">
+        <div
+          className="flex size-8 shrink-0 items-center justify-center rounded-full"
+          style={{ backgroundColor: "#2dd4bf26", color: "#2dd4bf" }}
+        >
+          <Plane className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{t("settings.travelMode")}</h3>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {active ? t("settings.travelModeOn") : t("settings.travelModeOff")}
+          </p>
+        </div>
         <button
           type="button"
           role="switch"
@@ -309,7 +340,7 @@ function TravelModeCard() {
       </div>
 
       {active && (
-        <div className="mt-4">
+        <div className="mt-4 border-t border-border pt-4">
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("settings.travelCurrency")}</p>
           <select
             value={currency}
@@ -325,7 +356,7 @@ function TravelModeCard() {
           </select>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
