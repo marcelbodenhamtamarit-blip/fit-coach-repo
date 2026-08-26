@@ -580,7 +580,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                     aria-label={t("common.currency")}
                     value={batchCurrency}
                     onChange={(e) => setBatchCurrency(e.target.value)}
-                    className="flex h-8 w-24 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     {CURRENCIES.map((c) => (
                       <option key={c.code} value={c.code}>{c.code}</option>
@@ -594,13 +594,13 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
 
                 {batchRows.map((row) => (
                   <div key={row.key} className="space-y-2 rounded-xl border border-border bg-card/40 p-3 animate-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-1 gap-1 rounded-lg border border-border bg-muted/40 p-1">
                         <button
                           type="button"
                           onClick={() => updateBatchRow(row.key, { type: "gasto" })}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                            row.type === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
+                          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                            row.type === "gasto" ? "bg-red-500/15 text-red-400 shadow-sm" : "text-muted-foreground hover:text-foreground"
                           }`}
                         >
                           {t("common.expense")}
@@ -608,8 +608,8 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                         <button
                           type="button"
                           onClick={() => updateBatchRow(row.key, { type: "ingreso" })}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                            row.type === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
+                          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                            row.type === "ingreso" ? "bg-emerald-500/15 text-emerald-500 shadow-sm" : "text-muted-foreground hover:text-foreground"
                           }`}
                         >
                           {t("common.income")}
@@ -619,7 +619,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                         size="icon-sm"
                         variant="ghost"
                         aria-label={t("batch.removeRow")}
-                        className="text-muted-foreground opacity-60 hover:text-red-500 hover:opacity-100"
+                        className="shrink-0 text-muted-foreground opacity-60 hover:text-red-500 hover:opacity-100"
                         onClick={() => removeBatchRow(row.key)}
                       >
                         <Trash2 className="size-3.5" />
@@ -637,7 +637,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                       <select
                         value={row.category}
                         onChange={(e) => updateBatchRow(row.key, { category: e.target.value })}
-                        className="flex h-9 w-32 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="flex h-9 w-36 shrink-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         {TRANSACTION_CATEGORIES.map((c) => (
                           <option key={c} value={c}>{categoryLabel(c, lang)}</option>
