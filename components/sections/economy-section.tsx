@@ -18,6 +18,7 @@ import { useStore } from "@/lib/store"
 import { todayISO, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
+import { BatchAddDialog } from "@/components/batch-add-dialog"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
 
@@ -490,6 +491,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             <Plus className="mr-2 size-4" />
             {t("economy.addButton")}
           </Button>
+          <BatchAddDialog />
           <RecurringManagerDialog />
         </div>
       )}
@@ -759,3 +761,4 @@ function MiniStat({
     </div>
   )
 }
+Page_UpPage_UpPage_UpPage_UpPage_UpPage_UpPage_UpPage_UpPage_Up
