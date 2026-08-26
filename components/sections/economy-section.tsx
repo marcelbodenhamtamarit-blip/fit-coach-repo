@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronUp,
   Pencil,
+  ListPlus,
+  Trash2,
 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, Cell, Tooltip, XAxis } from "recharts"
 import { Card } from "@/components/ui/card"
@@ -15,10 +17,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
-import { todayISO, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
+import { todayISO, uid, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
-import { BatchAddDialog } from "@/components/batch-add-dialog"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
 
@@ -27,6 +28,21 @@ const GOOGLE_SHEETS_WEBHOOK =
 
 type TabId = "diario" | "semanal" | "mensual"
 type TxType = "gasto" | "ingreso"
+
+// Fila de alta en lote: como el formulario de arriba pero sin descripción,
+// pensada para irse repitiendo (ver newBatchRow / addBatchRow más abajo) al
+// añadir varios gastos sueltos de golpe.
+type DraftRow = {
+  key: string
+  type: TxType
+  amount: string
+  category: string
+  date: string
+}
+
+function newBatchRow(): DraftRow {
+  return { key: uid(), type: "gasto", amount: "", category: TRANSACTION_CATEGORIES[0], date: todayISO() }
+}
 
 function getMonthName(monthNum: number, locale: string): string {
   return new Date(Date.UTC(2026, monthNum - 1, 1)).toLocaleDateString(locale, { month: "long", timeZone: "UTC" })
@@ -105,7 +121,7 @@ interface GroupedData {
 }
 
 export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } = {}) {
-  const { data, addTransaction, updateTransaction, deleteTransaction, t } = useStore()
+  const { data, addTransaction, addTransactions, updateTransaction, deleteTransaction, t } = useStore()
   const lang = (data.language as Language) ?? "es"
   const locale = lang === "en" ? "en-US" : "es-ES"
   const transactions: Transaction[] = data.transactions ?? []
@@ -140,6 +156,14 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const [editCategory, setEditCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
   const [editDate, setEditDate] = useState(todayISO())
   const [editSaving, setEditSaving] = useState(false)
+
+  // Alta en lote: cada click en "Añadir varias de golpe" / "Añadir fila"
+  // mete una fila más al final, para ir apuntando gastos sueltos uno detrás
+  // de otro sin salir de la página (ver newBatchRow arriba).
+  const [batchRows, setBatchRows] = useState<DraftRow[]>([])
+  const [batchCurrency, setBatchCurrency] = useState<string>(defaultCurrency)
+  const [batchSaving, setBatchSaving] = useState(false)
+  const [batchConversionError, setBatchConversionError] = useState("")
 
   // El botón "Añadir gasto" de Resumen navega aquí y sube autoOpenSignal;
   // lo escuchamos para abrir el formulario automáticamente (no solo al
@@ -320,6 +344,79 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     setSaving(false)
   }
 
+  const validBatchRows = batchRows.filter((r) => {
+    const n = parseFloat(r.amount)
+    return !isNaN(n) && n !== 0
+  })
+
+  const addBatchRow = () => setBatchRows((rs) => [...rs, newBatchRow()])
+
+  const updateBatchRow = (key: string, updates: Partial<DraftRow>) =>
+    setBatchRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...updates } : r)))
+
+  const removeBatchRow = (key: string) => setBatchRows((rs) => rs.filter((r) => r.key !== key))
+
+  const handleSaveBatch = async () => {
+    if (validBatchRows.length === 0) return
+    setBatchSaving(true)
+    setBatchConversionError("")
+
+    const items: Omit<Transaction, "id">[] = []
+    for (const row of validBatchRows) {
+      const raw = parseFloat(row.amount)
+      const num = row.type === "gasto" ? -Math.abs(raw) : Math.abs(raw)
+
+      let finalAmount = num
+      let txCurrency: string | null = null
+      let txOriginalAmount: number | null = null
+
+      if (batchCurrency !== homeCurrency) {
+        try {
+          finalAmount = await convertAmount(num, batchCurrency, homeCurrency, supabase)
+          txCurrency = batchCurrency
+          txOriginalAmount = num
+        } catch {
+          setBatchSaving(false)
+          setBatchConversionError(t("economy.conversionError"))
+          return
+        }
+      }
+
+      items.push({
+        description: categoryLabel(row.category, lang),
+        amount: finalAmount,
+        category: row.category as Transaction["category"],
+        date: row.date,
+        currency: txCurrency,
+        originalAmount: txOriginalAmount,
+      })
+    }
+
+    addTransactions(items)
+
+    // Best-effort, igual que el alta individual: si el webhook falla no
+    // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
+    items.forEach((tx) => {
+      const weekNum = getWeekNumberFromISO(tx.date)
+      const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
+      fetch(GOOGLE_SHEETS_WEBHOOK, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          week: weekNum,
+          category: tx.category,
+          amount: formattedAmount,
+          date: tx.date.split("-").reverse().join("/"),
+        }),
+      }).catch(() => {})
+    })
+
+    setBatchSaving(false)
+    setBatchRows([])
+    setBatchCurrency(defaultCurrency)
+  }
+
   const startEditing = (tx: Transaction) => {
     setEditingId(tx.id)
     setEditDesc(tx.description)
@@ -474,8 +571,107 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             <Button onClick={handleSave} disabled={saving || !amount} className="w-full">
               {saving ? t("common.saving") : t("common.save")}
             </Button>
+
+            {batchRows.length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">{t("common.currency")}</p>
+                  <select
+                    aria-label={t("common.currency")}
+                    value={batchCurrency}
+                    onChange={(e) => setBatchCurrency(e.target.value)}
+                    className="flex h-8 w-24 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </select>
+                </div>
+                {batchCurrency !== homeCurrency && (
+                  <p className="text-xs text-muted-foreground">{t("economy.convertNotice", { currency: homeCurrency })}</p>
+                )}
+                {batchConversionError && <p className="text-xs text-red-500">{batchConversionError}</p>}
+
+                {batchRows.map((row) => (
+                  <div key={row.key} className="space-y-2 rounded-xl border border-border bg-card/40 p-3 animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => updateBatchRow(row.key, { type: "gasto" })}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                            row.type === "gasto" ? "bg-red-500/15 text-red-400" : "text-muted-foreground"
+                          }`}
+                        >
+                          {t("common.expense")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateBatchRow(row.key, { type: "ingreso" })}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                            row.type === "ingreso" ? "bg-emerald-500/15 text-emerald-500" : "text-muted-foreground"
+                          }`}
+                        >
+                          {t("common.income")}
+                        </button>
+                      </div>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={t("batch.removeRow")}
+                        className="text-muted-foreground opacity-60 hover:text-red-500 hover:opacity-100"
+                        onClick={() => removeBatchRow(row.key)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder={t("economy.amountPlaceholder")}
+                        value={row.amount}
+                        onChange={(e) => updateBatchRow(row.key, { amount: e.target.value })}
+                        className="flex-1"
+                      />
+                      <select
+                        value={row.category}
+                        onChange={(e) => updateBatchRow(row.key, { category: e.target.value })}
+                        className="flex h-9 w-32 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {TRANSACTION_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{categoryLabel(c, lang)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input
+                      type="date"
+                      value={row.date}
+                      onChange={(e) => updateBatchRow(row.key, { date: e.target.value })}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                ))}
+
+                <Button
+                  className="w-full"
+                  disabled={batchSaving || validBatchRows.length === 0}
+                  onClick={handleSaveBatch}
+                >
+                  {batchSaving ? t("common.saving") : t("batch.saveAll", { n: validBatchRows.length })}
+                </Button>
+              </div>
+            )}
+
             <div className="flex justify-center">
-              <BatchAddDialog />
+              <button
+                type="button"
+                onClick={addBatchRow}
+                className="flex items-center gap-1 pt-1 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+              >
+                <ListPlus className="size-3" />
+                {batchRows.length === 0 ? t("batch.trigger") : t("batch.addRow")}
+              </button>
             </div>
           </div>
         </Card>
