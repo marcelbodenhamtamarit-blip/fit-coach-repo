@@ -215,6 +215,7 @@ type StoreContextType = {
   data: AppData
   ready: boolean
   addTransaction: (t: Omit<Transaction, "id">) => void
+  addTransactions: (items: Omit<Transaction, "id">[]) => void
   updateTransaction: (id: string, updates: Partial<Omit<Transaction, "id">>) => void
   deleteTransaction: (id: string) => void
   refreshTransactions: () => Promise<void>
@@ -433,6 +434,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       })
   }
 
+  // Alta en lote: mismo patrón que addTransaction (optimista + insert +
+  // refresh), pero insertando todas las filas en una sola llamada a
+  // Supabase en vez de una por transacción — pensado para cuando vuelves
+  // de un viaje y tienes muchos movimientos sueltos que registrar de
+  // golpe (ver components/batch-add-dialog.tsx).
+  const addTransactions = (items: Omit<Transaction, "id">[]) => {
+    if (items.length === 0) return
+    const optimistic = items.map((t) => ({ ...t, id: uid() }))
+    setData((d) => ({
+      ...d,
+      transactions: [...optimistic, ...(d.transactions ?? [])].sort((a, b) => b.date.localeCompare(a.date)),
+    }))
+
+    supabase
+      .from("transactions")
+      .insert(
+        items.map((t) => ({
+          date: t.date,
+          description: t.description,
+          category: t.category,
+          amount: t.amount,
+          currency: t.currency ?? null,
+          original_amount: t.originalAmount ?? null,
+        })),
+      )
+      .then(({ error }) => {
+        if (error) {
+          console.error("[supabase] addTransactions error:", error.message)
+        }
+        refreshTransactions()
+      })
+  }
+
   const updateTransaction = (id: string, updates: Partial<Omit<Transaction, "id">>) => {
     setData((d) => ({
       ...d,
@@ -559,6 +593,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data,
         ready,
         addTransaction,
+        addTransactions,
         updateTransaction,
         deleteTransaction,
         refreshTransactions,
