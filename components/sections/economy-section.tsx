@@ -474,6 +474,9 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             <Button onClick={handleSave} disabled={saving || !amount} className="w-full">
               {saving ? t("common.saving") : t("common.save")}
             </Button>
+            <div className="flex justify-center">
+              <BatchAddDialog />
+            </div>
           </div>
         </Card>
       )}
@@ -491,7 +494,6 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             <Plus className="mr-2 size-4" />
             {t("economy.addButton")}
           </Button>
-          <BatchAddDialog />
           <RecurringManagerDialog />
         </div>
       )}
