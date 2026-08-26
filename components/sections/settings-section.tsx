@@ -11,7 +11,6 @@ import {
   RefreshCw,
   Watch,
   SlidersHorizontal,
-  LogOut,
   Plane,
   Smartphone,
   Plus,
@@ -195,7 +194,7 @@ function FeedbackCard() {
 // vuelo, no había manera de recordar cuál era. También sirve de acceso
 // rápido para cerrar sesión.
 function AccountCard() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const { t } = useStore()
   const email = user?.email ?? "—"
   const initial = user?.email ? user.email.charAt(0).toUpperCase() : "?"
@@ -211,14 +210,6 @@ function AccountCard() {
           <p className="text-xs text-muted-foreground">{t("settings.accountDesc")}</p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={signOut}
-        className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-      >
-        <LogOut className="size-3.5" />
-        {t("settings.signOut")}
-      </button>
     </div>
   )
 }
