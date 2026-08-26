@@ -166,6 +166,19 @@ export const TRANSLATIONS = {
     en: "Couldn't sync with Google Sheets",
   },
 
+  // Alta en lote: varias transacciones a la vez (una fila por movimiento),
+  // pensado para cuando vuelves de un viaje o tienes varios gastos sueltos
+  // pendientes de apuntar y no quieres abrir el formulario 25 veces.
+  "batch.trigger": { es: "Añadir varias de golpe", en: "Add several at once" },
+  "batch.dialogTitle": { es: "Alta en lote", en: "Batch add" },
+  "batch.dialogDesc": {
+    es: "Rellena varias filas y guárdalas todas de una vez — ideal después de un viaje o para ponerte al día con gastos sueltos.",
+    en: "Fill in several rows and save them all at once — handy after a trip or to catch up on loose expenses.",
+  },
+  "batch.addRow": { es: "+ Añadir fila", en: "+ Add row" },
+  "batch.removeRow": { es: "Eliminar fila", en: "Remove row" },
+  "batch.saveAll": { es: "Guardar movimientos ({n})", en: "Save transactions ({n})" },
+
   // Recurrentes
   "recurring.title": { es: "Gastos recurrentes", en: "Recurring expenses" },
   "recurring.dialogTitle": { es: "Gastos e ingresos recurrentes", en: "Recurring expenses & income" },
