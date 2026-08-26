@@ -13,38 +13,9 @@ const supabase = createClient(
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 import { convertAmount } from "@/lib/exchange-rates"
 import { sendPushToUser } from "@/lib/send-push.server"
-import { resolveUserIdByQuickAddToken, touchQuickAddTokenLastUsed } from "@/lib/quick-add-token.server"
 
 function normalize(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
-}
-
-// Tope de seguridad por movimiento: si este endpoint quedara expuesto con
-// un token filtrado, limita cuanto puede mover una sola peticion (en la
-// divisa que sea, antes de cualquier conversion). 20.000 cubre con margen
-// cualquier gasto/ingreso real de este grupo, asi que un valor por encima
-// es casi con toda seguridad un error o un abuso, no un movimiento legitimo.
-const MAX_AMOUNT = 20_000
-
-// Mismo espiritu que MAX_AMOUNT, para otros campos que tambien podrian
-// usarse para inundar la cuenta de datos basura si el token se filtrase:
-// weeks (cuantas filas genera una sola llamada), weekOffset (cuanto se
-// puede programar hacia el futuro) y el texto libre que llega en el body
-// (titulo/cuerpo de notificacion, descripcion...).
-const MAX_WEEKS = 52
-const MAX_WEEK_OFFSET = 208 // ~4 anos vista, de sobra para programar un pago futuro
-const MAX_TEXT_LEN = 300
-
-// Cuantas filas puede insertar un mismo usuario en una ventana de tiempo,
-// via este endpoint. No hace falta infraestructura nueva: se cuenta contra
-// las filas que ya existen en `transactions` (columna created_at). Si un
-// token se filtrase, esto acota el dano de una rafaga de peticiones
-// ademas del tope por importe/semanas de arriba.
-const RATE_LIMIT_WINDOW_MINUTES = 10
-const RATE_LIMIT_MAX_INSERTS = 40
-
-function clampText(v: unknown, max = MAX_TEXT_LEN): string {
-  return typeof v === "string" ? v.slice(0, max) : ""
 }
 
 const CATEGORY_KEYWORDS: Array<{ category: (typeof TRANSACTION_CATEGORIES)[number]; keywords: string[] }> = [
@@ -123,11 +94,12 @@ async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown
     ""
   const token = tokenRaw.trim()
   if (token) {
-    const userId = await resolveUserIdByQuickAddToken(supabase, token)
-    if (userId) {
-      touchQuickAddTokenLastUsed(supabase, token)
-      return userId
-    }
+    const { data } = await supabase
+      .from("quick_add_tokens")
+      .select("user_id")
+      .eq("token", token)
+      .maybeSingle()
+    if (data?.user_id) return data.user_id as string
   }
 
   // Vía 2 (antigua, un solo dueño): QUICK_ADD_SECRET + QUICK_ADD_OWNER_USER_ID,
@@ -156,24 +128,6 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Limite de frecuencia: si ya se han insertado demasiadas filas para este
-  // usuario en la ventana reciente, corta aqui antes de tocar nada mas. Si
-  // esta consulta fallase por lo que sea, se deja pasar la peticion (mejor
-  // no bloquear un alta legitima por un fallo de este chequeo aparte).
-  const rateLimitWindowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString()
-  const { count: recentInserts, error: rateLimitError } = await supabase
-    .from("transactions")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", ownerUserId)
-    .gte("created_at", rateLimitWindowStart)
-
-  if (!rateLimitError && (recentInserts ?? 0) >= RATE_LIMIT_MAX_INSERTS) {
-    return NextResponse.json(
-      { error: "Demasiadas peticiones seguidas. Espera unos minutos e intentalo de nuevo." },
-      { status: 429 },
-    )
-  }
-
   let amountRaw = Number(body.amount)
   let sourceText = ""
   // true cuando el importe salió de leer el texto de una notificación
@@ -184,9 +138,9 @@ async function handle(req: NextRequest) {
   let detectedFromNotificationText = false
 
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
-    const notifTitle = clampText(body.title)
-    const notifSubtitle = clampText(body.subtitle)
-    const notifBody = clampText(body.body)
+    const notifTitle = typeof body.title === "string" ? body.title : ""
+    const notifSubtitle = typeof body.subtitle === "string" ? body.subtitle : ""
+    const notifBody = typeof body.body === "string" ? body.body : ""
     sourceText = `${notifBody} ${notifSubtitle} ${notifTitle}`.trim()
 
     const match = sourceText.match(/(-?\$?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/)
@@ -213,13 +167,6 @@ async function handle(req: NextRequest) {
           rawBodyText: rawText.slice(0, 300),
         },
       },
-      { status: 400 },
-    )
-  }
-
-  if (Math.abs(amountRaw) > MAX_AMOUNT) {
-    return NextResponse.json(
-      { error: `El importe supera el maximo permitido por movimiento (${MAX_AMOUNT.toLocaleString("es")}).` },
       { status: 400 },
     )
   }
@@ -265,7 +212,7 @@ async function handle(req: NextRequest) {
     }
   }
 
-  const categoryRaw = clampText(body.category, 50).trim()
+  const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
   const matchedCategory = categoryRaw
     ? (TRANSACTION_CATEGORIES as readonly string[]).find(
         (c) => normalize(c) === normalize(categoryRaw),
@@ -273,9 +220,9 @@ async function handle(req: NextRequest) {
     : undefined
 
   const inferSource = [
-    clampText(body.description),
-    clampText(body.subtitle),
-    clampText(body.title),
+    typeof body.description === "string" ? body.description : "",
+    typeof body.subtitle === "string" ? body.subtitle : "",
+    typeof body.title === "string" ? body.title : "",
     sourceText,
   ].join(" ")
   const category = matchedCategory ?? inferCategory(inferSource) ?? "Otros"
@@ -285,9 +232,12 @@ async function handle(req: NextRequest) {
   // viene de una notificación del Wallet automation antiguo), usamos la
   // categoría como texto por defecto en vez de un genérico "Wallet" que ya
   // no tiene sentido para este flujo.
-  const explicitDescription = clampText(body.description).trim()
-  const notifDescription = [clampText(body.subtitle), clampText(body.title)]
-    .filter((v) => v.trim().length > 0)
+  const explicitDescription =
+    typeof body.description === "string" && body.description.trim()
+      ? body.description.trim()
+      : ""
+  const notifDescription = [body.subtitle, body.title]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
     .join(" - ")
   const description = explicitDescription || notifDescription || category
 
@@ -303,10 +253,9 @@ async function handle(req: NextRequest) {
   //                 (pagar 2 semanas de hostel por adelantado: weeks=2)
   // Ambos opcionales y combinables. Sin ellos, el comportamiento no cambia.
   const weeksRaw = Number(body.weeks)
-  const weeks = Number.isFinite(weeksRaw) && weeksRaw >= 1 ? Math.min(Math.floor(weeksRaw), MAX_WEEKS) : 1
+  const weeks = Number.isFinite(weeksRaw) && weeksRaw >= 1 ? Math.floor(weeksRaw) : 1
   const offsetRaw = Number(body.weekoffset ?? body.weekOffset)
-  const weekOffset =
-    Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.min(Math.floor(offsetRaw), MAX_WEEK_OFFSET) : 0
+  const weekOffset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw) : 0
 
   function addWeeks(iso: string, n: number): string {
     const d = new Date(iso + "T00:00:00")
