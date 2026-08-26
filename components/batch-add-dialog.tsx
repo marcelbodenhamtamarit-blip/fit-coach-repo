@@ -160,8 +160,15 @@ export function BatchAddDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button variant="outline" className="w-full" />}>
-        <ListPlus className="mr-2 size-4" />
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            className="flex items-center gap-1 pt-1 text-xs text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+          />
+        }
+      >
+        <ListPlus className="size-3" />
         {t("batch.trigger")}
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
