@@ -15,7 +15,13 @@ import { convertAmount } from "@/lib/exchange-rates"
 import { sendPushToUser } from "@/lib/send-push.server"
 
 function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+  const diacriticFrom = String.fromCharCode(0x0300)
+  const diacriticTo = String.fromCharCode(0x036f)
+  return s
+    .normalize("NFD")
+    .replace(new RegExp("[" + diacriticFrom + "-" + diacriticTo + "]", "g"), "")
+    .toLowerCase()
+    .trim()
 }
 
 const CATEGORY_KEYWORDS: Array<{ category: (typeof TRANSACTION_CATEGORIES)[number]; keywords: string[] }> = [
@@ -33,6 +39,59 @@ function inferCategory(text: string): (typeof TRANSACTION_CATEGORIES)[number] | 
     if (item.keywords.some((k) => norm.includes(normalize(k)))) return item.category
   }
   return null
+}
+
+// Red de seguridad para cuando CATEGORY_KEYWORDS no reconoce el comercio
+// (p.ej. "Agoda", que no es ninguna de las palabras sueltas de la lista de
+// arriba). En vez de mantener a mano una lista infinita de comercios, se le
+// pregunta a un modelo de IA (Gemini, capa gratuita — ver GEMINI_API_KEY en
+// Vercel) qué categoría encaja mejor. Solo se llama cuando las palabras
+// clave ya fallaron, así que el caso rápido y común no paga el coste de
+// latencia de la llamada a la IA. Si no hay clave configurada, la llamada
+// falla o tarda más de 4s, se devuelve null y el flujo de siempre sigue
+// cayendo en "Otros" — nunca bloquea el alta de la transacción.
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+const GEMINI_MODEL = "gemini-2.5-flash-lite"
+
+async function inferCategoryWithAI(text: string): Promise<(typeof TRANSACTION_CATEGORIES)[number] | null> {
+  if (!GEMINI_API_KEY || !text.trim()) return null
+
+  const options = (TRANSACTION_CATEGORIES as readonly string[]).filter((c) => c !== "Otros")
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text:
+                    `Este es el texto de una notificación de pago o cargo bancario. Clasifícalo en UNA de estas categorías: ${options.join(", ")}.\n` +
+                    `Responde solo con el nombre exacto de la categoría (tal cual está escrito arriba), sin explicación. Si no encaja claramente en ninguna, responde "Otros".\n\n` +
+                    `Texto: "${text.trim().slice(0, 300)}"`,
+                },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0, maxOutputTokens: 20 },
+        }),
+        signal: AbortSignal.timeout(4000),
+      },
+    )
+    if (!res.ok) return null
+
+    const json = await res.json()
+    const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    const match = (TRANSACTION_CATEGORIES as readonly string[]).find((c) => normalize(c) === normalize(raw))
+    return (match as (typeof TRANSACTION_CATEGORIES)[number] | undefined) ?? null
+  } catch (err) {
+    console.error("[quick-transaction] error clasificando categoría con IA:", err)
+    return null
+  }
 }
 
 // Palabras que indican que el dinero entró (no salió). Solo se usa cuando el
@@ -225,7 +284,8 @@ async function handle(req: NextRequest) {
     typeof body.title === "string" ? body.title : "",
     sourceText,
   ].join(" ")
-  const category = matchedCategory ?? inferCategory(inferSource) ?? "Otros"
+  const category =
+    matchedCategory ?? inferCategory(inferSource) ?? (await inferCategoryWithAI(inferSource)) ?? "Otros"
 
   // El atajo manual (Ajustes) no pide un concepto de texto, solo cantidad,
   // tipo y categoría — así que si no llega `description` explícita (ni
