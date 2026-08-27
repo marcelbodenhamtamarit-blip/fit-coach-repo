@@ -11,10 +11,7 @@
 //     en ese caso. Así no hay que tocar dashboard.tsx ni settings-section.tsx
 //     otra vez, con cambiar esta única línea (y hacer commit + deploy) basta.
 
-export const AUTOMATIONS_BETA_EMAILS: string[] | "*" = [
-  "marcelbodenham@gmail.com",
-  "marcelbodenhamtamarit@gmail.com",
-]
+export const AUTOMATIONS_BETA_EMAILS: string[] | "*" = "*"
 export function isBetaUser(email: string | null | undefined): boolean {
   if (AUTOMATIONS_BETA_EMAILS === "*") return true
   if (!email) return false
