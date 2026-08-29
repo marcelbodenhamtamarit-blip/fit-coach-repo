@@ -239,35 +239,38 @@ async function handle(req: NextRequest) {
         : "gasto"
   const rawAmount = type === "ingreso" ? Math.abs(amountRaw) : -Math.abs(amountRaw)
 
-  // Divisa opcional (paso 5 del atajo manual puede mandar `currency`, p.ej.
-  // desde un viaje). Si no coincide con la divisa principal del usuario, se
-  // convierte aquí con el tipo de cambio del día y se guarda también el
-  // importe original para poder mostrarlo tal cual en la app.
-  const currencyRaw = typeof body.currency === "string" ? body.currency.trim().toUpperCase() : ""
+  // Divisa: puede venir explícita en `currency` (paso 5 del atajo manual),
+  // pero ni el atajo de notificación automática ni /quick-confirm la mandan
+  // nunca — así que si el usuario tiene Modo Viaje activado en Ajustes, se
+  // usa esa divisa de viaje como si la hubiera mandado. Así "Modo Viaje" es
+  // de verdad automático: no depende de que la Automatización de Atajos
+  // sepa nada de divisas, solo de la preferencia guardada en la cuenta.
+  const explicitCurrency = typeof body.currency === "string" ? body.currency.trim().toUpperCase() : ""
+
+  const { data: prefs } = await supabase
+    .from("user_preferences")
+    .select("home_currency, travel_mode, travel_currency")
+    .eq("user_id", ownerUserId)
+    .maybeSingle()
+  const homeCurrency = (prefs?.home_currency ?? "AUD").toUpperCase()
+  const currencyRaw =
+    explicitCurrency ||
+    (prefs?.travel_mode && prefs?.travel_currency ? String(prefs.travel_currency).toUpperCase() : "")
 
   let amount = rawAmount
   let txCurrency: string | null = null
   let txOriginalAmount: number | null = null
 
-  if (currencyRaw) {
-    const { data: prefs } = await supabase
-      .from("user_preferences")
-      .select("home_currency")
-      .eq("user_id", ownerUserId)
-      .maybeSingle()
-    const homeCurrency = (prefs?.home_currency ?? "AUD").toUpperCase()
-
-    if (currencyRaw !== homeCurrency) {
-      try {
-        amount = await convertAmount(rawAmount, currencyRaw, homeCurrency, supabase)
-        txCurrency = currencyRaw
-        txOriginalAmount = rawAmount
-      } catch (e) {
-        return NextResponse.json(
-          { error: e instanceof Error ? e.message : "No se pudo convertir la divisa" },
-          { status: 500 },
-        )
-      }
+  if (currencyRaw && currencyRaw !== homeCurrency) {
+    try {
+      amount = await convertAmount(rawAmount, currencyRaw, homeCurrency, supabase)
+      txCurrency = currencyRaw
+      txOriginalAmount = rawAmount
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "No se pudo convertir la divisa" },
+        { status: 500 },
+      )
     }
   }
 
