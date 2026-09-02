@@ -154,8 +154,10 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const [editType, setEditType] = useState<TxType>("gasto")
   const [editAmount, setEditAmount] = useState("")
   const [editCategory, setEditCategory] = useState<string>(TRANSACTION_CATEGORIES[0])
+  const [editCurrency, setEditCurrency] = useState<string>(homeCurrency)
   const [editDate, setEditDate] = useState(todayISO())
   const [editSaving, setEditSaving] = useState(false)
+  const [editConversionError, setEditConversionError] = useState("")
 
   // Alta en lote: cada click en "Añadir varias de golpe" / "Añadir fila"
   // mete una fila más al final, para ir apuntando gastos sueltos uno detrás
@@ -421,30 +423,56 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     setEditingId(tx.id)
     setEditDesc(tx.description)
     setEditType(tx.amount >= 0 ? "ingreso" : "gasto")
-    setEditAmount(String(Math.abs(tx.amount)))
+    // Si la transacción se guardó en una divisa distinta (viaje), se rellena
+    // con el importe y la divisa originales en vez del ya convertido — así
+    // se puede corregir "puse 100 en vez de 1000" sin tener que hacer la
+    // conversión de cabeza y sin perder de qué divisa venía.
+    const hasOriginal = tx.currency && tx.originalAmount != null
+    setEditAmount(String(Math.abs(hasOriginal ? tx.originalAmount! : tx.amount)))
+    setEditCurrency(hasOriginal ? tx.currency! : homeCurrency)
     setEditCategory(tx.category)
     setEditDate(tx.date)
+    setEditConversionError("")
   }
 
   const cancelEditing = () => {
     setEditingId(null)
+    setEditConversionError("")
   }
 
   const handleUpdate = async (id: string) => {
     const raw = parseFloat(editAmount)
     if (!editDesc.trim() || isNaN(raw)) return
     setEditSaving(true)
+    setEditConversionError("")
     const num = editType === "gasto" ? -Math.abs(raw) : Math.abs(raw)
-    // Editar cambia directamente el importe ya convertido (en tu divisa
-    // principal); si la transacción tenía una divisa original asociada, se
-    // limpia aquí para no dejar un importe original desincronizado.
+
+    // Igual que al dar de alta: si la divisa elegida no es la principal, se
+    // convierte con la tasa del día y se guardan ambos importes (original y
+    // ya convertido). Si es la principal, no se guarda ninguna divisa aparte.
+    let finalAmount = num
+    let txCurrency: string | null = null
+    let txOriginalAmount: number | null = null
+
+    if (editCurrency !== homeCurrency) {
+      try {
+        finalAmount = await convertAmount(num, editCurrency, homeCurrency, supabase)
+        txCurrency = editCurrency
+        txOriginalAmount = num
+      } catch {
+        setEditSaving(false)
+        setEditConversionError(t("economy.conversionError"))
+        return
+      }
+    }
+
     updateTransaction(id, {
       description: editDesc.trim(),
-      amount: num,
+      amount: finalAmount,
       category: editCategory as Transaction["category"],
       date: editDate,
-      currency: null,
-      originalAmount: null,
+      currency: txCurrency,
+      originalAmount: txOriginalAmount,
     })
     setEditSaving(false)
     setEditingId(null)
@@ -889,7 +917,32 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                                             </button>
                                           </div>
                                           <Input placeholder={t("economy.description")} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="h-8 text-sm" />
-                                          <Input type="number" min="0" placeholder={t("economy.amount")} value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-8 text-sm" />
+                                          <div className="flex gap-1.5">
+                                            <Input
+                                              type="number"
+                                              min="0"
+                                              placeholder={t("economy.amount")}
+                                              value={editAmount}
+                                              onChange={(e) => setEditAmount(e.target.value)}
+                                              className="h-8 flex-1 text-sm"
+                                            />
+                                            <select
+                                              aria-label={t("common.currency")}
+                                              value={editCurrency}
+                                              onChange={(e) => setEditCurrency(e.target.value)}
+                                              className="flex h-8 w-24 shrink-0 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            >
+                                              {CURRENCIES.map((c) => (
+                                                <option key={c.code} value={c.code}>{c.code}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          {editCurrency !== homeCurrency && (
+                                            <p className="text-xs text-muted-foreground">
+                                              {t("economy.convertNotice", { currency: homeCurrency })}
+                                            </p>
+                                          )}
+                                          {editConversionError && <p className="text-xs text-red-500">{editConversionError}</p>}
                                           <select
                                             value={editCategory}
                                             onChange={(e) => setEditCategory(e.target.value)}
