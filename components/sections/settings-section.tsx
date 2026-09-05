@@ -388,7 +388,15 @@ function TravelModeCard() {
 // Por eso existe el bloque TAP_TO_PAY_STEPS de abajo: una guía visual (con
 // iconos en vez de un muro de texto) para que ese único paso de ~30
 // segundos se perciba como rápido en vez de como "trabajo".
-const SHORTCUT_ICLOUD_URL = "https://www.icloud.com/shortcuts/8942dbe1aa364ad29198997fa1146015"
+// Dos copias del mismo Shortcut (idéntico por dentro, solo cambia el
+// nombre/descripción que Atajos muestra en la pantalla de "Obtener atajo"
+// antes de instalarlo) — el botón de abajo elige una u otra según el idioma
+// que el usuario tenga puesto en Ajustes, no según el idioma del teléfono
+// (a diferencia de /quick-confirm, aquí sí hay sesión iniciada). Funciona
+// igual instalado desde cualquiera de los dos: la pantalla de confirmación
+// y la notificación push ya salen en el idioma de Ajustes por su cuenta.
+const SHORTCUT_ICLOUD_URL_ES = "https://www.icloud.com/shortcuts/8942dbe1aa364ad29198997fa1146015"
+const SHORTCUT_ICLOUD_URL_EN = "https://www.icloud.com/shortcuts/10d0d6f6846b4b3f942983e9b98e12cc"
 
 const TAP_TO_PAY_STEPS = [
   { icon: Smartphone, titleKey: "settings.tapToPayStep1Title", descKey: "settings.tapToPayStep1" },
@@ -546,7 +554,7 @@ function QuickAddShortcutCard() {
         <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
       ) : (
         <div className="space-y-4">
-          <a href={SHORTCUT_ICLOUD_URL} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
+          <a href={lang === "en" ? SHORTCUT_ICLOUD_URL_EN : SHORTCUT_ICLOUD_URL_ES} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
             <Download className="size-4" />
             {t("settings.installShortcut")}
           </a>
