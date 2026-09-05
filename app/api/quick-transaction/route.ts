@@ -13,6 +13,7 @@ const supabase = createClient(
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 import { convertAmount } from "@/lib/exchange-rates"
 import { sendPushToUser } from "@/lib/send-push.server"
+import { translate, categoryLabel, type Language } from "@/lib/i18n"
 
 function normalize(s: string): string {
   const diacriticFrom = String.fromCharCode(0x0300)
@@ -192,8 +193,8 @@ async function handle(req: NextRequest) {
   // true cuando el importe salió de leer el texto de una notificación
   // (disparador "Notificación" de Atajos, iOS 27+), no de un campo `amount`
   // explícito — es decir, el caso 100% silencioso sin pantalla de
-  // confirmación. Se usa más abajo para avisar por push del sistema, ya
-  // que aquí no hay ninguna pantalla de ZentOS que muestre el "Guardado".
+  // confirmación. Se usa más abajo para elegir el título de la notificación
+  // push de confirmación.
   let detectedFromNotificationText = false
 
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
@@ -249,10 +250,15 @@ async function handle(req: NextRequest) {
 
   const { data: prefs } = await supabase
     .from("user_preferences")
-    .select("home_currency, travel_mode, travel_currency")
+    .select("home_currency, travel_mode, travel_currency, language")
     .eq("user_id", ownerUserId)
     .maybeSingle()
   const homeCurrency = (prefs?.home_currency ?? "AUD").toUpperCase()
+  // Para la notificación push de confirmación más abajo: aquí sí hay un
+  // usuario identificado (por el token), así que a diferencia de
+  // /quick-confirm (sin sesión, ver ese archivo) se puede usar directamente
+  // el idioma que tiene guardado en Ajustes.
+  const userLang: Language = prefs?.language === "en" ? "en" : "es"
   const currencyRaw =
     explicitCurrency ||
     (prefs?.travel_mode && prefs?.travel_currency ? String(prefs.travel_currency).toUpperCase() : "")
@@ -370,21 +376,26 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Confirmación por notificación push: solo para el camino 100% silencioso
-  // (disparador "Notificación" de Atajos leyendo el aviso del banco/Wallet,
-  // sin ninguna pantalla de ZentOS de por medio) — el alta manual desde
-  // /quick-add o /quick-confirm ya muestra su propio "Guardado" en
-  // pantalla, así que ahí no hace falta duplicar el aviso. Si el usuario no
-  // tiene notificaciones activadas (o el envío falla), no rompe el alta:
-  // la transacción ya quedó guardada de todas formas.
-  if (detectedFromNotificationText && data && data.length > 0) {
+  // Confirmación por notificación push: se manda siempre que se guarda algo
+  // por esta ruta (atajo manual desde Ajustes, pantalla de Tap to Pay
+  // /quick-confirm, o el camino 100% silencioso leyendo el texto de una
+  // notificación). Antes solo se mandaba en el camino silencioso, porque
+  // /quick-confirm ya muestra su propio "Guardado" en pantalla — pero al
+  // cerrar Safari enseguida (o si el atajo manual no abre ninguna pantalla)
+  // esa confirmación en pantalla puede pasar desapercibida, así que ahora
+  // también llega como notificación del sistema. El título cambia según el
+  // origen: "detectado" para el silencioso (nadie tocó nada), "guardado"
+  // para cuando sí hubo una acción explícita. Si el usuario no tiene
+  // notificaciones activadas (o el envío falla), no rompe el alta: la
+  // transacción ya quedó guardada de todas formas.
+  if (data && data.length > 0) {
     const first = data[0] as { amount: number; description: string; category: string }
     const total = data.reduce((sum: number, r: { amount: number }) => sum + Number(r.amount), 0)
     const sign = total < 0 ? "-" : "+"
-    const summary = `${first.description} · ${first.category} · ${sign}$${Math.abs(total).toFixed(2)}`
+    const summary = `${first.description} · ${categoryLabel(first.category, userLang)} · ${sign}$${Math.abs(total).toFixed(2)}`
     try {
       await sendPushToUser(supabase, ownerUserId, {
-        title: "Gasto detectado",
+        title: translate(detectedFromNotificationText ? "push.expenseDetected" : "push.expenseSaved", userLang),
         body: summary,
         url: "/",
         tag: "zentos-quick-transaction",
@@ -398,7 +409,7 @@ async function handle(req: NextRequest) {
     ok: true,
     transaction: data?.[0] ?? null,
     transactions: data,
-    pushConfirmationSent: detectedFromNotificationText,
+    pushConfirmationSent: !!(data && data.length > 0),
   })
 }
 
