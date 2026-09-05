@@ -472,6 +472,38 @@ export const TRANSLATIONS = {
     es: "Las alertas y recordatorios se revisan cada hora en el servidor. Si acabas de crear uno, puede tardar hasta esa hora en dispararse por primera vez — usa \"Probar ahora\" para verlo al momento.",
     en: "Alerts and reminders are checked hourly on the server. A newly created one may take up to an hour to fire for the first time — use \"Test now\" to see it right away.",
   },
+
+  // Pantalla /quick-confirm: la que abre el atajo de Tap to Pay (y el atajo
+  // manual) en Safari, sin sesión iniciada — por eso su idioma no sale de
+  // Ajustes (data.language) como el resto de la app, sino del idioma del
+  // propio teléfono (navigator.language), que es lo único disponible ahí.
+  "quickConfirm.appName": { es: "ZentOS", en: "ZentOS" },
+  "quickConfirm.title": { es: "Nuevo movimiento", en: "New transaction" },
+  "quickConfirm.saved": { es: "Guardado", en: "Saved" },
+  "quickConfirm.saveButton": { es: "Guardar", en: "Save" },
+  "quickConfirm.invalidAmount": { es: "Escribe una cantidad válida", en: "Enter a valid amount" },
+  "quickConfirm.missingToken": {
+    es: "Falta el código en el enlace. Ábrelo desde el atajo o cópialo de nuevo desde Ajustes.",
+    en: "The link is missing its code. Open it from the shortcut or copy it again from Settings.",
+  },
+  "quickConfirm.invalidToken": {
+    es: "Ese código ya no es válido. Genera uno nuevo en Ajustes → Atajo rápido.",
+    en: "That code is no longer valid. Generate a new one in Settings → Quick Shortcut.",
+  },
+  "quickConfirm.genericError": { es: "No se pudo guardar. Inténtalo otra vez.", en: "Couldn't save. Try again." },
+  "quickConfirm.noConnection": { es: "Sin conexión. Inténtalo otra vez.", en: "No connection. Try again." },
+  "quickConfirm.loading": { es: "Cargando...", en: "Loading..." },
+
+  // Títulos de la notificación push de confirmación al guardar un
+  // movimiento por /api/quick-transaction (atajo manual, Tap to Pay vía
+  // /quick-confirm, o detección 100% silenciosa) — se elige el idioma
+  // según la preferencia guardada del usuario (sí hay sesión resuelta ahí,
+  // vía el token), a diferencia de /quick-confirm. "Detectado" se usa solo
+  // cuando el importe salió de leer el texto de una notificación sola
+  // (nadie tocó nada); "Guardado" para cuando sí hubo una acción explícita
+  // (atajo manual o pantalla de Tap to Pay).
+  "push.expenseDetected": { es: "Gasto detectado", en: "Expense detected" },
+  "push.expenseSaved": { es: "Gasto guardado", en: "Expense saved" },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
