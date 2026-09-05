@@ -27,12 +27,24 @@
 // notificación del pago — hoy no los manda nadie, así que por defecto la
 // pantalla sale en blanco lista para rellenar a mano en 2 toques.
 
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Check, Loader2 } from "lucide-react"
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
+import { translate, categoryLabel, type Language } from "@/lib/i18n"
 
 type TxType = "gasto" | "ingreso"
+
+// Como esta página no tiene sesión (ver nota de arriba), no hay
+// data.language de Ajustes disponible aquí — el único idioma que se puede
+// conocer sin iniciar sesión es el del propio teléfono. navigator.language
+// no existe durante el render en el servidor, así que se arranca en "es" y
+// se corrige en el cliente nada más montar (ver useEffect más abajo);
+// cualquier idioma que no empiece por "en" se trata como español.
+function detectLang(): Language {
+  if (typeof navigator === "undefined") return "es"
+  return navigator.language.toLowerCase().startsWith("en") ? "en" : "es"
+}
 
 const CATEGORY_EMOJI: Record<string, string> = {
   Alojamiento: "\u{1F3E0}",
@@ -57,6 +69,7 @@ function QuickConfirmInner() {
   const prefillType = params.get("type") === "ingreso" ? "ingreso" : "gasto"
   const prefillCategory = params.get("category")
 
+  const [lang, setLang] = useState<Language>("es")
   const [amount, setAmount] = useState(prefillAmount ?? "")
   const [type, setType] = useState<TxType>(prefillType as TxType)
   const [category, setCategory] = useState<string>(isKnownCategory(prefillCategory) ? prefillCategory : "Otros")
@@ -64,14 +77,20 @@ function QuickConfirmInner() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
 
+  useEffect(() => {
+    setLang(detectLang())
+  }, [])
+
+  const t = (key: Parameters<typeof translate>[0]) => translate(key, lang)
+
   async function handleSave() {
     const raw = parseFloat(amount.replace(",", "."))
     if (isNaN(raw) || raw === 0) {
-      setError("Escribe una cantidad válida")
+      setError(t("quickConfirm.invalidAmount"))
       return
     }
     if (!token) {
-      setError("Falta el código en el enlace. Ábrelo desde el atajo o cópialo de nuevo desde Ajustes.")
+      setError(t("quickConfirm.missingToken"))
       return
     }
 
@@ -89,8 +108,8 @@ function QuickConfirmInner() {
       if (!res.ok) {
         setError(
           res.status === 401
-            ? "Ese código ya no es válido. Genera uno nuevo en Ajustes → Atajo rápido."
-            : json.error || "No se pudo guardar. Inténtalo otra vez.",
+            ? t("quickConfirm.invalidToken")
+            : json.error || t("quickConfirm.genericError"),
         )
         setSaving(false)
         return
@@ -104,7 +123,7 @@ function QuickConfirmInner() {
       setTimeout(() => setSaved(false), 1800)
     } catch {
       setSaving(false)
-      setError("Sin conexión. Inténtalo otra vez.")
+      setError(t("quickConfirm.noConnection"))
     }
   }
 
@@ -113,8 +132,8 @@ function QuickConfirmInner() {
       <div className="w-full max-w-[320px] animate-in fade-in zoom-in-95 duration-200 ease-out">
         <div className="rounded-3xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl">
           <div className="mb-4 text-center">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/40">ZentOS</p>
-            <h1 className="mt-1 text-base font-semibold text-white">Nuevo movimiento</h1>
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{t("quickConfirm.appName")}</p>
+            <h1 className="mt-1 text-base font-semibold text-white">{t("quickConfirm.title")}</h1>
           </div>
 
           {saved ? (
@@ -122,7 +141,7 @@ function QuickConfirmInner() {
               <div className="flex size-14 items-center justify-center rounded-full bg-emerald-500/15">
                 <Check className="size-7 text-emerald-400" />
               </div>
-              <p className="text-sm font-medium text-white">Guardado</p>
+              <p className="text-sm font-medium text-white">{t("quickConfirm.saved")}</p>
             </div>
           ) : (
             <>
@@ -134,7 +153,7 @@ function QuickConfirmInner() {
                     type === "gasto" ? "bg-red-500/20 text-red-300" : "text-white/50"
                   }`}
                 >
-                  Gasto (−)
+                  {t("common.expense")}
                 </button>
                 <button
                   type="button"
@@ -143,7 +162,7 @@ function QuickConfirmInner() {
                     type === "ingreso" ? "bg-emerald-500/20 text-emerald-300" : "text-white/50"
                   }`}
                 >
-                  Ingreso (+)
+                  {t("common.income")}
                 </button>
               </div>
 
@@ -170,7 +189,7 @@ function QuickConfirmInner() {
                     }`}
                   >
                     <span className="text-lg">{CATEGORY_EMOJI[c] ?? "\u{1F4CC}"}</span>
-                    {c}
+                    {categoryLabel(c, lang)}
                   </button>
                 ))}
               </div>
@@ -183,7 +202,7 @@ function QuickConfirmInner() {
                 className="flex h-14 w-full items-center justify-center rounded-2xl text-base font-semibold text-white transition-opacity disabled:opacity-40"
                 style={{ backgroundColor: "#7c6fff" }}
               >
-                {saving ? <Loader2 className="size-5 animate-spin" /> : "Guardar"}
+                {saving ? <Loader2 className="size-5 animate-spin" /> : t("quickConfirm.saveButton")}
               </button>
             </>
           )}
@@ -198,7 +217,7 @@ export default function QuickConfirmPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-[#101012] text-sm text-white/40">
-          Cargando...
+          {translate("quickConfirm.loading", detectLang())}
         </div>
       }
     >
