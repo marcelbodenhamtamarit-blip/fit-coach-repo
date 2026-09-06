@@ -230,35 +230,39 @@ export function Dashboard() {
 
 // Antes las notificaciones push eran 100% opt-in: había que entrar en
 // Ajustes > Recordatorios y darle a "Activar notificaciones" a mano, y casi
-// nadie llegaba hasta ahí. Ahora se intenta activarlas solas, una única vez
-// por dispositivo, nada más entrar con sesión iniciada — así todo el mundo
-// las recibe sin tener que buscarlas.
+// nadie llegaba hasta ahí. Ahora se intenta activarlas solas, nada más
+// entrar con sesión iniciada — así todo el mundo las recibe sin tener que
+// buscarlas.
 //
-// El intento queda marcado en localStorage (AUTO_PUSH_ATTEMPTED_KEY) para
-// que solo se ofrezca una vez por navegador/dispositivo, nunca en cada
-// visita:
-//   - Si el permiso del navegador está en "default" (nunca se ha
-//     preguntado), esto dispara el aviso nativo del sistema una sola vez.
-//     Si la persona lo deniega, los navegadores recuerdan esa decisión y
-//     Notification.requestPermission() ya no vuelve a mostrar nada — así
-//     que no hace falta (ni serviría de nada) reintentarlo más adelante.
-//   - Si alguien decide luego desactivarlas a mano desde Ajustes >
-//     Recordatorios (queda ese botón para eso, ahora dice "Desactivar"),
-//     esta marca ya está puesta desde antes, así que no se le vuelve a
-//     suscribir solo la próxima vez que abra la app — su elección se
-//     respeta.
+// En vez de guardar una marca propia en localStorage para saber si "ya se
+// intentó" (lo que se probó primero y tenía un fallo: la marca se quedaba
+// puesta en el primer montaje SIN comprobar antes si de verdad se había
+// podido preguntar algo — así que una sola visita en un contexto donde
+// push no estaba disponible, p.ej. abrir la web en Safari normal en vez de
+// la PWA instalada, dejaba la marca puesta para siempre y la app nunca
+// volvía a intentarlo, ni siquiera abriéndola después desde el icono de la
+// PWA), usamos directamente el propio permiso del navegador como memoria:
+//   - "default" = nunca se ha preguntado -> es el único caso en el que
+//     merece la pena intentarlo.
+//   - "granted" o "denied" = ya se preguntó alguna vez (por aquí o por el
+//     botón manual de Ajustes > Recordatorios) y el navegador se acuerda
+//     para siempre — no hay forma de volver a "default" desde JS, así que
+//     no hace falta (ni serviría de nada) reintentarlo.
+//   - Si alguien desactiva las notificaciones a mano desde Ajustes, eso
+//     borra la suscripción guardada pero el permiso del navegador se queda
+//     en "granted" — por eso ese botón (ahora dice "Desactivar") sigue
+//     siendo la forma de apagarlas, esto no las vuelve a encender solo.
 //   - Si el navegador no soporta push (p.ej. Safari fuera de una PWA
-//     instalada) o falta la clave VAPID, no se intenta nada.
-const AUTO_PUSH_ATTEMPTED_KEY = "zentos:auto-push-attempted"
-
+//     instalada) o falta la clave VAPID, tampoco se intenta nada — y como
+//     no dejamos ninguna marca puesta, en cuanto la persona la abra desde
+//     un contexto donde sí esté disponible, se prueba entonces.
 function AutoEnablePush() {
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (localStorage.getItem(AUTO_PUSH_ATTEMPTED_KEY)) return
-    localStorage.setItem(AUTO_PUSH_ATTEMPTED_KEY, "1")
 
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    if (!vapidKey || !isPushSupported() || getNotificationPermission() === "denied") return
+    if (!vapidKey || !isPushSupported()) return
+    if (getNotificationPermission() !== "default") return
 
     // Pequeño respiro antes de lanzar el aviso nativo del sistema, para que
     // no compita con el popup de revisión de recurrentes (que también
