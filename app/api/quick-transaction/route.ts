@@ -193,8 +193,8 @@ async function handle(req: NextRequest) {
   // true cuando el importe salió de leer el texto de una notificación
   // (disparador "Notificación" de Atajos, iOS 27+), no de un campo `amount`
   // explícito — es decir, el caso 100% silencioso sin pantalla de
-  // confirmación. Se usa más abajo para elegir el título de la notificación
-  // push de confirmación.
+  // confirmación. Se usa más abajo para avisar por push del sistema, ya
+  // que aquí no hay ninguna pantalla de ZentOS que muestre el "Guardado".
   let detectedFromNotificationText = false
 
   if (!body.amount || Number.isNaN(amountRaw) || amountRaw === 0) {
@@ -231,9 +231,13 @@ async function handle(req: NextRequest) {
     )
   }
 
+  // "ingreso"/"income": el atajo manual (ES o EN) manda el tipo tal cual lo
+  // eligió la persona en su menú nativo de Atajos ("Elegir de un menú"), y
+  // ese menú puede estar traducido al inglés en la copia "ZentOS 28 EN" —
+  // así que aquí se aceptan ambos literales, no solo el español.
   const typeVal = typeof body.type === "string" ? body.type.trim().toLowerCase() : ""
   const type =
-    typeVal === "ingreso"
+    typeVal === "ingreso" || typeVal === "income"
       ? "ingreso"
       : detectedFromNotificationText && inferTypeFromText(sourceText) === "ingreso"
         ? "ingreso"
@@ -280,10 +284,17 @@ async function handle(req: NextRequest) {
     }
   }
 
+  // Igual que con el tipo (arriba): el menú de categorías de "ZentOS 28 EN"
+  // tiene sus opciones en inglés (p.ej. "Eating out" en vez de "Comida
+  // fuera") para que quien lo usa en ese idioma entienda qué está
+  // eligiendo — pero el valor que se guarda en la base de datos sigue
+  // siendo siempre el nombre en español (ver categoryLabel en lib/i18n.ts),
+  // así que aquí hay que reconocer también la etiqueta en inglés y
+  // traducirla de vuelta a su categoría real antes de guardar.
   const categoryRaw = typeof body.category === "string" ? body.category.trim() : ""
   const matchedCategory = categoryRaw
     ? (TRANSACTION_CATEGORIES as readonly string[]).find(
-        (c) => normalize(c) === normalize(categoryRaw),
+        (c) => normalize(c) === normalize(categoryRaw) || normalize(categoryLabel(c, "en")) === normalize(categoryRaw),
       )
     : undefined
 
