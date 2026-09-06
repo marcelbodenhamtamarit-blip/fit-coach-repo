@@ -233,11 +233,19 @@ async function handle(req: NextRequest) {
 
   // "ingreso"/"income": el atajo manual (ES o EN) manda el tipo tal cual lo
   // eligió la persona en su menú nativo de Atajos ("Elegir de un menú"), y
-  // ese menú puede estar traducido al inglés en la copia "ZentOS 28 EN" —
-  // así que aquí se aceptan ambos literales, no solo el español.
-  const typeVal = typeof body.type === "string" ? body.type.trim().toLowerCase() : ""
+  // ese menú puede estar traducido al inglés en la copia "ZentOS 28 EN" — con
+  // el texto exacto que la IA le puso a esa opción, que puede llevar emojis,
+  // mayúsculas distintas o algún espacio de más (p.ej. "💰 Income"). Antes se
+  // comparaba con === contra "ingreso"/"income" exactos: si el texto real de
+  // la opción no coincidía carácter a carácter, esto fallaba en silencio y
+  // caía siempre al "gasto" del final — por eso "Expense" parecía funcionar
+  // (coincidía con el valor por defecto aunque en realidad no se detectaba)
+  // mientras que "Income" nunca se guardaba como ingreso. Usando includes()
+  // sobre el texto normalizado (sin acentos, en minúsculas) basta con que la
+  // palabra "ingreso"/"income" aparezca en algún punto del texto elegido.
+  const typeValNorm = typeof body.type === "string" ? normalize(body.type) : ""
   const type =
-    typeVal === "ingreso" || typeVal === "income"
+    typeValNorm.includes("ingreso") || typeValNorm.includes("income")
       ? "ingreso"
       : detectedFromNotificationText && inferTypeFromText(sourceText) === "ingreso"
         ? "ingreso"
