@@ -438,6 +438,16 @@ export const TRANSLATIONS = {
     es: "Este navegador no soporta notificaciones push. En iPhone, añade la app a la pantalla de inicio primero.",
     en: "This browser doesn't support push notifications. On iPhone, add the app to your home screen first.",
   },
+  // Caso concreto de iPhone: la app SÍ está añadida a la pantalla de
+  // inicio, pero se está abriendo desde Safari (una pestaña, un enlace
+  // compartido por WhatsApp/Mensajes) en vez del icono guardado. Ahí pedir
+  // permiso de notificaciones no hace nada — ni siquiera muestra el aviso
+  // del sistema — así que hay que decirlo explícitamente en vez de dejar
+  // que parezca que el botón "Activar" simplemente no funciona.
+  "automations.pushNeedsInstall": {
+    es: "Para activarlas, cierra esto y abre ZentOS desde el icono de tu pantalla de inicio (no desde Safari ni desde un enlace compartido).",
+    en: "To enable them, close this and open ZentOS from the icon on your home screen (not from Safari or a shared link).",
+  },
   "automations.pushDenied": {
     es: "Permiso de notificaciones denegado. Actívalo desde los ajustes del navegador/sistema.",
     en: "Notification permission denied. Enable it from your browser/system settings.",
