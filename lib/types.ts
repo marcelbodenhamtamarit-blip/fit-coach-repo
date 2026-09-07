@@ -22,6 +22,7 @@ export const CURRENCIES = [
   { code: "AUD", symbol: "$", name: "Dólar australiano" },
   { code: "ARS", symbol: "$", name: "Peso argentino" },
   { code: "GBP", symbol: "£", name: "Libra esterlina" },
+  { code: "RON", symbol: "lei", name: "Leu rumano" },
   { code: "MXN", symbol: "$", name: "Peso mexicano" },
   { code: "COP", symbol: "$", name: "Peso colombiano" },
   { code: "CLP", symbol: "$", name: "Peso chileno" },
@@ -78,9 +79,20 @@ export type RecurringTransaction = {
   lastCreatedPeriod: string | null // "YYYY-MM" si frequency=monthly, "YYYY-Www" si weekly
 }
 
+// Presupuesto mensual de una categoría: límite de gasto que, comparado
+// contra la suma de transacciones de esa categoría en el mes en curso,
+// permite mostrar una barra de progreso y avisar cuando se acerca o supera
+// (ver overview-section.tsx). Solo una fila por categoría — quitar el
+// presupuesto elimina la entrada en vez de dejarla en 0.
+export type CategoryBudget = {
+  category: TransactionCategory
+  monthlyLimit: number
+}
+
 export type AppData = {
   transactions: Transaction[]
   recurring: RecurringTransaction[]
+  budgets: CategoryBudget[]
   homeCurrency: string
   language: string
   // Modo viaje: mientras está activo, los formularios de nueva transacción
