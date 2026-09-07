@@ -530,6 +530,16 @@ export const TRANSLATIONS = {
   // (atajo manual o pantalla de Tap to Pay).
   "push.expenseDetected": { es: "Gasto detectado", en: "Expense detected" },
   "push.expenseSaved": { es: "Gasto guardado", en: "Expense saved" },
+
+  // Notificación de prueba (botón "Enviar prueba" en Ajustes → Recordatorios,
+  // ver app/api/push/test/route.ts). Antes iba con el texto en español fijo
+  // en el propio código del servidor, así que a alguien con la app en inglés
+  // le llegaba igualmente en español — ahora se traduce igual que el resto
+  // de notificaciones push, según el idioma guardado en Ajustes.
+  "push.testBody": {
+    es: "Esto es una notificación de prueba. Si la ves, ¡ya funciona! 🎉",
+    en: "This is a test notification. If you see it, it's working! 🎉",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
