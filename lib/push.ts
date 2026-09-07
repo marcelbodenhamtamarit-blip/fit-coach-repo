@@ -30,6 +30,36 @@ export function isPushSupported(): boolean {
   )
 }
 
+// En iPhone, las tres APIs de arriba existen aunque la página se esté
+// viendo dentro de Safari normal (una pestaña, o el enlace compartido por
+// WhatsApp/Mensajes) — solo funcionan de verdad cuando la app se abre desde
+// el icono en la pantalla de inicio (modo "standalone"). Fuera de ese modo,
+// Notification.requestPermission() no lanza ningún error: simplemente no
+// muestra nunca el aviso nativo del sistema y la promesa se queda en
+// "default" para siempre. Esto explica que a alguien le "nunca le haya
+// salido ningún aviso" incluso pulsando el botón de activar a propósito —
+// probablemente sigue abriendo ZentOS desde Safari/un enlace en vez del
+// icono que se guardó en la pantalla de inicio.
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window)
+}
+
+export function isRunningStandalone(): boolean {
+  if (typeof window === "undefined") return false
+  // iOS Safari expone navigator.standalone; el resto de navegadores (y el
+  // propio Safari de escritorio) usan el media query display-mode.
+  const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone
+  return iosStandalone === true || window.matchMedia?.("(display-mode: standalone)").matches === true
+}
+
+// true cuando estamos en un iPhone/iPad que NO está abierto desde el icono
+// de la pantalla de inicio — el caso concreto en el que pedir permiso de
+// notificaciones no sirve de nada aunque el navegador "diga" que lo soporta.
+export function needsHomeScreenInstall(): boolean {
+  return isIOS() && !isRunningStandalone()
+}
+
 export function getNotificationPermission(): NotificationPermission | "unsupported" {
   if (typeof window === "undefined" || !("Notification" in window)) return "unsupported"
   return Notification.permission
@@ -44,6 +74,7 @@ async function registerServiceWorker(): Promise<ServiceWorkerRegistration> {
 // push (Safari fuera de una PWA instalada, navegadores antiguos, etc).
 export async function subscribeToPush(vapidPublicKey: string): Promise<{ ok: boolean; reason?: string }> {
   if (!isPushSupported()) return { ok: false, reason: "unsupported" }
+  if (needsHomeScreenInstall()) return { ok: false, reason: "not_standalone" }
 
   const permission = await Notification.requestPermission()
   if (permission !== "granted") return { ok: false, reason: "denied" }
