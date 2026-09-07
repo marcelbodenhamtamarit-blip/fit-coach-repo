@@ -121,6 +121,24 @@ export const TRANSLATIONS = {
   "overview.goalReached": { es: "¡Objetivo conseguido!", en: "Goal reached!" },
   "overview.goalRemove": { es: "Quitar objetivo", en: "Remove goal" },
 
+  // Presupuestos por categoría (tarjeta de Resumen, ver overview-section.tsx)
+  "overview.budgetsTitle": { es: "Presupuestos", en: "Budgets" },
+  "overview.budgetsEmpty": {
+    es: "Aún no has puesto ningún presupuesto mensual.",
+    en: "You haven't set any monthly budgets yet.",
+  },
+  "overview.budgetsManage": { es: "Poner presupuestos", en: "Set budgets" },
+  "overview.budgetsNoLimitPlaceholder": { es: "Sin límite", en: "No limit" },
+  // {pct} ya viene formateado como número entero (p.ej. "85"), sin el "%".
+  "overview.budgetsAlertOver": {
+    es: "Has superado tu presupuesto de {category}",
+    en: "You've gone over your {category} budget",
+  },
+  "overview.budgetsAlertNear": {
+    es: "Vas por el {pct}% de tu presupuesto de {category}",
+    en: "You're at {pct}% of your {category} budget",
+  },
+
   // Economía
   "economy.noTransactions": { es: "Sin transacciones", en: "No transactions" },
   "economy.addFirstHint": {
@@ -407,7 +425,15 @@ export const TRANSLATIONS = {
   "automations.pushEnable": { es: "Activar notificaciones", en: "Enable notifications" },
   "automations.pushDisable": { es: "Desactivar", en: "Disable" },
   "automations.pushTest": { es: "Enviar prueba", en: "Send test" },
-  "automations.pushTestSent": { es: "Prueba enviada.", en: "Test sent." },
+  "automations.pushTestSent": { es: "Prueba enviada — revisa tu pantalla.", en: "Test sent — check your screen." },
+  "automations.pushTestNoSub": {
+    es: "No se ha guardado ninguna suscripción para esta cuenta — vuelve a pulsar \"Activar notificaciones\".",
+    en: "No subscription is saved for this account — tap \"Enable notifications\" again.",
+  },
+  "automations.pushTestError": {
+    es: "El envío falló: {error}",
+    en: "Sending failed: {error}",
+  },
   "automations.pushUnsupported": {
     es: "Este navegador no soporta notificaciones push. En iPhone, añade la app a la pantalla de inicio primero.",
     en: "This browser doesn't support push notifications. On iPhone, add the app to your home screen first.",
