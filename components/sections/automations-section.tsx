@@ -122,6 +122,13 @@ function PushCard() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [testSent, setTestSent] = useState(false)
+  // Antes handleTest ignoraba la respuesta de /api/push/test: aunque el
+  // servidor no encontrara ninguna suscripción guardada (sent: 0) o el
+  // envío fallara de verdad (error de web-push), aquí siempre se mostraba
+  // "Prueba enviada" — así que alguien podía darle a "Activar" y "Probar" y
+  // pensar que ya estaba todo bien, cuando en realidad nunca le llegaba
+  // nada. Ahora se lee sent/error de la respuesta y se avisa de verdad.
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
@@ -160,11 +167,30 @@ function PushCard() {
   async function handleTest() {
     setBusy(true)
     setTestSent(false)
+    setTestResult(null)
     const token = await getAccessToken()
     if (token) {
-      await fetch("/api/push/test", { method: "POST", headers: { Authorization: `Bearer ${token}` } })
-      setTestSent(true)
-      setTimeout(() => setTestSent(false), 3000)
+      try {
+        const res = await fetch("/api/push/test", { method: "POST", headers: { Authorization: `Bearer ${token}` } })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setTestResult({ ok: false, message: t("automations.pushTestError", { error: json?.error ?? res.statusText }) })
+        } else if (!json?.sent) {
+          // La petición llegó bien al servidor pero no había ninguna
+          // suscripción guardada para esta cuenta (o web-push falló en
+          // todas) — esto es justo el caso que antes se disfrazaba de éxito.
+          const firstError = Array.isArray(json?.errors) ? json.errors[0] : null
+          setTestResult({
+            ok: false,
+            message: firstError ? t("automations.pushTestError", { error: firstError }) : t("automations.pushTestNoSub"),
+          })
+        } else {
+          setTestSent(true)
+          setTimeout(() => setTestSent(false), 3000)
+        }
+      } catch (err) {
+        setTestResult({ ok: false, message: t("automations.pushTestError", { error: err instanceof Error ? err.message : String(err) }) })
+      }
     }
     setBusy(false)
   }
@@ -201,6 +227,7 @@ function PushCard() {
         </div>
       )}
 
+      {testResult && !testResult.ok && <p className="mt-2 text-xs text-red-500">{testResult.message}</p>}
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       {permission === "denied" && <p className="mt-2 text-xs text-red-500">{t("automations.pushDenied")}</p>}
     </div>
