@@ -45,6 +45,7 @@ import {
   isCurrentlySubscribed,
   subscribeToPush,
   unsubscribeFromPush,
+  needsHomeScreenInstall,
 } from "@/lib/push"
 import {
   TRANSACTION_CATEGORIES,
@@ -129,6 +130,12 @@ function PushCard() {
   // pensar que ya estaba todo bien, cuando en realidad nunca le llegaba
   // nada. Ahora se lee sent/error de la respuesta y se avisa de verdad.
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+  // En iPhone, Notification/PushManager existen aunque se esté viendo la
+  // página en Safari normal (una pestaña, un enlace compartido) — pero ahí
+  // pedir permiso nunca muestra el aviso del sistema. Se detecta aparte de
+  // "supported" para poder explicar exactamente qué hacer (abrir el icono
+  // de la pantalla de inicio) en vez de un genérico "no soportado".
+  const [needsInstall, setNeedsInstall] = useState(false)
 
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
@@ -136,6 +143,7 @@ function PushCard() {
     setSupported(isPushSupported())
     setPermission(getNotificationPermission())
     setSubscribed(await isCurrentlySubscribed())
+    setNeedsInstall(needsHomeScreenInstall())
   }
 
   useEffect(() => {
@@ -152,7 +160,13 @@ function PushCard() {
     const result = await subscribeToPush(vapidKey)
     setBusy(false)
     if (!result.ok) {
-      setError(result.reason === "denied" ? t("automations.pushDenied") : t("automations.pushUnsupported"))
+      setError(
+        result.reason === "denied"
+          ? t("automations.pushDenied")
+          : result.reason === "not_standalone"
+            ? t("automations.pushNeedsInstall")
+            : t("automations.pushUnsupported"),
+      )
     }
     await refresh()
   }
@@ -207,6 +221,8 @@ function PushCard() {
 
       {!supported ? (
         <p className="text-xs text-amber-500">{t("automations.pushUnsupported")}</p>
+      ) : needsInstall && !subscribed ? (
+        <p className="text-xs text-amber-500">{t("automations.pushNeedsInstall")}</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           {subscribed ? (
