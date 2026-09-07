@@ -18,7 +18,7 @@ import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { AutomationPopup } from "@/components/automation-popup"
 import { LogOut } from "lucide-react"
-import { isPushSupported, getNotificationPermission, subscribeToPush } from "@/lib/push"
+import { isPushSupported, getNotificationPermission, subscribeToPush, needsHomeScreenInstall } from "@/lib/push"
 
 type Tab = {
   id: string
@@ -263,6 +263,12 @@ function AutoEnablePush() {
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
     if (!vapidKey || !isPushSupported()) return
     if (getNotificationPermission() !== "default") return
+    // En iPhone abierto desde Safari (no desde el icono de la pantalla de
+    // inicio), pedir permiso aquí no muestra ningún aviso y se queda
+    // colgado en "default" para siempre — mejor no gastarlo en silencio y
+    // dejar que la tarjeta de Ajustes explique qué hacer cuando la persona
+    // entre ahí (ver needsHomeScreenInstall en automations-section.tsx).
+    if (needsHomeScreenInstall()) return
 
     // Pequeño respiro antes de lanzar el aviso nativo del sistema, para que
     // no compita con el popup de revisión de recurrentes (que también
