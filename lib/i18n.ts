@@ -168,6 +168,14 @@ export const TRANSLATIONS = {
     es: "No se pudo importar el archivo. Revísalo e inténtalo de nuevo.",
     en: "Couldn't import the file. Check it and try again.",
   },
+  // Extractos multi-divisa (Revolut sobre todo): filas cuya divisa no se
+  // pudo convertir a la divisa principal (sin tasa disponible ese día para
+  // ese código) se dejan fuera de la importación en vez de guardarlas con
+  // un importe potencialmente muy incorrecto — este aviso dice cuántas.
+  "economy.importCsvCurrencyIssue": {
+    es: "{count} sin convertir de divisa (revísalos a mano)",
+    en: "{count} not currency-converted (check manually)",
+  },
   "economy.monthBalance": { es: "Balance del mes", en: "This month's balance" },
   "economy.incomeMonth": { es: "Ingresado (mes)", en: "Income (month)" },
   "economy.spentMonth": { es: "Gastado (mes)", en: "Spent (month)" },
