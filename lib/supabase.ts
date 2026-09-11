@@ -28,6 +28,19 @@ export type TransactionRow = {
 export type UserPreferencesRow = {
   user_id: string
   home_currency: string
+  language: string | null
+  travel_mode: boolean | null
+  travel_currency: string | null
+  // 0=domingo...6=sábado (Date.getDay()). Ver lib/week.ts y Ajustes >
+  // Preferencias > Inicio de semana.
+  week_start_day: number | null
+  updated_at: string
+}
+
+export type CategoryBudgetRow = {
+  user_id: string
+  category: string
+  monthly_limit: number
   updated_at: string
 }
 
