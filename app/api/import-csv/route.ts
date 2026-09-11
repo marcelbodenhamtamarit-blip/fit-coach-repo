@@ -120,7 +120,12 @@ export async function POST(req: NextRequest) {
     `el extracto tiene movimientos en varias divisas distintas, respeta el importe y la divisa tal ` +
     `cual aparecen en cada fila — no los conviertas ni los mezcles.`
 
-  const model = process.env.GEMINI_CSV_MODEL || "gemini-2.5-flash"
+  // gemini-2.5-flash dejó de estar disponible de un día para otro (Google lo
+  // retira sin avisar demasiado — ver el 404 real que devolvió al intentar
+  // importar el extracto de Revolut). gemini-3.6-flash es el reemplazo que
+  // el propio error de Google recomendaba. Como esto puede volver a pasar,
+  // sigue siendo configurable por variable de entorno sin tocar código.
+  const model = process.env.GEMINI_CSV_MODEL || "gemini-3.6-flash"
 
   const prompt = isPdf
     ? `Este es un extracto bancario en PDF (puede tener una o varias páginas, con los movimientos ` +
