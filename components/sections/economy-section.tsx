@@ -414,13 +414,41 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const transactionDedupeKey = (t: { date: string; amount: number; description: string }) =>
     `${t.date}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`
 
+  // Pasa un archivo a base64 puro (sin el prefijo "data:...;base64,") para
+  // mandarlo tal cual a /api/import-csv como PDF — readAsDataURL es la forma
+  // más simple de conseguir base64 en el navegador sin tirar de librerías.
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = typeof reader.result === "string" ? reader.result : ""
+        resolve(result.slice(result.indexOf(",") + 1))
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
   const handleImportCsvFile = async (file: File) => {
     setImportingCsv(true)
     setCsvImportInfo(null)
     setToastError(null)
 
+    // El botón acepta .csv y .pdf (ver el <input> más abajo) — se distingue
+    // por extensión/tipo MIME, no por contenido, así que un .csv con
+    // extensión rara no se reconocería como PDF por accidente.
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+
+    // Corte rápido en el propio navegador antes de codificar/subir nada: el
+    // servidor vuelve a comprobarlo sobre el base64 ya recibido (ver
+    // app/api/import-csv/route.ts), pero así un PDF enorme no se queda
+    // "leyendo" un buen rato para acabar rechazado igualmente.
+    if (isPdf && file.size > 15_000_000) {
+      setToastError(t("economy.importCsvError"))
+      setImportingCsv(false)
+      return
+    }
+
     try {
-      const csvText = await file.text()
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData.session?.access_token
       if (!accessToken) {
@@ -428,13 +456,15 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         return
       }
 
+      const payload = isPdf ? { pdfBase64: await fileToBase64(file) } : { csv: await file.text() }
+
       const res = await fetch("/api/import-csv", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ csv: csvText }),
+        body: JSON.stringify(payload),
       })
 
       const result = await res.json()
@@ -810,7 +840,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
           <input
             ref={csvFileInputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.pdf,application/pdf"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0]
