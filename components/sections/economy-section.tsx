@@ -23,7 +23,7 @@ import { categoryLabel, type Language } from "@/lib/i18n"
 import { getWeekNumberFromISO, getWeekDateRangeFromNum } from "@/lib/week"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
 import { supabase } from "@/lib/supabase"
-import { convertAmount } from "@/lib/exchange-rates"
+import { convertAmount, getExchangeRates } from "@/lib/exchange-rates"
 
 const GOOGLE_SHEETS_WEBHOOK =
   "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
@@ -473,29 +473,81 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         return
       }
 
-      const parsed: { date: string; description: string; amount: number; category: string }[] = result.transactions
+      const parsed: { date: string; description: string; amount: number; category: string; currency?: string }[] =
+        result.transactions
       if (parsed.length === 0) {
         setCsvImportInfo(t("economy.importCsvEmpty"))
         return
       }
 
+      // Extractos como el de Revolut mezclan varias divisas en el mismo
+      // archivo (ver el campo "currency" que ahora devuelve /api/import-csv
+      // por fila) — sin convertir, cada importe se guardaría tal cual en la
+      // divisa principal del usuario, descuadrando el balance por completo
+      // (p.ej. -210000 VND contado como si fueran -210000 en la divisa de
+      // casa). Se calcula la tasa una vez por cada divisa distinta presente
+      // en el archivo (no una llamada por fila) y se reutiliza para todas
+      // sus filas, igual que hace el resto de la app (ver convertAmount más
+      // arriba) pero en lote.
+      const home = homeCurrency.toUpperCase()
+      const distinctCurrencies = Array.from(
+        new Set(parsed.map((r) => r.currency?.toUpperCase()).filter((c): c is string => !!c && c !== home)),
+      )
+
+      const rateByCurrency: Record<string, number> = {}
+      for (const cur of distinctCurrencies) {
+        try {
+          const rates = await getExchangeRates(cur, supabase)
+          const rate = rates[home]
+          if (typeof rate === "number" && Number.isFinite(rate)) rateByCurrency[cur] = rate
+        } catch {
+          // Sin tasa para esta divisa — las filas correspondientes se
+          // cuentan como "sin convertir" más abajo y no se importan solas:
+          // mejor dejarlas fuera que arriesgarse a guardar un importe
+          // incorrecto en el balance.
+        }
+      }
+
       // Descarta lo que ya está en la app, y también duplicados dentro del
-      // propio archivo (por si el extracto trae la misma fila repetida).
+      // propio archivo (por si el extracto trae la misma fila repetida). La
+      // clave de duplicado usa el importe YA convertido, porque así es como
+      // se guarda el resto de transacciones (siempre en la divisa principal).
       const existingKeys = new Set(transactions.map(transactionDedupeKey))
       const seenInFile = new Set<string>()
       const newItems: Omit<Transaction, "id">[] = []
+      let duplicateCount = 0
+      let unconvertedCount = 0
 
       for (const row of parsed) {
-        const key = transactionDedupeKey(row)
-        if (existingKeys.has(key) || seenInFile.has(key)) continue
+        const cur = row.currency?.toUpperCase()
+        let finalAmount = row.amount
+        let txCurrency: string | null = null
+        let txOriginalAmount: number | null = null
+
+        if (cur && cur !== home) {
+          const rate = rateByCurrency[cur]
+          if (rate === undefined) {
+            unconvertedCount++
+            continue
+          }
+          finalAmount = row.amount * rate
+          txCurrency = cur
+          txOriginalAmount = row.amount
+        }
+
+        const key = transactionDedupeKey({ date: row.date, amount: finalAmount, description: row.description })
+        if (existingKeys.has(key) || seenInFile.has(key)) {
+          duplicateCount++
+          continue
+        }
         seenInFile.add(key)
         newItems.push({
           date: row.date,
           description: row.description,
           category: row.category as Transaction["category"],
-          amount: row.amount,
-          currency: null,
-          originalAmount: null,
+          amount: finalAmount,
+          currency: txCurrency,
+          originalAmount: txOriginalAmount,
         })
       }
 
@@ -521,8 +573,15 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         })
       }
 
+      // "skipped" del mensaje base es solo duplicados (lo que ya decía antes
+      // de añadir la conversión de divisa) — las filas sin convertir se
+      // avisan aparte, porque es una situación distinta: no es que ya
+      // existieran, es que no se pudieron importar con garantías.
+      const doneMessage = t("economy.importCsvDone", { imported: newItems.length, skipped: duplicateCount })
       setCsvImportInfo(
-        t("economy.importCsvDone", { imported: newItems.length, skipped: parsed.length - newItems.length }),
+        unconvertedCount > 0
+          ? `${doneMessage} · ${t("economy.importCsvCurrencyIssue", { count: unconvertedCount })}`
+          : doneMessage,
       )
     } catch {
       setToastError(t("economy.importCsvError"))
