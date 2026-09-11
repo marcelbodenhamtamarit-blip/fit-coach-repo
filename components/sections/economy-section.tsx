@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label"
 import { useStore } from "@/lib/store"
 import { todayISO, uid, TRANSACTION_CATEGORIES, CURRENCIES, currencySymbol, type Transaction } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
+import { getWeekNumberFromISO, getWeekDateRangeFromNum } from "@/lib/week"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
@@ -48,41 +49,17 @@ function getMonthName(monthNum: number, locale: string): string {
   return new Date(Date.UTC(2026, monthNum - 1, 1)).toLocaleDateString(locale, { month: "long", timeZone: "UTC" })
 }
 
-function getWeekNumberFromISO(dateStr: string): number {
-  const date = new Date(dateStr + "T00:00:00Z")
-  const jan4 = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
-  const dayOfWeek = jan4.getUTCDay()
-  const week1Start = new Date(jan4)
-  week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek)
-  const diffDays = Math.floor((date.getTime() - week1Start.getTime()) / (24 * 60 * 60 * 1000))
-  return 1 + Math.floor(diffDays / 7)
-}
-
-function getWeekDateRangeFromNum(weekNum: number): { sunday: string; saturday: string } {
-  const firstSunday = new Date(Date.UTC(2026, 0, 4))
-  const sundayDate = new Date(firstSunday)
-  sundayDate.setUTCDate(firstSunday.getUTCDate() + (weekNum - 1) * 7)
-  const saturdayDate = new Date(sundayDate)
-  saturdayDate.setUTCDate(sundayDate.getUTCDate() + 6)
-  const fmt = (d: Date) => {
-    const day = String(d.getUTCDate()).padStart(2, "0")
-    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]
-    return `${day} ${month}`
-  }
-  return { sunday: fmt(sundayDate), saturday: fmt(saturdayDate) }
-}
-
-function getWeekNumber(dateStr: string): number {
-  return getWeekNumberFromISO(dateStr)
-}
-
 function fmt(amount: number, currency?: string | null): string {
   const symbol = currencySymbol(currency)
   const abs = Math.abs(amount).toFixed(2)
   return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
 
-const CATEGORY_EMOJI: Record<string, string> = {
+// Exportados (además de usarse aquí) para que overview-section.tsx pinte la
+// tarjeta de Presupuestos con el mismo emoji/color que ya identifica a cada
+// categoría en Economía — un único sitio de verdad, sin mapas duplicados
+// que puedan desincronizarse si se añade o retoca una categoría.
+export const CATEGORY_EMOJI: Record<string, string> = {
   Alojamiento: "\u{1F3E0}",
   Supermercado: "\u{1F6D2}",
   "Comida fuera": "\u{1F37D}️",
@@ -94,7 +71,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
   Otros: "\u{1F4CC}",
 }
 
-const CATEGORY_COLOR: Record<string, string> = {
+export const CATEGORY_COLOR: Record<string, string> = {
   Alojamiento: "#fbbf24",
   Supermercado: "#2dd4bf",
   "Comida fuera": "#fb7185",
@@ -126,6 +103,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const locale = lang === "en" ? "en-US" : "es-ES"
   const transactions: Transaction[] = data.transactions ?? []
   const homeCurrency = data.homeCurrency
+  const weekStartDay = data.weekStartDay ?? 0
   // Si el modo viaje está activo, las nuevas transacciones parten de la
   // divisa de viaje en vez de la principal, para no tener que cambiarla a
   // mano en cada gasto durante el viaje (ver Ajustes > Modo viaje).
@@ -191,7 +169,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const weeklySavingsData = useMemo(() => {
     const groups = new Map<number, { income: number; expenses: number }>()
     transactions.forEach((t) => {
-      const weekNum = getWeekNumberFromISO(t.date)
+      const weekNum = getWeekNumberFromISO(t.date, weekStartDay)
       if (!groups.has(weekNum)) groups.set(weekNum, { income: 0, expenses: 0 })
       const week = groups.get(weekNum)!
       if (t.amount > 0) week.income += t.amount
@@ -202,7 +180,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
       const week = groups.get(w)!
       return { week: w, label: `W${w}`, savings: week.income - week.expenses }
     })
-  }, [transactions])
+  }, [transactions, weekStartDay])
 
   const bestWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((best, w) => (w.savings > best.savings ? w : best)) : null
   const worstWeek = weeklySavingsData.length > 0 ? weeklySavingsData.reduce((worst, w) => (w.savings < worst.savings ? w : worst)) : null
@@ -245,15 +223,15 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     if (tab === "semanal") {
       const groups = new Map<number, Transaction[]>()
       source.forEach((t) => {
-        const weekNum = getWeekNumberFromISO(t.date)
+        const weekNum = getWeekNumberFromISO(t.date, weekStartDay)
         if (!groups.has(weekNum)) groups.set(weekNum, [])
         groups.get(weekNum)!.push(t)
       })
       return Array.from(groups.entries())
         .sort((a, b) => b[0] - a[0])
         .map(([weekNum, txs]) => {
-          const { sunday, saturday } = getWeekDateRangeFromNum(weekNum)
-          const label = `${t("economy.week", { n: weekNum })} (${sunday} - ${saturday})`
+          const { start, end } = getWeekDateRangeFromNum(weekNum, weekStartDay)
+          const label = `${t("economy.week", { n: weekNum })} (${start} - ${end})`
           return toGroups(`week-${weekNum}`, label, txs)
         })
     }
@@ -272,7 +250,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         const label = `${monthName.charAt(0).toUpperCase()}${monthName.slice(1)} ${year}`
         return toGroups(monthKey, label, txs)
       })
-  }, [transactions, tab, locale])
+  }, [transactions, tab, locale, weekStartDay])
 
   const handleSave = async () => {
     const raw = parseFloat(amount)
@@ -317,7 +295,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     addTransaction(tx)
 
     try {
-      const weekNum = getWeekNumber(date)
+      const weekNum = getWeekNumberFromISO(date, weekStartDay)
       const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
       await fetch(GOOGLE_SHEETS_WEBHOOK, {
         method: "POST",
@@ -399,7 +377,7 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     // Best-effort, igual que el alta individual: si el webhook falla no
     // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
     items.forEach((tx) => {
-      const weekNum = getWeekNumberFromISO(tx.date)
+      const weekNum = getWeekNumberFromISO(tx.date, weekStartDay)
       const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
       fetch(GOOGLE_SHEETS_WEBHOOK, {
         method: "POST",
