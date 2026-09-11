@@ -1,13 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus, Target, ChevronDown, PieChart } from "lucide-react"
+import { TrendingDown, TrendingUp, Wallet, PiggyBank, Plus, Target, ChevronDown } from "lucide-react"
 import { StatCard } from "@/components/stat-card"
 import { useStore } from "@/lib/store"
-import { currencySymbol, TRANSACTION_CATEGORIES } from "@/lib/types"
+import { currencySymbol } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
 import { getWeekNumberFromISO } from "@/lib/week"
-import { CATEGORY_EMOJI, CATEGORY_COLOR } from "@/components/sections/economy-section"
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -39,10 +38,9 @@ export function OverviewSection({
   onNavigate: (tab: string) => void
   onAddExpense: () => void
 }) {
-  const { data, t, setBudget } = useStore()
+  const { data, t } = useStore()
   const lang = (data.language as Language) ?? "es"
   const transactions = data.transactions ?? []
-  const budgets = data.budgets ?? []
   const symbol = currencySymbol(data.homeCurrency)
   const weekStartDay = data.weekStartDay ?? 0
   const [period, setPeriod] = useState<Period>("diario")
@@ -64,34 +62,6 @@ export function OverviewSection({
   const [goalInput, setGoalInput] = useState("")
   const [goalPeriodInput, setGoalPeriodInput] = useState<GoalPeriod>("month")
   const [goalDeadlineInput, setGoalDeadlineInput] = useState("")
-
-  // Presupuestos por categoría (ver CategoryBudget en lib/types.ts): a
-  // diferencia del objetivo de ahorro de arriba, esto sí vive en Supabase
-  // (data.budgets, vía setBudget de useStore) y se sincroniza entre
-  // dispositivos. editingBudgets abre un formulario con las 9 categorías
-  // fijas de la app; budgetInputs guarda lo que se va escribiendo en cada
-  // una hasta pulsar Guardar.
-  const [editingBudgets, setEditingBudgets] = useState(false)
-  const [budgetInputs, setBudgetInputs] = useState<Record<string, string>>({})
-
-  const startEditingBudgets = () => {
-    const initial: Record<string, string> = {}
-    for (const cat of TRANSACTION_CATEGORIES) {
-      const existing = budgets.find((b) => b.category === cat)
-      initial[cat] = existing ? String(existing.monthlyLimit) : ""
-    }
-    setBudgetInputs(initial)
-    setEditingBudgets(true)
-  }
-
-  const saveBudgets = () => {
-    for (const cat of TRANSACTION_CATEGORIES) {
-      const raw = (budgetInputs[cat] ?? "").trim()
-      const n = raw === "" ? 0 : Number(raw.replace(",", "."))
-      setBudget(cat, Number.isNaN(n) ? 0 : n)
-    }
-    setEditingBudgets(false)
-  }
 
   useEffect(() => {
     const stored = localStorage.getItem(GOAL_STORAGE_KEY)
@@ -155,31 +125,6 @@ export function OverviewSection({
   const monthBalance = monthTx.reduce((s, t) => s + t.amount, 0)
   const totalBalance = useMemo(() => transactions.reduce((s, t) => s + t.amount, 0), [transactions])
   const displayedBalance = balanceView === "month" ? monthBalance : totalBalance
-
-  // Gasto de este mes por categoría, para comparar contra cada presupuesto
-  // (siempre mensual, independiente del selector Diario/Semanal/Mensual de
-  // más abajo — por eso usa monthTx y no periodTx).
-  const spentByCategory = useMemo(() => {
-    const byCat = new Map<string, number>()
-    for (const tx of monthTx) {
-      if (tx.amount >= 0) continue
-      byCat.set(tx.category, (byCat.get(tx.category) ?? 0) + Math.abs(tx.amount))
-    }
-    return byCat
-  }, [monthTx])
-
-  // Solo las categorías con presupuesto puesto, con su % gastado ya
-  // calculado, ordenadas de más cerca/lejos del límite a menos — así lo
-  // primero que se ve es lo que más atención necesita.
-  const budgetProgress = useMemo(() => {
-    return budgets
-      .map((b) => {
-        const spent = spentByCategory.get(b.category) ?? 0
-        const pct = b.monthlyLimit > 0 ? (spent / b.monthlyLimit) * 100 : 0
-        return { ...b, spent, pct }
-      })
-      .sort((a, b) => b.pct - a.pct)
-  }, [budgets, spentByCategory])
 
   // El objetivo compara contra el balance de este mes o el ahorro total,
   // según lo que se eligiera al ponerlo.
@@ -378,119 +323,6 @@ export function OverviewSection({
                 {t("common.save")}
               </button>
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Presupuestos por categoría: mismo estilo de tarjeta que el
-          objetivo de arriba, con una barra de progreso por categoría (solo
-          las que tienen límite puesto) y un aviso cuando una se acerca o
-          supera su límite — el mismo concepto que las "real-time limit
-          alerts" de apps de finanzas como Belanje, adaptado al estilo de
-          ZentOS. */}
-      <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
-        <div className="flex items-center gap-1.5">
-          <PieChart className="size-3.5" style={{ color: "oklch(0.16 0.05 150)" }} />
-          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "oklch(0.16 0.05 150)" }}>
-            {t("overview.budgetsTitle")}
-          </span>
-        </div>
-
-        {budgetProgress.length === 0 && !editingBudgets && (
-          <p className="mt-2 text-[11px] font-medium" style={{ color: "oklch(0.2 0.05 150 / 80%)" }}>
-            {t("overview.budgetsEmpty")}
-          </p>
-        )}
-
-        {/* Avisos: solo para las categorías al 80% o más de su límite,
-            superadas primero. */}
-        {budgetProgress
-          .filter((b) => b.pct >= 80)
-          .map((b) => (
-            <p
-              key={`alert-${b.category}`}
-              className="mt-2 text-[11px] font-semibold"
-              style={{ color: b.pct >= 100 ? "#c0392b" : "#92640a" }}
-            >
-              {b.pct >= 100
-                ? t("overview.budgetsAlertOver", { category: categoryLabel(b.category, lang) })
-                : t("overview.budgetsAlertNear", { pct: Math.round(b.pct), category: categoryLabel(b.category, lang) })}
-            </p>
-          ))}
-
-        {budgetProgress.length > 0 && (
-          <div className="mt-2 space-y-2.5">
-            {budgetProgress.map((b) => {
-              const barColor = b.pct >= 100 ? "#ef4444" : b.pct >= 80 ? "#f59e0b" : "#34d399"
-              return (
-                <div key={b.category}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
-                      <span
-                        className="inline-block size-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: CATEGORY_COLOR[b.category] ?? "#8a8a93" }}
-                      />
-                      {CATEGORY_EMOJI[b.category] ?? ""} {categoryLabel(b.category, lang)}
-                    </span>
-                    <span className="shrink-0 text-[11px] font-bold tabular-nums" style={{ color: "oklch(0.16 0.05 150)" }}>
-                      {symbol}{b.spent.toFixed(0)} / {symbol}{b.monthlyLimit.toFixed(0)}
-                    </span>
-                  </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.16 0.05 150 / 20%)" }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${Math.min(100, b.pct)}%`, background: barColor }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => {
-            if (!editingBudgets) startEditingBudgets()
-            else setEditingBudgets(false)
-          }}
-          className="mt-2 flex items-center gap-1 text-xs font-semibold transition-colors"
-          style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
-        >
-          <ChevronDown className={`size-3 transition-transform ${editingBudgets ? "rotate-180" : ""}`} />
-          {editingBudgets ? t("overview.goalHideForm") : budgetProgress.length > 0 ? t("overview.goalEdit") : t("overview.budgetsManage")}
-        </button>
-
-        {editingBudgets && (
-          <div className="mt-2 space-y-1.5">
-            {TRANSACTION_CATEGORIES.map((cat) => (
-              <div key={cat} className="flex items-center gap-2">
-                <span className="w-28 shrink-0 truncate text-[11px] font-medium" style={{ color: "oklch(0.2 0.05 150 / 85%)" }}>
-                  {CATEGORY_EMOJI[cat] ?? ""} {categoryLabel(cat, lang)}
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={budgetInputs[cat] ?? ""}
-                  onChange={(e) => setBudgetInputs((prev) => ({ ...prev, [cat]: e.target.value }))}
-                  onKeyDown={(e) => e.key === "Enter" && saveBudgets()}
-                  placeholder={t("overview.budgetsNoLimitPlaceholder")}
-                  // text-base evita el zoom automático de Safari/iOS al
-                  // enfocar un input con tamaño de letra menor a 16px.
-                  className="h-8 flex-1 rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
-                  style={{ color: "oklch(0.16 0.05 150)" }}
-                />
-              </div>
-            ))}
-
-            <button
-              onClick={saveBudgets}
-              className="mt-1 w-full rounded-md px-2.5 py-1.5 text-xs font-semibold text-white"
-              style={{ backgroundColor: "oklch(0.3 0.1 150)" }}
-            >
-              {t("common.save")}
-            </button>
           </div>
         )}
       </div>
