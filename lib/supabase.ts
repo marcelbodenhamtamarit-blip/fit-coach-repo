@@ -37,13 +37,6 @@ export type UserPreferencesRow = {
   updated_at: string
 }
 
-export type CategoryBudgetRow = {
-  user_id: string
-  category: string
-  monthly_limit: number
-  updated_at: string
-}
-
 export type RecurringTransactionRow = {
   id: string
   description: string
