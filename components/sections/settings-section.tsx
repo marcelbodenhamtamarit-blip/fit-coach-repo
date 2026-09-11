@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
+import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -85,6 +86,16 @@ export function SettingsSection() {
       >
         <FeedbackCard />
       </CollapsibleCard>
+
+      <div className="flex items-center justify-center gap-3 pb-1 text-center text-[11px] text-muted-foreground">
+        <Link href="/privacy" className="underline-offset-2 hover:underline">
+          {t("settings.privacyPolicy")}
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href="/terms" className="underline-offset-2 hover:underline">
+          {t("settings.termsOfService")}
+        </Link>
+      </div>
 
       <p className="pb-2 text-center text-[11px] text-muted-foreground">
         ZentOS · {t("app.tagline")}
