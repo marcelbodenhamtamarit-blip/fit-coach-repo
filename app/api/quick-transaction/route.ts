@@ -62,6 +62,17 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 // código la próxima vez que Google retire un modelo.
 const GEMINI_MODEL = process.env.GEMINI_QUICK_MODEL || "gemini-3.5-flash-lite"
 
+// Los modelos "3.x" de Gemini piensan antes de responder por defecto (nivel
+// "medium" de serie), lo que puede tardar bastante más que los 2.5 — y este
+// endpoint solo le da 4-6s antes de rendirse (ver AbortSignal más abajo),
+// porque tiene que devolver la transacción rápido y esto es solo un extra.
+// Sin bajar el nivel de pensamiento, un modelo 3.x aquí prácticamente
+// siempre llegaría tarde y caería en "Otros" por timeout en vez de por no
+// saber clasificar el texto. No hace falta razonar para esto, así que se
+// pide el nivel mínimo disponible (ver el mismo ajuste, con más detalle, en
+// app/api/import-csv/route.ts).
+const THINKING_CONFIG = /^gemini-3/.test(GEMINI_MODEL) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
+
 async function inferCategoryWithAI(text: string): Promise<(typeof TRANSACTION_CATEGORIES)[number] | null> {
   if (!GEMINI_API_KEY || !text.trim()) return null
 
@@ -86,9 +97,14 @@ async function inferCategoryWithAI(text: string): Promise<(typeof TRANSACTION_CA
               ],
             },
           ],
-          generationConfig: { temperature: 0, maxOutputTokens: 20 },
+          generationConfig: { temperature: 0, maxOutputTokens: 20, thinkingConfig: THINKING_CONFIG },
         }),
-        signal: AbortSignal.timeout(4000),
+        // Antes 4000ms, pensado para gemini-2.5-flash-lite (sin pensamiento).
+        // Con un modelo 3.x, aunque se pida thinkingLevel "low", el margen se
+        // sube un poco para no penalizar de más un caso que ya es solo un
+        // "mejor esfuerzo" (si falla o tarda, cae a "Otros" sin más, nunca
+        // bloquea el alta de la transacción).
+        signal: AbortSignal.timeout(6000),
       },
     )
     if (!res.ok) return null
