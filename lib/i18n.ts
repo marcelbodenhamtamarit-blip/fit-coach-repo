@@ -121,24 +121,6 @@ export const TRANSLATIONS = {
   "overview.goalReached": { es: "¡Objetivo conseguido!", en: "Goal reached!" },
   "overview.goalRemove": { es: "Quitar objetivo", en: "Remove goal" },
 
-  // Presupuestos por categoría (tarjeta de Resumen, ver overview-section.tsx)
-  "overview.budgetsTitle": { es: "Presupuestos", en: "Budgets" },
-  "overview.budgetsEmpty": {
-    es: "Aún no has puesto ningún presupuesto mensual.",
-    en: "You haven't set any monthly budgets yet.",
-  },
-  "overview.budgetsManage": { es: "Poner presupuestos", en: "Set budgets" },
-  "overview.budgetsNoLimitPlaceholder": { es: "Sin límite", en: "No limit" },
-  // {pct} ya viene formateado como número entero (p.ej. "85"), sin el "%".
-  "overview.budgetsAlertOver": {
-    es: "Has superado tu presupuesto de {category}",
-    en: "You've gone over your {category} budget",
-  },
-  "overview.budgetsAlertNear": {
-    es: "Vas por el {pct}% de tu presupuesto de {category}",
-    en: "You're at {pct}% of your {category} budget",
-  },
-
   // Economía
   "economy.noTransactions": { es: "Sin transacciones", en: "No transactions" },
   "economy.addFirstHint": {
@@ -168,6 +150,24 @@ export const TRANSLATIONS = {
   "economy.category": { es: "Categoría", en: "Category" },
   "economy.date": { es: "Fecha", en: "Date" },
   "economy.addButton": { es: "Añadir gasto o ganancia", en: "Add expense or income" },
+
+  // Importar extracto bancario en CSV (cualquier banco, ver
+  // app/api/import-csv/route.ts): el archivo se manda a una IA que detecta
+  // el formato y devuelve los movimientos ya normalizados.
+  "economy.importCsv": { es: "Importar CSV", en: "Import CSV" },
+  "economy.importingCsv": { es: "Leyendo el CSV con IA...", en: "Reading CSV with AI..." },
+  "economy.importCsvDone": {
+    es: "Importados {imported} · ya existían {skipped}",
+    en: "Imported {imported} · already existed {skipped}",
+  },
+  "economy.importCsvEmpty": {
+    es: "No se encontraron movimientos en ese archivo.",
+    en: "No transactions were found in that file.",
+  },
+  "economy.importCsvError": {
+    es: "No se pudo importar el CSV. Revisa el archivo e inténtalo de nuevo.",
+    en: "Couldn't import the CSV. Check the file and try again.",
+  },
   "economy.monthBalance": { es: "Balance del mes", en: "This month's balance" },
   "economy.incomeMonth": { es: "Ingresado (mes)", en: "Income (month)" },
   "economy.spentMonth": { es: "Gastado (mes)", en: "Spent (month)" },
@@ -231,6 +231,11 @@ export const TRANSLATIONS = {
   },
   "settings.signOut": { es: "Cerrar sesión", en: "Sign out" },
   "settings.about": { es: "Sobre esta app", en: "About this app" },
+  // Enlaces legales del pie de Ajustes (ver app/privacy/page.tsx y
+  // app/terms/page.tsx) — contenido en español únicamente, como el resto de
+  // páginas de la app que no pasan por el sistema de traducción.
+  "settings.privacyPolicy": { es: "Política de privacidad", en: "Privacy policy" },
+  "settings.termsOfService": { es: "Términos de uso", en: "Terms of use" },
   "settings.preferences": { es: "Preferencias", en: "Preferences" },
   "settings.preferencesDesc": {
     es: "Cómo se muestran tus datos en la app.",
