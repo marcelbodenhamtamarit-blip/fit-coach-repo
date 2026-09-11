@@ -156,6 +156,20 @@ export async function POST(req: NextRequest) {
     ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: pdfBase64 } }]
     : [{ text: prompt }]
 
+  // Los modelos "3.x" de Gemini (a diferencia de los 2.5) piensan antes de
+  // responder por defecto — y con nivel "medium" de serie, tardan de sobra
+  // más de los 55s que se le dan más abajo antes de abortar, sobre todo con
+  // un extracto de decenas de movimientos (esto es justo lo que provocó
+  // "The operation was aborted due to timeout" al probar con el extracto de
+  // Revolut real, justo después de migrar a gemini-3.6-flash por el 404 de
+  // gemini-2.5-flash). Para una tarea de extracción/clasificación como esta
+  // no hace falta razonamiento profundo, así que se pide el nivel mínimo de
+  // "pensamiento": los modelos 3.x usan thinkingLevel (no se puede desactivar
+  // del todo en la familia Flash, pero "low" es lo más rápido disponible);
+  // los 2.5 (por si se vuelve a ese modelo vía GEMINI_CSV_MODEL) usan
+  // thinkingBudget, y ahí sí se puede poner a 0 para desactivarlo entero.
+  const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
+
   // Llama a Gemini una vez. Se separa en su propia función para poder
   // reintentar (ver más abajo) sin duplicar el fetch entero.
   const callGemini = () =>
@@ -166,6 +180,7 @@ export async function POST(req: NextRequest) {
         contents: [{ parts: contentParts }],
         generationConfig: {
           temperature: 0,
+          thinkingConfig,
           responseMimeType: "application/json",
           responseSchema: {
             type: "OBJECT",
