@@ -61,6 +61,7 @@ import {
   type ScheduleFrequency,
 } from "@/lib/types"
 import { categoryLabel, weekdayLabel, type Language, type TranslationKey } from "@/lib/i18n"
+import { weekdayDisplayOrder } from "@/lib/week"
 
 async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession()
@@ -362,6 +363,10 @@ function AutomationFormDialog({
   const { data, t } = useStore()
   const { addAutomation, updateAutomation } = useAutomations()
   const lang = (data.language as Language) ?? "es"
+  // Solo reordena las opciones para que empiecen por el día elegido en
+  // Ajustes > Preferencias > Inicio de semana — el valor guardado
+  // (scheduleWeekday) sigue siendo siempre el día real de la semana.
+  const weekdayOptions = weekdayDisplayOrder(data.weekStartDay ?? 0)
   const isEdit = !!automation
 
   const [open, setOpen] = useState(false)
@@ -478,7 +483,7 @@ function AutomationFormDialog({
                     onChange={(e) => setScheduleWeekday(Number(e.target.value))}
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-none"
                   >
-                    {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                    {weekdayOptions.map((d) => (
                       <option key={d} value={d}>
                         {weekdayLabel(d, lang)}
                       </option>
