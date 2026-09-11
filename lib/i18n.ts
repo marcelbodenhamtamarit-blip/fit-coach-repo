@@ -151,11 +151,11 @@ export const TRANSLATIONS = {
   "economy.date": { es: "Fecha", en: "Date" },
   "economy.addButton": { es: "Añadir gasto o ganancia", en: "Add expense or income" },
 
-  // Importar extracto bancario en CSV (cualquier banco, ver
+  // Importar extracto bancario en CSV o PDF (cualquier banco, ver
   // app/api/import-csv/route.ts): el archivo se manda a una IA que detecta
   // el formato y devuelve los movimientos ya normalizados.
-  "economy.importCsv": { es: "Importar CSV", en: "Import CSV" },
-  "economy.importingCsv": { es: "Leyendo el CSV con IA...", en: "Reading CSV with AI..." },
+  "economy.importCsv": { es: "Importar CSV o PDF", en: "Import CSV or PDF" },
+  "economy.importingCsv": { es: "Leyendo el archivo con IA...", en: "Reading file with AI..." },
   "economy.importCsvDone": {
     es: "Importados {imported} · ya existían {skipped}",
     en: "Imported {imported} · already existed {skipped}",
@@ -165,8 +165,8 @@ export const TRANSLATIONS = {
     en: "No transactions were found in that file.",
   },
   "economy.importCsvError": {
-    es: "No se pudo importar el CSV. Revisa el archivo e inténtalo de nuevo.",
-    en: "Couldn't import the CSV. Check the file and try again.",
+    es: "No se pudo importar el archivo. Revísalo e inténtalo de nuevo.",
+    en: "Couldn't import the file. Check it and try again.",
   },
   "economy.monthBalance": { es: "Balance del mes", en: "This month's balance" },
   "economy.incomeMonth": { es: "Ingresado (mes)", en: "Income (month)" },
