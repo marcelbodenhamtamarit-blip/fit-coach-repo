@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
 import { categoryLabel, weekdayLabel, type Language } from "@/lib/i18n"
+import { weekdayDisplayOrder } from "@/lib/week"
 
 type TxType = "gasto" | "ingreso"
 
@@ -46,6 +47,11 @@ export function RecurringManagerDialog() {
   const lang = (data.language as Language) ?? "es"
   const recurring: RecurringTransaction[] = data.recurring ?? []
   const homeCurrency = data.homeCurrency
+  // Solo reordena las opciones de los selectores de "día de la semana" de
+  // abajo para que empiecen por el día elegido en Ajustes > Preferencias >
+  // Inicio de semana — el valor guardado (payDay) sigue siendo siempre el
+  // día real (0=domingo...6=sábado), esto es puramente de presentación.
+  const weekdayOptions = weekdayDisplayOrder(data.weekStartDay ?? 0)
   // Igual que en el alta de transacciones sueltas: si el modo viaje está
   // activo (ver Ajustes > Modo viaje), el formulario parte de esa divisa en
   // vez de la principal.
@@ -187,7 +193,7 @@ export function RecurringManagerDialog() {
                     className="appearance-none bg-transparent pr-0.5 focus-visible:outline-none"
                   >
                     {r.frequency === "weekly"
-                      ? Array.from({ length: 7 }, (_, idx) => idx).map((idx) => (
+                      ? weekdayOptions.map((idx) => (
                           <option key={idx} value={idx} className="bg-background text-foreground">
                             {weekdayLabel(idx, lang)}
                           </option>
@@ -274,7 +280,7 @@ export function RecurringManagerDialog() {
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 {frequency === "weekly"
-                  ? Array.from({ length: 7 }, (_, idx) => idx).map((idx) => (
+                  ? weekdayOptions.map((idx) => (
                       <option key={idx} value={idx}>
                         {weekdayLabel(idx, lang)}
                       </option>
