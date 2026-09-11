@@ -117,8 +117,25 @@ export async function POST(req: NextRequest) {
     `sáltalas y no las incluyas en el resultado: cambios/conversión de divisa entre "bolsillos" ` +
     `de la propia cuenta (p.ej. "Cambio", "Conversión a...", "Currency exchange"), transferencias ` +
     `entre cuentas o tarjetas del mismo usuario, y recargas de saldo desde otra cuenta propia. Si ` +
-    `el extracto tiene movimientos en varias divisas distintas, respeta el importe y la divisa tal ` +
-    `cual aparecen en cada fila — no los conviertas ni los mezcles.`
+    `el extracto tiene movimientos en varias divisas distintas, respeta el importe tal cual aparece ` +
+    `en cada fila — no los conviertas ni los mezcles (la conversión a la divisa principal del ` +
+    `usuario se hace después, fuera de aquí, con el código de divisa que devuelvas para cada fila).`
+
+  // Extractos de una sola divisa (la mayoría de bancos) no necesitan nada
+  // especial: category+amount ya identifican el movimiento. Pero un extracto
+  // como el de Revolut mezcla varias divisas en el mismo archivo (una
+  // columna "Divisa", o el símbolo cambia de fila a fila) — si no se captura
+  // qué divisa tenía CADA fila, esos importes se guardarían tal cual en la
+  // divisa principal del usuario sin convertir, descuadrando el balance por
+  // completo (p.ej. -210000 VND tratado como si fueran -210000 EUR). Por eso
+  // se pide el código de divisa de cada movimiento cuando el extracto lo
+  // distingue.
+  const currencyHint =
+    `Si el extracto indica la divisa de cada movimiento (una columna tipo "Divisa"/"Currency", o un ` +
+    `símbolo/código distinto por fila), incluye el código ISO 4217 de 3 letras de ESE movimiento en ` +
+    `el campo "currency" (p.ej. "EUR", "AUD", "VND") — uno por fila, pueden ser todos distintos. Si ` +
+    `el extracto entero está en una sola divisa implícita (sin columna ni símbolo que cambie), deja ` +
+    `"currency" vacío en todas las filas.`
 
   // gemini-2.5-flash dejó de estar disponible de un día para otro (Google lo
   // retira sin avisar demasiado — ver el 404 real que devolvió al intentar
@@ -133,7 +150,7 @@ export async function POST(req: NextRequest) {
       `banco (CommBank, Revolut, un banco español, etc.) y cada uno maqueta su extracto de forma ` +
       `distinta. Lee el documento entero y devuelve TODOS los movimientos reales que encuentres ` +
       `(ignora cabeceras, pies de página repetidos en cada hoja, el saldo inicial/final, y cualquier ` +
-      `fila de resumen o totales que no sea un movimiento individual).\n\n${skipHint}\n\n` +
+      `fila de resumen o totales que no sea un movimiento individual).\n\n${skipHint}\n\n${currencyHint}\n\n` +
       `Para cada movimiento, elige la categoría que mejor encaje de esta lista fija (usa exactamente ` +
       `uno de estos nombres, no inventes categorías nuevas):\n${categoryHints}`
     : `Este es un extracto bancario en CSV. Puede ser de cualquier banco (CommBank, Revolut, ` +
@@ -141,7 +158,7 @@ export async function POST(req: NextRequest) {
       `indicar el importe (una sola columna con signo, o columnas separadas de cargo/abono, con ` +
       `coma o punto decimal, con o sin símbolo de divisa). Detecta el formato y devuelve TODOS los ` +
       `movimientos del archivo, uno por fila del CSV (ignora la fila de cabecera y cualquier fila ` +
-      `de saldo/resumen que no sea un movimiento real).\n\n${skipHint}\n\n` +
+      `de saldo/resumen que no sea un movimiento real).\n\n${skipHint}\n\n${currencyHint}\n\n` +
       `Para cada movimiento, elige la categoría que mejor encaje de esta lista fija (usa exactamente ` +
       `uno de estos nombres, no inventes categorías nuevas):\n${categoryHints}\n\n` +
       `CSV:\n${csv}`
@@ -200,6 +217,13 @@ export async function POST(req: NextRequest) {
                       description: "Importe con signo: negativo si es un gasto/cargo, positivo si es un ingreso/abono.",
                     },
                     category: { type: "STRING", enum: [...TRANSACTION_CATEGORIES] },
+                    currency: {
+                      type: "STRING",
+                      description:
+                        "Código ISO 4217 de 3 letras de la divisa de ESTE movimiento (p.ej. EUR, AUD, VND), " +
+                        "solo si el extracto la distingue por fila. Vacío si todo el extracto está en una " +
+                        "sola divisa implícita.",
+                    },
                   },
                   required: ["date", "description", "amount", "category"],
                 },
@@ -276,22 +300,37 @@ export async function POST(req: NextRequest) {
 
     // Validación básica de cada fila antes de devolverla — así un movimiento
     // mal formado no tumba la importación entera ni acaba guardado a medias.
-    const valid = transactions.filter(
-      (t: unknown): t is { date: string; description: string; amount: number; category: string } => {
-        if (!t || typeof t !== "object") return false
-        const row = t as Record<string, unknown>
-        return (
-          typeof row.date === "string" &&
-          /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
-          typeof row.description === "string" &&
-          row.description.trim().length > 0 &&
-          typeof row.amount === "number" &&
-          Number.isFinite(row.amount) &&
-          typeof row.category === "string" &&
-          (TRANSACTION_CATEGORIES as readonly string[]).includes(row.category)
-        )
-      },
-    )
+    type ValidRow = { date: string; description: string; amount: number; category: string; currency?: string }
+    const valid: ValidRow[] = []
+    for (const t of transactions) {
+      if (!t || typeof t !== "object") continue
+      const row = t as Record<string, unknown>
+      const ok =
+        typeof row.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
+        typeof row.description === "string" &&
+        row.description.trim().length > 0 &&
+        typeof row.amount === "number" &&
+        Number.isFinite(row.amount) &&
+        typeof row.category === "string" &&
+        (TRANSACTION_CATEGORIES as readonly string[]).includes(row.category)
+      if (!ok) continue
+
+      // "currency" es opcional y solo vale si de verdad parece un código
+      // ISO 4217 (3 letras) — cualquier otra cosa (vacío, "N/A", un símbolo
+      // suelto...) se descarta en vez de colarse como si fuera una divisa
+      // real, para que el cliente sepa con seguridad cuándo puede convertir.
+      const currencyRaw = typeof row.currency === "string" ? row.currency.trim().toUpperCase() : ""
+      const currency = /^[A-Z]{3}$/.test(currencyRaw) ? currencyRaw : undefined
+
+      valid.push({
+        date: row.date as string,
+        description: row.description as string,
+        amount: row.amount as number,
+        category: row.category as string,
+        ...(currency ? { currency } : {}),
+      })
+    }
 
     return NextResponse.json({ transactions: valid, skippedInvalid: transactions.length - valid.length })
   } catch (err) {
