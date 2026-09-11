@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { TRANSACTION_CATEGORIES } from "@/lib/types"
 
-// Vercel corta las funciones serverless a los 10s por defecto (plan
-// Hobby); un CSV con muchos movimientos puede tardar más que eso en
-// procesarse con la IA, así que se pide el máximo permitido.
-export const maxDuration = 60
+// Con Fluid Compute (activado por defecto en Vercel, incluso en el plan
+// gratuito) el límite real llega hasta 300s — antes esto se dejaba en 60
+// pensando que era el máximo del plan Hobby, y ese límite artificial fue
+// justo lo que provocó "The operation was aborted due to timeout" con un
+// extracto real: aunque se bajó el nivel de "pensamiento" del modelo (ver
+// thinkingConfig más abajo), Gemini a veces tarda más de 60s con un extracto
+// grande y esto lo cortaba antes de tiempo. 180s da mucho más margen sin
+// acercarse al límite real de la plataforma.
+export const maxDuration = 180
 
 // Importar extracto bancario en CSV o PDF: el usuario sube el archivo tal
 // cual lo exportó su banco (CommBank, Revolut, el que sea) desde el botón
@@ -233,9 +238,11 @@ export async function POST(req: NextRequest) {
           },
         },
       }),
-      // maxDuration (arriba) le da margen a la función; este timeout es
-      // solo para no dejar la petición colgada si Gemini no responde.
-      signal: AbortSignal.timeout(55_000),
+      // Deja margen por debajo de maxDuration (180s arriba) para que, si
+      // Gemini de verdad no responde, la función pueda devolver un error
+      // legible en vez de que Vercel la mate en seco sin dar ninguna
+      // respuesta al cliente.
+      signal: AbortSignal.timeout(165_000),
     })
 
   try {
