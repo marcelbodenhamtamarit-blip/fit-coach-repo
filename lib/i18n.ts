@@ -247,6 +247,16 @@ export const TRANSLATIONS = {
     es: "Elige en qué idioma quieres ver la app.",
     en: "Choose which language you want to see the app in.",
   },
+  // Inicio de semana: cada persona elige qué día cuenta como el primero de
+  // la semana (domingo por defecto, para no cambiar nada a quien no toque
+  // esto). Afecta a "Semana N" en Economía y Resumen, al ahorro semanal, al
+  // recordatorio de "ahorro semanal" y a qué día cae un recurrente semanal
+  // — ver lib/week.ts.
+  "settings.weekStartDay": { es: "Inicio de semana", en: "Week starts on" },
+  "settings.weekStartDayDesc": {
+    es: "Qué día cuenta como el primero de la semana en los resúmenes semanales de la app y en los recordatorios.",
+    en: "Which day counts as the first day of the week in the app's weekly summaries and reminders.",
+  },
 
   // Modo viaje
   "settings.travelMode": { es: "Modo viaje", en: "Travel mode" },
