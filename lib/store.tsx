@@ -12,8 +12,6 @@ import type {
   Transaction,
   RecurringTransaction,
   RecurringFrequency,
-  CategoryBudget,
-  TransactionCategory,
 } from "./types"
 import { todayISO, uid } from "./types"
 import { translate, type Language, type TranslationKey } from "./i18n"
@@ -22,7 +20,6 @@ import {
   supabase,
   type TransactionRow,
   type RecurringTransactionRow,
-  type CategoryBudgetRow,
 } from "./supabase"
 import { useAuth } from "./use-auth"
 
@@ -67,7 +64,6 @@ function periodStartDate(frequency: RecurringFrequency, payDay: number, weekStar
 const EMPTY_DATA: AppData = {
   transactions: [],
   recurring: [],
-  budgets: [],
   homeCurrency: "AUD",
   language: "es",
   travelMode: false,
@@ -102,13 +98,6 @@ function rowToRecurring(row: RecurringTransactionRow): RecurringTransaction {
   }
 }
 
-function rowToBudget(row: CategoryBudgetRow): CategoryBudget {
-  return {
-    category: row.category as TransactionCategory,
-    monthlyLimit: Number(row.monthly_limit),
-  }
-}
-
 // ---------- Fetchers ----------
 
 async function fetchTransactions(): Promise<Transaction[]> {
@@ -135,19 +124,6 @@ async function fetchRecurring(): Promise<RecurringTransaction[]> {
     return []
   }
   return (data ?? []).map(rowToRecurring)
-}
-
-async function fetchBudgets(): Promise<CategoryBudget[]> {
-  const { data, error } = await supabase
-    .from("category_budgets")
-    .select("*")
-    .order("category", { ascending: true })
-
-  if (error) {
-    console.error("[supabase] fetchBudgets error:", error.message)
-    return []
-  }
-  return (data ?? []).map(rowToBudget)
 }
 
 // Preferencias del usuario: divisa principal (para sumar/mostrar todos los
@@ -215,16 +191,14 @@ async function fetchUserPreferences(): Promise<{
 }
 
 async function fetchAll(): Promise<AppData> {
-  const [transactions, recurring, budgets, preferences] = await Promise.all([
+  const [transactions, recurring, preferences] = await Promise.all([
     fetchTransactions(),
     fetchRecurring(),
-    fetchBudgets(),
     fetchUserPreferences(),
   ])
   return {
     transactions,
     recurring,
-    budgets,
     homeCurrency: preferences.homeCurrency,
     language: preferences.language,
     travelMode: preferences.travelMode,
@@ -251,9 +225,6 @@ type StoreContextType = {
   setLanguage: (code: string) => void
   setTravelMode: (active: boolean, currency: string) => void
   setWeekStartDay: (day: number) => void
-  // monthlyLimit <= 0 quita el presupuesto de esa categoría en vez de
-  // guardar un límite de $0 (ver comentario de CategoryBudget en types.ts).
-  setBudget: (category: TransactionCategory, monthlyLimit: number) => void
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
@@ -444,43 +415,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .upsert({ user_id: userId, week_start_day: day })
       if (error) {
         console.error("[supabase] setWeekStartDay error:", error.message)
-      }
-    })()
-  }
-
-  // Presupuesto mensual por categoría (ver CategoryBudget en types.ts).
-  // monthlyLimit <= 0 quita el presupuesto en vez de guardarlo en $0, para
-  // no confundir "sin presupuesto puesto" con "presupuesto de $0" — así el
-  // mismo campo numérico sirve tanto para poner como para quitar un límite.
-  const setBudget = (category: TransactionCategory, monthlyLimit: number) => {
-    setData((d) => ({
-      ...d,
-      budgets:
-        monthlyLimit > 0
-          ? [...(d.budgets ?? []).filter((b) => b.category !== category), { category, monthlyLimit }]
-          : (d.budgets ?? []).filter((b) => b.category !== category),
-    }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-
-      if (monthlyLimit > 0) {
-        const { error } = await supabase
-          .from("category_budgets")
-          .upsert(
-            { user_id: userId, category, monthly_limit: monthlyLimit },
-            { onConflict: "user_id,category" },
-          )
-        if (error) console.error("[supabase] setBudget upsert error:", error.message)
-      } else {
-        const { error } = await supabase
-          .from("category_budgets")
-          .delete()
-          .eq("user_id", userId)
-          .eq("category", category)
-        if (error) console.error("[supabase] setBudget delete error:", error.message)
       }
     })()
   }
@@ -694,7 +628,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setLanguage,
         setTravelMode,
         setWeekStartDay,
-        setBudget,
         t,
       }}
     >
