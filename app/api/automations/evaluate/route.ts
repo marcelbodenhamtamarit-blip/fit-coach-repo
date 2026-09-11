@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createServiceRoleClient, sendPushToUser } from "@/lib/send-push.server"
+import { weekStartISO } from "@/lib/week"
 
 export const maxDuration = 60
 
@@ -41,13 +42,23 @@ function weekdayOf(dateISO: string): number {
   return new Date(dateISO + "T00:00:00").getDay()
 }
 
-function weekStartISO(dateISO: string): string {
-  const d = new Date(dateISO + "T00:00:00")
-  d.setDate(d.getDate() - d.getDay())
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
+// Inicio de semana por usuario (Ajustes > Preferencias > Inicio de semana,
+// ver lib/week.ts). Este worker evalúa automatizaciones de todos los
+// usuarios en una sola pasada, así que se cachea por user_id dentro de una
+// misma ejecución para no repetir la consulta si alguien tiene varias
+// automatizaciones semanales.
+const weekStartDayCache = new Map<string, number>()
+
+async function weekStartDayFor(admin: ReturnType<typeof createServiceRoleClient>, userId: string): Promise<number> {
+  if (weekStartDayCache.has(userId)) return weekStartDayCache.get(userId)!
+  const { data } = await admin
+    .from("user_preferences")
+    .select("week_start_day")
+    .eq("user_id", userId)
+    .maybeSingle()
+  const day = typeof data?.week_start_day === "number" ? data.week_start_day : 0
+  weekStartDayCache.set(userId, day)
+  return day
 }
 
 type AutomationRow = {
@@ -76,11 +87,12 @@ async function computeConditionMetric(
   userId: string,
   metric: NonNullable<AutomationRow["condition_metric"]>,
   category: string | null,
+  weekStartDay: number,
 ): Promise<number> {
   const today = todayISO()
 
   if (metric === "weekly_savings") {
-    const start = weekStartISO(today)
+    const start = weekStartISO(today, weekStartDay)
     const end = new Date(start + "T00:00:00")
     end.setDate(end.getDate() + 6)
     const endISO = end.toISOString().slice(0, 10)
@@ -219,7 +231,6 @@ async function handle(req: NextRequest) {
   const today = todayISO()
   const nowTime = nowHHMM()
   const todayWeekday = weekdayOf(today)
-  const currentWeekStart = weekStartISO(today)
 
   let evaluated = 0
   let fired = 0
@@ -231,7 +242,10 @@ async function handle(req: NextRequest) {
     try {
       if (automationRaw.trigger_type === "schedule") {
         if (!automationRaw.schedule_time) continue
-        const periodKey = automationRaw.schedule_frequency === "weekly" ? currentWeekStart : today
+        const periodKey =
+          automationRaw.schedule_frequency === "weekly"
+            ? weekStartISO(today, await weekStartDayFor(admin, automationRaw.user_id))
+            : today
 
         if (automationRaw.schedule_frequency === "weekly" && automationRaw.schedule_weekday !== null) {
           if (todayWeekday !== automationRaw.schedule_weekday) continue
@@ -256,6 +270,7 @@ async function handle(req: NextRequest) {
           automationRaw.user_id,
           automationRaw.condition_metric,
           automationRaw.condition_category,
+          await weekStartDayFor(admin, automationRaw.user_id),
         )
         const met = compare(value, automationRaw.condition_operator, automationRaw.condition_value)
         if (!met) continue
