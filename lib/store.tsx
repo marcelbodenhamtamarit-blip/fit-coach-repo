@@ -12,42 +12,29 @@ import type {
   Transaction,
   RecurringTransaction,
   RecurringFrequency,
+  CategoryBudget,
+  TransactionCategory,
 } from "./types"
 import { todayISO, uid } from "./types"
 import { translate, type Language, type TranslationKey } from "./i18n"
+import { DEFAULT_WEEK_START_DAY, getWeekStart, getWeekNumberFromISO, offsetWithinWeek } from "./week"
 import {
   supabase,
   type TransactionRow,
   type RecurringTransactionRow,
+  type CategoryBudgetRow,
 } from "./supabase"
 import { useAuth } from "./use-auth"
 
-// Get calendar week number from date
-function getWeekNumber(date: Date): number {
-  const jan4 = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
-  const dayOfWeek = jan4.getUTCDay()
-  const week1Start = new Date(jan4)
-  week1Start.setUTCDate(jan4.getUTCDate() - dayOfWeek)
-  const diffDays = Math.floor((date.getTime() - week1Start.getTime()) / (24 * 60 * 60 * 1000))
-  return 1 + Math.floor(diffDays / 7)
-}
-
-// Get start of current week (Sunday)
-function getWeekStart(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getDay()
-  d.setDate(d.getDate() - day)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
 // Clave del periodo actual para una plantilla recurrente: "YYYY-MM" si es
 // mensual, "YYYY-Www" si es semanal. Se usa para saber si ya se generó la
-// transacción de este periodo y así no duplicarla.
-function currentPeriodKey(frequency: RecurringFrequency): string {
+// transacción de este periodo y así no duplicarla. El número de semana
+// depende de weekStartDay (Ajustes > Preferencias > Inicio de semana) —
+// ver lib/week.ts.
+function currentPeriodKey(frequency: RecurringFrequency, weekStartDay: number): string {
   const today = todayISO()
   if (frequency === "weekly") {
-    const weekNumber = getWeekNumber(new Date(today + "T00:00:00"))
+    const weekNumber = getWeekNumberFromISO(today, weekStartDay)
     return `${today.slice(0, 4)}-W${weekNumber}`
   }
   return today.slice(0, 7)
@@ -57,13 +44,14 @@ function currentPeriodKey(frequency: RecurringFrequency): string {
 // el "día de pago" configurado en la plantilla: para mensuales, ese día del
 // mes actual (recortado al último día real si el mes es más corto, p.ej.
 // día 31 en febrero); para semanales, ese día de la semana actual
-// (0=domingo...6=sábado, empezando la semana el domingo como getWeekStart).
-function periodStartDate(frequency: RecurringFrequency, payDay: number): string {
+// (0=domingo...6=sábado, dentro de la semana que empieza en weekStartDay).
+function periodStartDate(frequency: RecurringFrequency, payDay: number, weekStartDay: number): string {
   const today = todayISO()
   if (frequency === "weekly") {
-    const start = getWeekStart(new Date(today + "T00:00:00"))
+    const start = getWeekStart(new Date(today + "T00:00:00"), weekStartDay)
     const target = new Date(start)
-    target.setDate(start.getDate() + Math.min(Math.max(payDay, 0), 6))
+    const clampedPayDay = Math.min(Math.max(payDay, 0), 6)
+    target.setDate(start.getDate() + offsetWithinWeek(clampedPayDay, weekStartDay))
     const y = target.getFullYear()
     const m = String(target.getMonth() + 1).padStart(2, "0")
     const d = String(target.getDate()).padStart(2, "0")
@@ -79,10 +67,12 @@ function periodStartDate(frequency: RecurringFrequency, payDay: number): string 
 const EMPTY_DATA: AppData = {
   transactions: [],
   recurring: [],
+  budgets: [],
   homeCurrency: "AUD",
   language: "es",
   travelMode: false,
   travelCurrency: null,
+  weekStartDay: DEFAULT_WEEK_START_DAY,
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -109,6 +99,13 @@ function rowToRecurring(row: RecurringTransactionRow): RecurringTransaction {
     frequency: (row.frequency as RecurringTransaction["frequency"]) ?? "monthly",
     payDay: row.pay_day ?? (row.frequency === "weekly" ? 0 : 1),
     lastCreatedPeriod: row.last_created_month,
+  }
+}
+
+function rowToBudget(row: CategoryBudgetRow): CategoryBudget {
+  return {
+    category: row.category as TransactionCategory,
+    monthlyLimit: Number(row.monthly_limit),
   }
 }
 
@@ -140,6 +137,19 @@ async function fetchRecurring(): Promise<RecurringTransaction[]> {
   return (data ?? []).map(rowToRecurring)
 }
 
+async function fetchBudgets(): Promise<CategoryBudget[]> {
+  const { data, error } = await supabase
+    .from("category_budgets")
+    .select("*")
+    .order("category", { ascending: true })
+
+  if (error) {
+    console.error("[supabase] fetchBudgets error:", error.message)
+    return []
+  }
+  return (data ?? []).map(rowToBudget)
+}
+
 // Preferencias del usuario: divisa principal (para sumar/mostrar todos los
 // totales), idioma de la interfaz, y modo viaje (divisa temporal para
 // nuevas transacciones mientras está fuera de casa). Todas viven en la
@@ -151,8 +161,15 @@ async function fetchUserPreferences(): Promise<{
   language: string
   travelMode: boolean
   travelCurrency: string | null
+  weekStartDay: number
 }> {
-  const DEFAULTS = { homeCurrency: "AUD", language: "es", travelMode: false, travelCurrency: null }
+  const DEFAULTS = {
+    homeCurrency: "AUD",
+    language: "es",
+    travelMode: false,
+    travelCurrency: null,
+    weekStartDay: DEFAULT_WEEK_START_DAY,
+  }
 
   const { data: userData } = await supabase.auth.getUser()
   const userId = userData.user?.id
@@ -160,7 +177,7 @@ async function fetchUserPreferences(): Promise<{
 
   const { data, error } = await supabase
     .from("user_preferences")
-    .select("home_currency, language, travel_mode, travel_currency")
+    .select("home_currency, language, travel_mode, travel_currency, week_start_day")
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -174,13 +191,14 @@ async function fetchUserPreferences(): Promise<{
       language: data.language ?? DEFAULTS.language,
       travelMode: data.travel_mode ?? DEFAULTS.travelMode,
       travelCurrency: data.travel_currency ?? DEFAULTS.travelCurrency,
+      weekStartDay: data.week_start_day ?? DEFAULTS.weekStartDay,
     }
   }
 
   const { data: inserted, error: insertError } = await supabase
     .from("user_preferences")
     .insert({ user_id: userId })
-    .select("home_currency, language, travel_mode, travel_currency")
+    .select("home_currency, language, travel_mode, travel_currency, week_start_day")
     .single()
 
   if (insertError) {
@@ -192,22 +210,26 @@ async function fetchUserPreferences(): Promise<{
     language: inserted?.language ?? DEFAULTS.language,
     travelMode: inserted?.travel_mode ?? DEFAULTS.travelMode,
     travelCurrency: inserted?.travel_currency ?? DEFAULTS.travelCurrency,
+    weekStartDay: inserted?.week_start_day ?? DEFAULTS.weekStartDay,
   }
 }
 
 async function fetchAll(): Promise<AppData> {
-  const [transactions, recurring, preferences] = await Promise.all([
+  const [transactions, recurring, budgets, preferences] = await Promise.all([
     fetchTransactions(),
     fetchRecurring(),
+    fetchBudgets(),
     fetchUserPreferences(),
   ])
   return {
     transactions,
     recurring,
+    budgets,
     homeCurrency: preferences.homeCurrency,
     language: preferences.language,
     travelMode: preferences.travelMode,
     travelCurrency: preferences.travelCurrency,
+    weekStartDay: preferences.weekStartDay,
   }
 }
 
@@ -228,6 +250,10 @@ type StoreContextType = {
   setHomeCurrency: (code: string) => void
   setLanguage: (code: string) => void
   setTravelMode: (active: boolean, currency: string) => void
+  setWeekStartDay: (day: number) => void
+  // monthlyLimit <= 0 quita el presupuesto de esa categoría en vez de
+  // guardar un límite de $0 (ver comentario de CategoryBudget en types.ts).
+  setBudget: (category: TransactionCategory, monthlyLimit: number) => void
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
@@ -245,19 +271,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // según su frecuencia), la crea y marca la plantilla como generada.
   // Devuelve las transacciones nuevas para poder mostrarlas en un popup de
   // revisión.
-  const runRecurringGeneration = async (recurringList: RecurringTransaction[]): Promise<Transaction[]> => {
+  const runRecurringGeneration = async (
+    recurringList: RecurringTransaction[],
+    weekStartDay: number,
+  ): Promise<Transaction[]> => {
     const due = recurringList.filter(
-      (r) => r.active && r.lastCreatedPeriod !== currentPeriodKey(r.frequency),
+      (r) => r.active && r.lastCreatedPeriod !== currentPeriodKey(r.frequency, weekStartDay),
     )
     if (due.length === 0) return []
 
     const created: Transaction[] = []
     for (const template of due) {
-      const periodKey = currentPeriodKey(template.frequency)
+      const periodKey = currentPeriodKey(template.frequency, weekStartDay)
       const { data: txRow, error: txError } = await supabase
         .from("transactions")
         .insert({
-          date: periodStartDate(template.frequency, template.payDay),
+          date: periodStartDate(template.frequency, template.payDay, weekStartDay),
           description: template.description,
           category: template.category,
           amount: template.amount,
@@ -314,7 +343,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData(fresh)
       setReady(true)
 
-      const createdThisPeriod = await runRecurringGeneration(fresh.recurring ?? [])
+      const createdThisPeriod = await runRecurringGeneration(fresh.recurring ?? [], fresh.weekStartDay)
       if (cancelled) return
       if (createdThisPeriod.length > 0) {
         const [transactions, recurring] = await Promise.all([fetchTransactions(), fetchRecurring()])
@@ -394,6 +423,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .upsert({ user_id: userId, travel_mode: active, travel_currency: currency })
       if (error) {
         console.error("[supabase] setTravelMode error:", error.message)
+      }
+    })()
+  }
+
+  // Inicio de semana (Ajustes > Preferencias): 0=domingo...6=sábado. Afecta
+  // a "Semana N" en Economía/Resumen, al ahorro semanal y al recordatorio
+  // de "ahorro semanal" (ver lib/week.ts) — no reordena ni reescribe
+  // transacciones ya guardadas, solo cambia dónde se cortan las semanas a
+  // partir de ahora.
+  const setWeekStartDay = (day: number) => {
+    setData((d) => ({ ...d, weekStartDay: day }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, week_start_day: day })
+      if (error) {
+        console.error("[supabase] setWeekStartDay error:", error.message)
+      }
+    })()
+  }
+
+  // Presupuesto mensual por categoría (ver CategoryBudget en types.ts).
+  // monthlyLimit <= 0 quita el presupuesto en vez de guardarlo en $0, para
+  // no confundir "sin presupuesto puesto" con "presupuesto de $0" — así el
+  // mismo campo numérico sirve tanto para poner como para quitar un límite.
+  const setBudget = (category: TransactionCategory, monthlyLimit: number) => {
+    setData((d) => ({
+      ...d,
+      budgets:
+        monthlyLimit > 0
+          ? [...(d.budgets ?? []).filter((b) => b.category !== category), { category, monthlyLimit }]
+          : (d.budgets ?? []).filter((b) => b.category !== category),
+    }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+
+      if (monthlyLimit > 0) {
+        const { error } = await supabase
+          .from("category_budgets")
+          .upsert(
+            { user_id: userId, category, monthly_limit: monthlyLimit },
+            { onConflict: "user_id,category" },
+          )
+        if (error) console.error("[supabase] setBudget upsert error:", error.message)
+      } else {
+        const { error } = await supabase
+          .from("category_budgets")
+          .delete()
+          .eq("user_id", userId)
+          .eq("category", category)
+        if (error) console.error("[supabase] setBudget delete error:", error.message)
       }
     })()
   }
@@ -606,6 +693,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setHomeCurrency,
         setLanguage,
         setTravelMode,
+        setWeekStartDay,
+        setBudget,
         t,
       }}
     >
