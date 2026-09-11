@@ -102,6 +102,12 @@ export type AppData = {
   // elegida aunque el modo esté desactivado, para no perderla al reactivar.
   travelMode: boolean
   travelCurrency: string | null
+  // Día en que empieza la semana para esta persona (0=domingo...6=sábado,
+  // igual que Date.getDay()) — afecta a "Semana N" en Economía, al ahorro
+  // semanal de Resumen, al recordatorio de "ahorro semanal" y a qué día cae
+  // un recurrente semanal. Por defecto domingo, para no cambiar el
+  // comportamiento de nadie que no toque este ajuste (ver lib/week.ts).
+  weekStartDay: number
 }
 
 // ---------- Automatizaciones ----------
