@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   PiggyBank,
   Plus,
@@ -10,6 +10,7 @@ import {
   Pencil,
   ListPlus,
   Trash2,
+  Upload,
 } from "lucide-react"
 import { ResponsiveContainer, BarChart, Bar, Cell, Tooltip, XAxis } from "recharts"
 import { Card } from "@/components/ui/card"
@@ -55,10 +56,10 @@ function fmt(amount: number, currency?: string | null): string {
   return amount >= 0 ? `+${symbol}${abs}` : `-${symbol}${abs}`
 }
 
-// Exportados (además de usarse aquí) para que overview-section.tsx pinte la
-// tarjeta de Presupuestos con el mismo emoji/color que ya identifica a cada
-// categoría en Economía — un único sitio de verdad, sin mapas duplicados
-// que puedan desincronizarse si se añade o retoca una categoría.
+// Exportados (además de usarse aquí) para que otras secciones puedan pintar
+// el mismo emoji/color que ya identifica a cada categoría en Economía — un
+// único sitio de verdad, sin mapas duplicados que puedan desincronizarse si
+// se añade o retoca una categoría.
 export const CATEGORY_EMOJI: Record<string, string> = {
   Alojamiento: "\u{1F3E0}",
   Supermercado: "\u{1F6D2}",
@@ -144,6 +145,15 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
   const [batchCurrency, setBatchCurrency] = useState<string>(defaultCurrency)
   const [batchSaving, setBatchSaving] = useState(false)
   const [batchConversionError, setBatchConversionError] = useState("")
+
+  // Importar extracto bancario en CSV (botón "Importar CSV", ver más abajo):
+  // el archivo se manda a /api/import-csv, que usa una IA para detectar el
+  // formato del banco que sea y devolver los movimientos ya normalizados.
+  // csvImportInfo muestra cuántos se importaron y cuántos ya estaban (se
+  // omiten en vez de duplicarse).
+  const csvFileInputRef = useRef<HTMLInputElement>(null)
+  const [importingCsv, setImportingCsv] = useState(false)
+  const [csvImportInfo, setCsvImportInfo] = useState<string | null>(null)
 
   // El botón "Añadir gasto" de Resumen navega aquí y sube autoOpenSignal;
   // lo escuchamos para abrir el formulario automáticamente (no solo al
@@ -397,6 +407,100 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
     setBatchCurrency(defaultCurrency)
   }
 
+  // Clave para detectar si un movimiento del CSV ya está guardado: misma
+  // fecha, mismo importe y misma descripción (sin mayúsculas/minúsculas ni
+  // espacios de sobra) — así reimportar el mismo extracto (o uno con fechas
+  // que se solapan con el anterior) no duplica nada.
+  const transactionDedupeKey = (t: { date: string; amount: number; description: string }) =>
+    `${t.date}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`
+
+  const handleImportCsvFile = async (file: File) => {
+    setImportingCsv(true)
+    setCsvImportInfo(null)
+    setToastError(null)
+
+    try {
+      const csvText = await file.text()
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) {
+        setToastError(t("economy.importCsvError"))
+        return
+      }
+
+      const res = await fetch("/api/import-csv", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ csv: csvText }),
+      })
+
+      const result = await res.json()
+      if (!res.ok || !Array.isArray(result.transactions)) {
+        setToastError(result.error || t("economy.importCsvError"))
+        return
+      }
+
+      const parsed: { date: string; description: string; amount: number; category: string }[] = result.transactions
+      if (parsed.length === 0) {
+        setCsvImportInfo(t("economy.importCsvEmpty"))
+        return
+      }
+
+      // Descarta lo que ya está en la app, y también duplicados dentro del
+      // propio archivo (por si el extracto trae la misma fila repetida).
+      const existingKeys = new Set(transactions.map(transactionDedupeKey))
+      const seenInFile = new Set<string>()
+      const newItems: Omit<Transaction, "id">[] = []
+
+      for (const row of parsed) {
+        const key = transactionDedupeKey(row)
+        if (existingKeys.has(key) || seenInFile.has(key)) continue
+        seenInFile.add(key)
+        newItems.push({
+          date: row.date,
+          description: row.description,
+          category: row.category as Transaction["category"],
+          amount: row.amount,
+          currency: null,
+          originalAmount: null,
+        })
+      }
+
+      if (newItems.length > 0) {
+        addTransactions(newItems)
+
+        // Best-effort, igual que el resto de altas: si el webhook falla no
+        // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
+        newItems.forEach((tx) => {
+          const weekNum = getWeekNumberFromISO(tx.date, weekStartDay)
+          const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
+          fetch(GOOGLE_SHEETS_WEBHOOK, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              week: weekNum,
+              category: tx.category,
+              amount: formattedAmount,
+              date: tx.date.split("-").reverse().join("/"),
+            }),
+          }).catch(() => {})
+        })
+      }
+
+      setCsvImportInfo(
+        t("economy.importCsvDone", { imported: newItems.length, skipped: parsed.length - newItems.length }),
+      )
+    } catch {
+      setToastError(t("economy.importCsvError"))
+    } finally {
+      setImportingCsv(false)
+    }
+  }
+
   const startEditing = (tx: Transaction) => {
     setEditingId(tx.id)
     setEditDesc(tx.description)
@@ -462,6 +566,12 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
           <X className="h-4 w-4 shrink-0" />
           <span>{toastError}</span>
+        </div>
+      )}
+
+      {csvImportInfo && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <span>{csvImportInfo}</span>
         </div>
       )}
 
@@ -696,6 +806,30 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             {t("economy.addButton")}
           </Button>
           <RecurringManagerDialog />
+
+          <input
+            ref={csvFileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              // Se resetea el value para que elegir el mismo archivo dos
+              // veces seguidas (p.ej. tras corregirlo) vuelva a disparar
+              // onChange.
+              e.target.value = ""
+              if (file) handleImportCsvFile(file)
+            }}
+          />
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={importingCsv}
+            onClick={() => csvFileInputRef.current?.click()}
+          >
+            <Upload className="mr-2 size-4" />
+            {importingCsv ? t("economy.importingCsv") : t("economy.importCsv")}
+          </Button>
         </div>
       )}
 
