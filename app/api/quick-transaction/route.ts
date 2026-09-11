@@ -52,7 +52,15 @@ function inferCategory(text: string): (typeof TRANSACTION_CATEGORIES)[number] | 
 // falla o tarda más de 4s, se devuelve null y el flujo de siempre sigue
 // cayendo en "Otros" — nunca bloquea el alta de la transacción.
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODEL = "gemini-2.5-flash-lite"
+// gemini-2.5-flash (usado en /api/import-csv) dejó de funcionar de golpe con
+// un 404 "no longer available" — Google retira modelos de esta familia sin
+// avisar mucho. Aunque este endpoint no lo notara (el fallo de esta llamada
+// es silencioso, ver comentario de arriba: cae a "Otros" sin más), es
+// probable que gemini-2.5-flash-lite tenga la misma fecha de caducidad, así
+// que se actualiza también a la última versión estable y se deja
+// configurable por variable de entorno para no depender de un despliegue de
+// código la próxima vez que Google retire un modelo.
+const GEMINI_MODEL = process.env.GEMINI_QUICK_MODEL || "gemini-3.5-flash-lite"
 
 async function inferCategoryWithAI(text: string): Promise<(typeof TRANSACTION_CATEGORIES)[number] | null> {
   if (!GEMINI_API_KEY || !text.trim()) return null
