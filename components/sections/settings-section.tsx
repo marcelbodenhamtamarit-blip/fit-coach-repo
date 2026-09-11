@@ -29,7 +29,7 @@ import { CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/use-auth"
 import { isBetaUser } from "@/lib/beta"
-import { LANGUAGES, type Language } from "@/lib/i18n"
+import { LANGUAGES, weekdayLabel, type Language } from "@/lib/i18n"
 import { RemindersCard } from "@/components/sections/automations-section"
 
 export function SettingsSection() {
@@ -219,11 +219,12 @@ function AccountCard() {
 // dentro de una sola tarjeta en vez de dos tarjetas casi idénticas
 // repitiendo icono + título + descripción.
 function PreferencesCard() {
-  const { data, ready, setHomeCurrency, setLanguage, t } = useStore()
+  const { data, ready, setHomeCurrency, setLanguage, setWeekStartDay, t } = useStore()
   const lang = (data.language as Language) ?? "es"
-  const [savedField, setSavedField] = useState<"currency" | "language" | null>(null)
+  const weekStartDay = data.weekStartDay ?? 0
+  const [savedField, setSavedField] = useState<"currency" | "language" | "weekStartDay" | null>(null)
 
-  function flash(field: "currency" | "language") {
+  function flash(field: "currency" | "language" | "weekStartDay") {
     setSavedField(field)
     setTimeout(() => setSavedField((f) => (f === field ? null : f)), 1500)
   }
@@ -236,6 +237,11 @@ function PreferencesCard() {
   function handleLanguageChange(code: string) {
     setLanguage(code)
     flash("language")
+  }
+
+  function handleWeekStartDayChange(day: number) {
+    setWeekStartDay(day)
+    flash("weekStartDay")
   }
 
   return (
@@ -275,6 +281,24 @@ function PreferencesCard() {
             ))}
           </select>
           {savedField === "language" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+        </div>
+
+        <div className="p-3">
+          <p className="text-sm font-medium">{t("settings.weekStartDay")}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{t("settings.weekStartDayDesc")}</p>
+          <select
+            value={weekStartDay}
+            disabled={!ready}
+            onChange={(e) => handleWeekStartDayChange(Number(e.target.value))}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+              <option key={d} value={d}>
+                {weekdayLabel(d, lang)}
+              </option>
+            ))}
+          </select>
+          {savedField === "weekStartDay" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
         </div>
       </div>
     </div>
@@ -540,182 +564,4 @@ function QuickAddShortcutCard() {
 
   // Para el disparador "Notificación" de Atajos (iOS 27+): el atajo llama
   // directo a la API con GET, pasando el texto de la notificación como
-  // título/subtítulo/cuerpo — nada de abrir /quick-confirm, así que no hay
-  // pantalla que confirmar a mano. /api/quick-transaction ya sabe extraer
-  // el importe de ese texto con una expresión regular (ver el código) y,
-  // si lo consigue, manda una notificación push de confirmación sola.
-  const notifAutoUrl = origin
-    ? `${origin}/api/quick-transaction?token=TU_CODIGO&title=[Título]&subtitle=[Subtítulo]&body=[Cuerpo]`
-    : ""
-
-  return (
-    <div>
-      {loading ? (
-        <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
-      ) : (
-        <div className="space-y-4">
-          <a href={lang === "en" ? SHORTCUT_ICLOUD_URL_EN : SHORTCUT_ICLOUD_URL_ES} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
-            <Download className="size-4" />
-            {t("settings.installShortcut")}
-          </a>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("settings.apiUrl")}</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
-                  {apiUrl}
-                </code>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={() => copy(apiUrl, "url")}
-                  aria-label={t("settings.copyUrl")}
-                >
-                  {copiedField === "url" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </Button>
-              </div>
-            </div>
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{t("settings.yourCode")}</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs">
-                  {token}
-                </code>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={() => token && copy(token, "token")}
-                  aria-label={t("settings.copyCode")}
-                >
-                  {copiedField === "token" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={regenerateToken}
-                  disabled={regenerating}
-                  aria-label={t("settings.regenCode")}
-                >
-                  <RefreshCw className={`size-3.5 ${regenerating ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-            </div>
-          </div>
-          <p className="text-[11px] text-muted-foreground">{t("settings.regenHint")}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {lastUsedAt ? t("settings.lastUsed", { when: formatRelativeTime(lastUsedAt, lang) }) : t("settings.lastUsedNever")}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => setShowManual((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showManual ? t("settings.hideManual") : t("settings.showManual")}
-          </button>
-
-          {showManual && (
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            <p className="mb-2 font-medium text-foreground">{t("settings.manualTitle")}</p>
-            <ol className="list-decimal space-y-2 pl-4">
-              <li>{t("settings.manualStep1")}</li>
-              <li>{t("settings.manualStep2", { url: apiUrl })}</li>
-            </ol>
-            <p className="mt-3 font-medium text-foreground">{t("settings.watchTitle")}</p>
-            <p className="mt-1">{t("settings.watchDesc")}</p>
-          </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowTapToPay((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showTapToPay ? t("settings.hideTapToPay") : t("settings.showTapToPay")}
-          </button>
-
-          {showTapToPay && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">{t("settings.tapToPayTitle")}</p>
-            <p className="mb-4">{t("settings.tapToPayNote")}</p>
-            <div>
-              {TAP_TO_PAY_STEPS.map((step, i) => (
-                <div key={step.titleKey} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <step.icon className="size-4" />
-                    </div>
-                    {i < TAP_TO_PAY_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className={i < TAP_TO_PAY_STEPS.length - 1 ? "pb-4" : ""}>
-                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{t(step.descKey)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
-
-          {notifAutoBetaEnabled && (
-          <button
-            type="button"
-            onClick={() => setShowNotificationAuto((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showNotificationAuto ? t("settings.hideNotifAuto") : t("settings.showNotifAuto")}
-          </button>
-          )}
-
-          {notifAutoBetaEnabled && showNotificationAuto && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">{t("settings.notifAutoTitle")}</p>
-            <p className="mb-4">{t("settings.notifAutoNote")}</p>
-            <div>
-              {NOTIFICATION_AUTO_STEPS.map((step, i) => (
-                <div key={step.titleKey} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <step.icon className="size-4" />
-                    </div>
-                    {i < NOTIFICATION_AUTO_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className={i < NOTIFICATION_AUTO_STEPS.length - 1 ? "pb-4" : ""}>
-                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {step.titleKey === "settings.notifAutoStep3Title" ? (
-                        <>
-                          {t(step.descKey)}
-                          <span className="mt-2 flex items-center gap-2">
-                            <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px]">
-                              {notifAutoUrl}
-                            </code>
-                            <Button
-                              size="icon-sm"
-                              variant="outline"
-                              onClick={() => copy(notifAutoUrl, "notifUrl")}
-                              aria-label={t("settings.copyUrl")}
-                            >
-                              {copiedField === "notifUrl" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                            </Button>
-                          </span>
-                        </>
-                      ) : (
-                        t(step.descKey)
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-4 rounded-md bg-amber-500/10 p-2.5 text-[11px] text-amber-500">
-              {t("settings.notifAutoOlderIos")}
-            </p>
-          </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
+  // título/subtítulo/cuerpo — nada de abrir /quick
