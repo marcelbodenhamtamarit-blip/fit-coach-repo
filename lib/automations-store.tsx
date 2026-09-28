@@ -19,7 +19,6 @@ import {
   type AutomationEventRow,
 } from "./supabase"
 import { useAuth } from "./use-auth"
-import { isBetaUser } from "./beta"
 
 function rowToAutomation(row: AutomationRow): Automation {
   return {
@@ -105,12 +104,12 @@ export function AutomationsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [pendingPopupEvents, setPendingPopupEvents] = useState<AutomationEvent[]>([])
 
-  // Mientras Automatizaciones está en pruebas (ver lib/beta.ts), quien no
-  // esté en la lista ni siquiera dispara estas consultas — no solo se le
-  // oculta la pestaña en el dashboard.
+  // Automatizaciones ya no está en pruebas (ver Changelog: la lista de
+  // lib/beta.ts llevaba tiempo abierta a todo el mundo con "*", así que se
+  // quitó esa capa entera) — solo hace falta sesión iniciada para cargar.
   useEffect(() => {
-    if (mode !== "in" || !isBetaUser(user?.email)) {
-      if (mode === "out" || (mode === "in" && !isBetaUser(user?.email))) {
+    if (mode !== "in") {
+      if (mode === "out") {
         setAutomations([])
         setPendingPopupEvents([])
         setReady(false)
@@ -130,7 +129,7 @@ export function AutomationsProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [mode, user?.id, user?.email])
+  }, [mode, user?.id])
 
   const refreshAutomations = async () => {
     setAutomations(await fetchAutomations())
