@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -81,17 +80,7 @@ export function SettingsSection() {
         <FeedbackCard />
       </CollapsibleCard>
 
-      <div className="flex items-center justify-center gap-3 pb-1 text-center text-[11px] text-muted-foreground">
-        <Link href="/privacy" className="underline-offset-2 hover:underline">
-          {t("settings.privacyPolicy")}
-        </Link>
-        <span aria-hidden>·</span>
-        <Link href="/terms" className="underline-offset-2 hover:underline">
-          {t("settings.termsOfService")}
-        </Link>
-      </div>
-
-      <p className="pb-2 text-center text-[11px] text-muted-foreground">
+      <p className="pb-2 pt-1 text-center text-[11px] text-muted-foreground">
         ZentOS · {t("app.tagline")}
       </p>
     </div>
@@ -417,15 +406,14 @@ function TravelModeCard() {
 // Por eso existe el bloque TAP_TO_PAY_STEPS de abajo: una guía visual (con
 // iconos en vez de un muro de texto) para que ese único paso de ~30
 // segundos se perciba como rápido en vez de como "trabajo".
-// Dos copias del mismo Shortcut (idéntico por dentro, solo cambia el
-// nombre/descripción que Atajos muestra en la pantalla de "Obtener atajo"
-// antes de instalarlo) — el botón de abajo elige una u otra según el idioma
-// que el usuario tenga puesto en Ajustes, no según el idioma del teléfono
-// (a diferencia de /quick-confirm, aquí sí hay sesión iniciada). Funciona
-// igual instalado desde cualquiera de los dos: la pantalla de confirmación
-// y la notificación push ya salen en el idioma de Ajustes por su cuenta.
+// Antes había dos copias del mismo Shortcut (una en español, otra en
+// inglés — solo cambiaba el nombre/descripción que Atajos muestra en la
+// pantalla de "Obtener atajo" antes de instalarlo), pensadas para que
+// alguien no hispanohablante pudiera instalar la suya sin verse un atajo en
+// español. Solo tiene sentido si de verdad hay más gente que tú usando
+// ZentOS — al ser solo para ti, se quitó la copia en inglés y el botón de
+// abajo usa siempre esta.
 const SHORTCUT_ICLOUD_URL_ES = "https://www.icloud.com/shortcuts/8942dbe1aa364ad29198997fa1146015"
-const SHORTCUT_ICLOUD_URL_EN = "https://www.icloud.com/shortcuts/10d0d6f6846b4b3f942983e9b98e12cc"
 
 const TAP_TO_PAY_STEPS = [
   { icon: Smartphone, titleKey: "settings.tapToPayStep1Title", descKey: "settings.tapToPayStep1" },
@@ -648,7 +636,7 @@ function QuickAddShortcutCard() {
         <p className="text-xs text-muted-foreground">{t("settings.preparing")}</p>
       ) : (
         <div className="space-y-4">
-          <a href={lang === "en" ? SHORTCUT_ICLOUD_URL_EN : SHORTCUT_ICLOUD_URL_ES} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
+          <a href={SHORTCUT_ICLOUD_URL_ES} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
             <Download className="size-4" />
             {t("settings.installShortcut")}
           </a>
