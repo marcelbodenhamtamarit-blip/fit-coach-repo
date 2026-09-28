@@ -239,11 +239,6 @@ export const TRANSLATIONS = {
   },
   "settings.signOut": { es: "Cerrar sesión", en: "Sign out" },
   "settings.about": { es: "Sobre esta app", en: "About this app" },
-  // Enlaces legales del pie de Ajustes (ver app/privacy/page.tsx y
-  // app/terms/page.tsx) — contenido en español únicamente, como el resto de
-  // páginas de la app que no pasan por el sistema de traducción.
-  "settings.privacyPolicy": { es: "Política de privacidad", en: "Privacy policy" },
-  "settings.termsOfService": { es: "Términos de uso", en: "Terms of use" },
   "settings.preferences": { es: "Preferencias", en: "Preferences" },
   "settings.preferencesDesc": {
     es: "Cómo se muestran tus datos en la app.",
