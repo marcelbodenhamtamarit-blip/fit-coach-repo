@@ -14,6 +14,7 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 import { convertAmount } from "@/lib/exchange-rates"
 import { sendPushToUser } from "@/lib/send-push.server"
 import { translate, categoryLabel, type Language } from "@/lib/i18n"
+import { resolveUserIdByQuickAddToken, touchQuickAddTokenLastUsed } from "@/lib/quick-add-token.server"
 
 function normalize(s: string): string {
   const diacriticFrom = String.fromCharCode(0x0300)
@@ -169,7 +170,22 @@ async function resolveParams(req: NextRequest): Promise<{ body: Record<string, u
   return { body, rawText }
 }
 
-async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown>): Promise<string | null> {
+// Antes esta función comparaba el token directamente contra la columna
+// `token` en claro, sin usar el helper de lib/quick-add-token.server.ts
+// (hash SHA-256) que el resto del proyecto ya daba por hecho que usaban
+// "los 3 endpoints" — en realidad solo lo usaban las dos rutas que servían
+// el .shortcut generado por nosotros (ya eliminadas, ver Changelog: se
+// sustituyeron por el atajo compartido de iCloud). Este endpoint, el único
+// que de verdad sigue vivo, se había quedado sin esa parte del hardening.
+// De paso, tampoco llamaba nunca a touchQuickAddTokenLastUsed, así que el
+// "último uso" que Ajustes lleva meses enseñando nunca se había actualizado
+// de verdad — quedaba siempre en blanco por mucho que el atajo se usara.
+// Ahora devuelve también el token resuelto para poder tocar esa marca de
+// tiempo después de guardar (ver el final de `handle`).
+async function resolveOwnerUserId(
+  req: NextRequest,
+  body: Record<string, unknown>,
+): Promise<{ userId: string | null; quickAddToken: string | null }> {
   // Vía 1 (nueva, multiusuario): token personal generado en Ajustes,
   // guardado en quick_add_tokens. Cada usuario tiene el suyo.
   const tokenRaw =
@@ -178,12 +194,8 @@ async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown
     ""
   const token = tokenRaw.trim()
   if (token) {
-    const { data } = await supabase
-      .from("quick_add_tokens")
-      .select("user_id")
-      .eq("token", token)
-      .maybeSingle()
-    if (data?.user_id) return data.user_id as string
+    const userId = await resolveUserIdByQuickAddToken(supabase, token)
+    if (userId) return { userId, quickAddToken: token }
   }
 
   // Vía 2 (antigua, un solo dueño): QUICK_ADD_SECRET + QUICK_ADD_OWNER_USER_ID,
@@ -198,16 +210,16 @@ async function resolveOwnerUserId(req: NextRequest, body: Record<string, unknown
   const bodyOk = !!expectedSecret && bodySecret === expectedSecret
 
   if (expectedSecret && (queryOk || headerOk || bodyOk)) {
-    return process.env.QUICK_ADD_OWNER_USER_ID ?? null
+    return { userId: process.env.QUICK_ADD_OWNER_USER_ID ?? null, quickAddToken: null }
   }
 
-  return null
+  return { userId: null, quickAddToken: null }
 }
 
 async function handle(req: NextRequest) {
   const { body, rawText } = await resolveParams(req)
 
-  const ownerUserId = await resolveOwnerUserId(req, body)
+  const { userId: ownerUserId, quickAddToken } = await resolveOwnerUserId(req, body)
   if (!ownerUserId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -431,6 +443,14 @@ async function handle(req: NextRequest) {
   // para cuando sí hubo una acción explícita. Si el usuario no tiene
   // notificaciones activadas (o el envío falla), no rompe el alta: la
   // transacción ya quedó guardada de todas formas.
+  // "Último uso" que Ajustes enseña junto al token (ver el comentario largo
+  // sobre resolveOwnerUserId más arriba): solo aplica cuando la autenticación
+  // fue por token personal, no por el QUICK_ADD_SECRET antiguo. Fire-and-forget
+  // a propósito — no debe retrasar ni romper la respuesta si falla.
+  if (quickAddToken) {
+    touchQuickAddTokenLastUsed(supabase, quickAddToken)
+  }
+
   if (data && data.length > 0) {
     const first = data[0] as { amount: number; description: string; category: string }
     const total = data.reduce((sum: number, r: { amount: number }) => sum + Number(r.amount), 0)
