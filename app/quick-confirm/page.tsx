@@ -22,10 +22,14 @@
 // Ajustes > Atajo rápido), que el backend resuelve en /api/quick-transaction
 // exactamente igual que antes.
 //
-// Admite además unos parámetros opcionales (amount/type/category) por si
-// en el futuro el atajo llega a mandar algo ya adivinado desde la
-// notificación del pago — hoy no los manda nadie, así que por defecto la
-// pantalla sale en blanco lista para rellenar a mano en 2 toques.
+// Admite además unos parámetros opcionales (amount/type/category/merchant)
+// para cuando el atajo ya manda algo adivinado desde el propio pago —
+// concretamente, la guía "¿Quieres que salga la cantidad ya rellenada?" de
+// Ajustes > Atajo rápido enseña a meter la variable mágica "Importe" (y de
+// paso "Comercio", si el banco la da) de la automatización de Apple Pay
+// directamente en la URL antes de abrirla. Sin esos parámetros (atajo aún
+// no editado, o pago sin automatización) la pantalla sigue saliendo en
+// blanco como siempre, lista para rellenar a mano en 2 toques.
 
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
@@ -68,6 +72,10 @@ function QuickConfirmInner() {
   const prefillAmount = params.get("amount")
   const prefillType = params.get("type") === "ingreso" ? "ingreso" : "gasto"
   const prefillCategory = params.get("category")
+  // Recortado por si la variable mágica "Comercio" viene con más texto del
+  // esperado — es solo una etiqueta visual, /api/quick-transaction ya
+  // aplica su propio límite (300 caracteres) del lado del servidor.
+  const prefillMerchant = (params.get("merchant") ?? "").trim().slice(0, 60)
 
   const [lang, setLang] = useState<Language>("es")
   const [amount, setAmount] = useState(prefillAmount ?? "")
@@ -101,7 +109,13 @@ function QuickConfirmInner() {
       const res = await fetch("/api/quick-transaction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, amount: raw, type, category }),
+        body: JSON.stringify({
+          token,
+          amount: raw,
+          type,
+          category,
+          ...(prefillMerchant ? { description: prefillMerchant } : {}),
+        }),
       })
       const json = await res.json().catch(() => ({}))
 
@@ -133,7 +147,9 @@ function QuickConfirmInner() {
         <div className="rounded-3xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl">
           <div className="mb-4 text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/40">{t("quickConfirm.appName")}</p>
-            <h1 className="mt-1 text-base font-semibold text-white">{t("quickConfirm.title")}</h1>
+            <h1 className="mt-1 text-base font-semibold text-white">
+              {!saved && prefillMerchant ? prefillMerchant : t("quickConfirm.title")}
+            </h1>
           </div>
 
           {saved ? (
