@@ -382,6 +382,116 @@ export const TRANSLATIONS = {
     en: 'Next → turn off "Ask Before Running" → Done. That\'s it.',
   },
 
+  // Mejora opcional sobre el Tap-to-Pay de arriba: en vez de abrir la
+  // pantalla de /quick-confirm en blanco (a rellenar a mano), edita la
+  // MISMA automatización para que la cantidad (y el comercio, si el banco
+  // lo da) del propio pago con Apple Pay viajen ya escritos en el enlace —
+  // así solo queda elegir categoría y tocar Guardar, en vez de escribir el
+  // número. Solo funciona en la automatización personal de cada uno (no en
+  // el atajo compartido de iCloud, que Apple no deja editar por enlace),
+  // así que son pasos manuales de Atajos, no algo que cambie solo.
+  "settings.showPrefill": {
+    es: "¿Quieres que salga la cantidad ya rellenada? (opcional)",
+    en: "Want the amount already filled in? (optional)",
+  },
+  "settings.hidePrefill": { es: "Ocultar formulario pre-rellenado", en: "Hide pre-filled form" },
+  "settings.prefillTitle": {
+    es: "Que la pantalla se abra con la cantidad ya puesta",
+    en: "Open the screen with the amount already filled in",
+  },
+  "settings.prefillNote": {
+    es: "Con los pasos de arriba, la pantalla de ZentOS se abre en blanco y hay que escribir la cantidad a mano. Apple Pay sí conoce el importe (y a veces el comercio) en el momento del pago — con estos pasos extra, ese dato viaja dentro del enlace y la pantalla ya sale con la cantidad puesta. Solo hace falta editar la automatización una vez.",
+    en: "With the steps above, the ZentOS screen opens blank and you have to type the amount by hand. Apple Pay does know the amount (and sometimes the merchant) at the moment of payment — with these extra steps, that data travels inside the link and the screen already shows the amount. You only need to edit the automation once.",
+  },
+  "settings.prefillStep1Title": { es: "Abre tu automatización", en: "Open your automation" },
+  "settings.prefillStep1": {
+    es: 'Atajos → pestaña "Automatización" → toca la automatización de Apple Pay que ya creaste en los pasos de arriba.',
+    en: 'Shortcuts → the "Automation" tab → tap the Apple Pay automation you already created above.',
+  },
+  "settings.prefillStep2Title": { es: "Quita \"Ejecutar atajo\"", en: 'Remove "Run Shortcut"' },
+  "settings.prefillStep2": {
+    es: "Desliza esa acción hacia la izquierda y elimínala — la sustituimos por dos acciones que sí pueden usar el importe del pago.",
+    en: "Swipe that action to the left and delete it — we'll replace it with two actions that can actually use the payment amount.",
+  },
+  "settings.prefillStep3Title": { es: 'Añade "Texto"', en: 'Add "Text"' },
+  "settings.prefillStep3": {
+    es: "Busca la acción \"Texto\" y pega esto, sustituyendo TU_CODIGO por tu código de abajo. Los textos entre corchetes son variables mágicas: tócalos y elige el campo correspondiente (Importe/Comercio) que te ofrece Atajos — si tu banco no da el comercio, deja solo la parte de \"amount\".",
+    en: "Find the \"Text\" action and paste this, replacing TU_CODIGO with your code below. The bracketed text is a magic variable: tap it and pick the matching field (Amount/Merchant) that Shortcuts offers — if your bank doesn't provide the merchant, just leave the \"amount\" part.",
+  },
+  "settings.prefillStep4Title": { es: "Codifica las variables", en: "Encode the variables" },
+  "settings.prefillStep4": {
+    es: 'Mantén pulsada cada variable que insertes (Importe, Comercio) y elige "Formato" → "Codificación de URL", para que las comas, espacios o el símbolo de tu divisa no rompan el enlace.',
+    en: 'Press and hold each variable you insert (Amount, Merchant) and choose "Format" → "URL Encode", so commas, spaces or your currency symbol don\'t break the link.',
+  },
+  "settings.prefillStep5Title": { es: 'Añade "Abrir URLs"', en: 'Add "Open URLs"' },
+  "settings.prefillStep5": {
+    es: "Busca la acción \"Abrir URLs\" y elige como entrada el resultado del Texto de arriba (suele seleccionarse solo, por ser la acción justo anterior). Guarda y pruébalo pagando con la tarjeta.",
+    en: 'Find the "Open URLs" action and pick the Text result from above as its input (it usually gets selected automatically, being the action right before it). Save and try it by paying with the card.',
+  },
+
+  // Un paso más allá del formulario pre-rellenado de arriba: en vez de abrir
+  // cualquier pantalla, la automatización llama directo a la API (como ya
+  // hace el camino de iOS 27 con las notificaciones del banco) y deja que
+  // la IA (Gemini, la misma que ya clasifica al importar CSV/PDF) adivine
+  // la categoría por el nombre del comercio — el aviso de "Guardado" llega
+  // por notificación del sistema, no por pantalla. Para no perder el gasto
+  // en silencio cuando Apple Pay no da el importe a tiempo (el fallo
+  // ocasional ya conocido de este disparador), la automatización comprueba
+  // primero si Importe tiene algún valor: si no lo tiene, cae a la pantalla
+  // en blanco de siempre en vez de no hacer nada.
+  "settings.showAutoAi": {
+    es: "¿Quieres que se registre solo, sin tocar nada? (avanzado)",
+    en: "Want it logged automatically, without tapping anything? (advanced)",
+  },
+  "settings.hideAutoAi": { es: "Ocultar registro automático", en: "Hide automatic logging" },
+  "settings.autoAiTitle": {
+    es: "Que se registre solo al pagar, con la categoría adivinada por IA",
+    en: "Log it automatically when you pay, with the category guessed by AI",
+  },
+  "settings.autoAiNote": {
+    es: "Un paso más sobre el formulario pre-rellenado de arriba: en vez de abrir cualquier pantalla, la automatización llama directamente a ZentOS y dejas que la IA adivine la categoría por el comercio — te enteras por una notificación, no por pantalla. Por si alguna vez el pago no trae el importe a tiempo (le pasa de vez en cuando a este disparador de Apple), se añade una comprobación que abre la pantalla de siempre como red de seguridad en vez de perder el gasto en silencio.",
+    en: "One step further than the pre-filled form above: instead of opening any screen, the automation calls ZentOS directly and lets AI guess the category from the merchant — you find out via a notification, not a screen. In case the payment doesn't bring the amount in time (it happens occasionally with this Apple trigger), a check is added that opens the usual screen as a safety net instead of silently losing the expense.",
+  },
+  "settings.autoAiStep1Title": { es: "Abre la misma automatización", en: "Open the same automation" },
+  "settings.autoAiStep1": {
+    es: "Atajos → pestaña \"Automatización\" → la automatización de Apple Pay (con los pasos de arriba ya hechos).",
+    en: "Shortcuts → the \"Automation\" tab → the Apple Pay automation (with the steps above already done).",
+  },
+  "settings.autoAiStep2Title": { es: "Quita el paso anterior", en: "Remove the previous step" },
+  "settings.autoAiStep2": {
+    es: "Elimina la acción \"Abrir URLs\" (o \"Ejecutar atajo\", si no has hecho la guía de arriba todavía) — la sustituimos por un \"Si\" que decide solo entre registrar el gasto al momento o abrir la pantalla de siempre.",
+    en: "Delete the \"Open URLs\" action (or \"Run Shortcut\", if you haven't done the guide above yet) — we'll replace it with an \"If\" that decides on its own between logging the expense right away or opening the usual screen.",
+  },
+  "settings.autoAiStep3Title": { es: 'Añade "Si"', en: 'Add "If"' },
+  "settings.autoAiStep3": {
+    es: 'Busca la acción "Si" → como condición, elige la variable mágica Importe → "tiene algún valor".',
+    en: 'Find the "If" action → as the condition, pick the Amount magic variable → "has any value".',
+  },
+  "settings.autoAiStep4Title": { es: "Dentro del Si: llama a ZentOS", en: "Inside the If: call ZentOS" },
+  "settings.autoAiStep4": {
+    es: "En esa rama, añade \"Obtener contenido de URL\" (método GET) con esta dirección, sustituyendo TU_CODIGO por tu código de abajo. Igual que antes, los corchetes son variables mágicas: tócalos para insertar Importe/Comercio y codifícalos en URL.",
+    en: "In that branch, add \"Get Contents of URL\" (GET method) with this address, replacing TU_CODIGO with your code below. Same as before, the brackets are magic variables: tap them to insert Amount/Merchant and URL-encode them.",
+  },
+  "settings.autoAiStep5Title": { es: 'Rama "Si no": red de seguridad', en: '"Otherwise" branch: safety net' },
+  "settings.autoAiStep5": {
+    es: "En la rama \"Si no\" (justo debajo), añade \"Abrir URLs\" con esta otra dirección — la misma pantalla en blanco de siempre, por si el pago no trae el importe.",
+    en: "In the \"Otherwise\" branch (right below), add \"Open URLs\" with this other address — the same blank screen as always, in case the payment doesn't bring the amount.",
+  },
+  "settings.autoAiStep6Title": { es: "Cierra el Si y guarda sin confirmaciones", en: "Close the If and save without confirmations" },
+  "settings.autoAiStep6": {
+    es: 'Añade "Fin si" si Atajos no lo ha puesto solo. Luego, Siguiente → desactiva "Preguntar antes de ejecutar" y "Notificar cuando se ejecute" → Hecho.',
+    en: 'Add "End If" if Shortcuts hasn\'t added it on its own. Then, Next → turn off "Ask Before Running" and "Notify When Run" → Done.',
+  },
+  "settings.autoAiStep7Title": { es: "Cómo te enteras", en: "How you'll find out" },
+  "settings.autoAiStep7": {
+    es: "Sin pantalla de por medio, ZentOS clasifica el gasto con IA y te manda una notificación push confirmando cantidad, comercio y categoría — actívalas en Ajustes → Recordatorios si no lo has hecho. Si alguna vez acierta mal la categoría, se corrige a mano en Economía, sin tocar nada del atajo.",
+    en: "With no screen involved, ZentOS classifies the expense with AI and sends a push notification confirming the amount, merchant and category — enable them in Settings → Reminders if you haven't already. If it ever gets the category wrong, just fix it by hand in Economía — no need to touch the shortcut.",
+  },
+  "settings.autoAiFlakyNote": {
+    es: "Si la automatización a veces no salta en absoluto (ni pantalla ni notificación) con una tarjeta concreta, es un problema distinto de Atajos/Apple Pay — revisa que el disparador esté puesto en \"Cualquier tarjeta\" en vez de una sola.",
+    en: "If the automation sometimes doesn't fire at all (no screen, no notification) with a specific card, that's a separate Shortcuts/Apple Pay issue — check that the trigger is set to \"Any Card\" rather than just one.",
+  },
+
   // Detección automática al pagar leyendo la notificación (iOS 27+)
   "settings.showNotifAuto": {
     es: "¿Tienes iOS 27? Detección 100% automática (sin tocar nada)",
