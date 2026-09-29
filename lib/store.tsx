@@ -69,6 +69,8 @@ const EMPTY_DATA: AppData = {
   travelMode: false,
   travelCurrency: null,
   weekStartDay: DEFAULT_WEEK_START_DAY,
+  shiftHourlyRate: 34.6,
+  shiftTaxPct: 15,
 }
 
 // ---------- Supabase <-> app type mapping ----------
@@ -138,6 +140,8 @@ async function fetchUserPreferences(): Promise<{
   travelMode: boolean
   travelCurrency: string | null
   weekStartDay: number
+  shiftHourlyRate: number
+  shiftTaxPct: number
 }> {
   const DEFAULTS = {
     homeCurrency: "AUD",
@@ -145,6 +149,8 @@ async function fetchUserPreferences(): Promise<{
     travelMode: false,
     travelCurrency: null,
     weekStartDay: DEFAULT_WEEK_START_DAY,
+    shiftHourlyRate: 34.6,
+    shiftTaxPct: 15,
   }
 
   const { data: userData } = await supabase.auth.getUser()
@@ -153,7 +159,7 @@ async function fetchUserPreferences(): Promise<{
 
   const { data, error } = await supabase
     .from("user_preferences")
-    .select("home_currency, language, travel_mode, travel_currency, week_start_day")
+    .select("home_currency, language, travel_mode, travel_currency, week_start_day, shift_hourly_rate, shift_tax_pct")
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -168,13 +174,15 @@ async function fetchUserPreferences(): Promise<{
       travelMode: data.travel_mode ?? DEFAULTS.travelMode,
       travelCurrency: data.travel_currency ?? DEFAULTS.travelCurrency,
       weekStartDay: data.week_start_day ?? DEFAULTS.weekStartDay,
+      shiftHourlyRate: data.shift_hourly_rate ?? DEFAULTS.shiftHourlyRate,
+      shiftTaxPct: data.shift_tax_pct ?? DEFAULTS.shiftTaxPct,
     }
   }
 
   const { data: inserted, error: insertError } = await supabase
     .from("user_preferences")
     .insert({ user_id: userId })
-    .select("home_currency, language, travel_mode, travel_currency, week_start_day")
+    .select("home_currency, language, travel_mode, travel_currency, week_start_day, shift_hourly_rate, shift_tax_pct")
     .single()
 
   if (insertError) {
@@ -187,6 +195,8 @@ async function fetchUserPreferences(): Promise<{
     travelMode: inserted?.travel_mode ?? DEFAULTS.travelMode,
     travelCurrency: inserted?.travel_currency ?? DEFAULTS.travelCurrency,
     weekStartDay: inserted?.week_start_day ?? DEFAULTS.weekStartDay,
+    shiftHourlyRate: inserted?.shift_hourly_rate ?? DEFAULTS.shiftHourlyRate,
+    shiftTaxPct: inserted?.shift_tax_pct ?? DEFAULTS.shiftTaxPct,
   }
 }
 
@@ -204,6 +214,8 @@ async function fetchAll(): Promise<AppData> {
     travelMode: preferences.travelMode,
     travelCurrency: preferences.travelCurrency,
     weekStartDay: preferences.weekStartDay,
+    shiftHourlyRate: preferences.shiftHourlyRate,
+    shiftTaxPct: preferences.shiftTaxPct,
   }
 }
 
@@ -225,6 +237,8 @@ type StoreContextType = {
   setLanguage: (code: string) => void
   setTravelMode: (active: boolean, currency: string) => void
   setWeekStartDay: (day: number) => void
+  setShiftHourlyRate: (rate: number) => void
+  setShiftTaxPct: (pct: number) => void
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
@@ -415,6 +429,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .upsert({ user_id: userId, week_start_day: day })
       if (error) {
         console.error("[supabase] setWeekStartDay error:", error.message)
+      }
+    })()
+  }
+
+  // Tarifa por hora del turno normal (Ajustes > Turnos). Sábado y domingo
+  // no se guardan aparte: se calculan multiplicando esta misma tarifa por
+  // SHIFT_RATE_MULTIPLIER (ver lib/types.ts).
+  const setShiftHourlyRate = (rate: number) => {
+    setData((d) => ({ ...d, shiftHourlyRate: rate }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, shift_hourly_rate: rate })
+      if (error) {
+        console.error("[supabase] setShiftHourlyRate error:", error.message)
+      }
+    })()
+  }
+
+  // % de impuestos a estimar al marcar un turno como cobrado (Ajustes >
+  // Turnos). No hay un número exacto único válido para todo el mundo (ver
+  // el aviso de esa tarjeta), así que esto es siempre un valor editable a
+  // mano, nunca calculado en automático por tipo de visa.
+  const setShiftTaxPct = (pct: number) => {
+    setData((d) => ({ ...d, shiftTaxPct: pct }))
+
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+      const { error } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, shift_tax_pct: pct })
+      if (error) {
+        console.error("[supabase] setShiftTaxPct error:", error.message)
       }
     })()
   }
@@ -628,6 +681,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setLanguage,
         setTravelMode,
         setWeekStartDay,
+        setShiftHourlyRate,
+        setShiftTaxPct,
         t,
       }}
     >
