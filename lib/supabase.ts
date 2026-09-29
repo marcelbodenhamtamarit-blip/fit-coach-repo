@@ -34,7 +34,23 @@ export type UserPreferencesRow = {
   // 0=domingo...6=sábado (Date.getDay()). Ver lib/week.ts y Ajustes >
   // Preferencias > Inicio de semana.
   week_start_day: number | null
+  // Ver Ajustes > Turnos y lib/shifts-store.tsx.
+  shift_hourly_rate: number | null
+  shift_tax_pct: number | null
   updated_at: string
+}
+
+export type ShiftRow = {
+  id: string
+  date: string
+  start_time: string | null
+  end_time: string | null
+  hours: number
+  shift_type: string
+  status: string
+  notes: string | null
+  transaction_id: string | null
+  created_at: string
 }
 
 export type RecurringTransactionRow = {
