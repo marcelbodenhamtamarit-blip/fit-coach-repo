@@ -7,11 +7,13 @@ import {
   Dumbbell,
   Wallet,
   RotateCw,
+  CalendarDays,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
+import { TurnosSection } from "@/components/sections/turnos-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
@@ -65,12 +67,14 @@ export function Dashboard() {
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
+    { id: "turnos", label: t("nav.turnos"), icon: CalendarDays },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
 
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
+    turnos: t("nav.turnos"),
     settings: t("nav.settings"),
   }
 
@@ -189,6 +193,7 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
+              {active === "turnos" && <TurnosSection />}
               {active === "settings" && <SettingsSection />}
             </div>
           )}
