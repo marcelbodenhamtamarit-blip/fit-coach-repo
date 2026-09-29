@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -28,6 +29,7 @@ const INVITE_CODE = process.env.NEXT_PUBLIC_INVITE_CODE ?? ""
 type ViewMode = "login" | "signup"
 
 export function LoginScreen() {
+  const { blocked } = useAuth()
   const [lang, setLang] = useState<Language>(detectBrowserLanguage)
   const tr = (key: Parameters<typeof translate>[0], params?: Record<string, string | number>) =>
     translate(key, lang, params)
@@ -126,6 +128,12 @@ export function LoginScreen() {
             <p className="text-xs text-muted-foreground">{tr("app.tagline")}</p>
           </div>
         </div>
+
+        {blocked && (
+          <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500">
+            {tr("login.private")}
+          </p>
+        )}
 
         <div className="mb-5 flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
           <button
