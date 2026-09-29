@@ -13,20 +13,13 @@ import {
   SlidersHorizontal,
   Plane,
   Smartphone,
-  Plus,
-  CreditCard,
-  PlayCircle,
-  BellOff,
   Bell,
+  BellOff,
   Link2,
   CheckCircle2,
   ChevronDown,
   Zap,
   MessageSquare,
-  Trash2,
-  Wand2,
-  GitBranch,
-  Sparkles,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CURRENCIES } from "@/lib/types"
@@ -398,14 +391,16 @@ function TravelModeCard() {
 // ahí sí tiene sentido pegar el token fijo, porque esa copia la usa una
 // sola persona.
 //
-// El disparador de "al usar tarjeta" (Apple Pay) es harina de otro costal:
-// Apple no permite compartir Automatizaciones Personales por enlace (solo
-// se comparten atajos, no automatizaciones) — es una restricción de
-// privacidad a propósito, no un descuido, así que cada persona tiene que
-// crear ese disparador ella misma, una única vez, en su propio dispositivo.
-// Por eso existe el bloque TAP_TO_PAY_STEPS de abajo: una guía visual (con
-// iconos en vez de un muro de texto) para que ese único paso de ~30
-// segundos se perciba como rápido en vez de como "trabajo".
+// El disparador automático que de verdad se usa (ver NOTIFICATION_AUTO_STEPS
+// más abajo) es una Automatización Personal aparte, por notificación del
+// banco/Wallet — Apple no permite compartir ese tipo de automatización por
+// enlace (solo atajos sueltos), así que se monta a mano, una vez, siguiendo
+// esa guía. Las versiones anteriores de esto (disparador "al tocar la
+// tarjeta" con Apple Pay, en blanco, pre-rellenado, o con "Si" + IA) se
+// quitaron el 29 sep 2026: al ser una app de un solo usuario y no depender
+// de que Apple Pay entregue el importe a tiempo, el camino por notificación
+// es el único que hace falta documentar aquí.
+//
 // Antes había dos copias del mismo Shortcut (una en español, otra en
 // inglés — solo cambiaba el nombre/descripción que Atajos muestra en la
 // pantalla de "Obtener atajo" antes de instalarlo), pensadas para que
@@ -415,58 +410,11 @@ function TravelModeCard() {
 // abajo usa siempre esta.
 const SHORTCUT_ICLOUD_URL_ES = "https://www.icloud.com/shortcuts/8942dbe1aa364ad29198997fa1146015"
 
-const TAP_TO_PAY_STEPS = [
-  { icon: Smartphone, titleKey: "settings.tapToPayStep1Title", descKey: "settings.tapToPayStep1" },
-  { icon: Plus, titleKey: "settings.tapToPayStep2Title", descKey: "settings.tapToPayStep2" },
-  { icon: CreditCard, titleKey: "settings.tapToPayStep3Title", descKey: "settings.tapToPayStep3" },
-  { icon: PlayCircle, titleKey: "settings.tapToPayStep4Title", descKey: "settings.tapToPayStep4" },
-  { icon: BellOff, titleKey: "settings.tapToPayStep5Title", descKey: "settings.tapToPayStep5" },
-] as const
-
-// Mejora opcional sobre el Tap-to-Pay de arriba (ver comentario largo junto
-// a las claves settings.prefill* en lib/i18n.ts): edita la MISMA
-// automatización personal para que la cantidad (y el comercio) del propio
-// pago viajen dentro del enlace a /quick-confirm, en vez de abrir la
-// pantalla en blanco. "Margen" (otra app de finanzas) hace algo parecido
-// abriendo su propia pantalla nativa ya rellena — esto es el equivalente
-// viable con una PWA: no hay app nativa que registrar como destino de un
-// App Intent, así que en su lugar el propio atajo arma la URL con el
-// importe ya dentro antes de abrirla.
-const PREFILL_STEPS = [
-  { icon: Smartphone, titleKey: "settings.prefillStep1Title", descKey: "settings.prefillStep1" },
-  { icon: Trash2, titleKey: "settings.prefillStep2Title", descKey: "settings.prefillStep2" },
-  { icon: Link2, titleKey: "settings.prefillStep3Title", descKey: "settings.prefillStep3" },
-  { icon: Wand2, titleKey: "settings.prefillStep4Title", descKey: "settings.prefillStep4" },
-  { icon: PlayCircle, titleKey: "settings.prefillStep5Title", descKey: "settings.prefillStep5" },
-] as const
-
-// Un paso más allá del formulario pre-rellenado de arriba (ver comentario
-// largo junto a settings.autoAi* en lib/i18n.ts): la automatización llama
-// directo a /api/quick-transaction (sin pantalla, sin toque) y deja que la
-// IA adivine la categoría por el comercio — exactamente el mismo mecanismo
-// que ya usa el camino "iOS 27 Notificación" de más abajo, solo que
-// disparado por Apple Pay (funciona en cualquier versión de iOS) en vez de
-// leer el texto de una notificación con una expresión regular. Como el
-// disparador de Apple Pay a veces no da el importe a tiempo (fallo ya
-// conocido de esta automatización), un "Si" comprueba primero que Importe
-// tenga valor y, si no, cae a la pantalla en blanco de siempre — así nunca
-// se pierde el gasto en silencio.
-const AUTO_AI_STEPS = [
-  { icon: Smartphone, titleKey: "settings.autoAiStep1Title", descKey: "settings.autoAiStep1" },
-  { icon: Trash2, titleKey: "settings.autoAiStep2Title", descKey: "settings.autoAiStep2" },
-  { icon: GitBranch, titleKey: "settings.autoAiStep3Title", descKey: "settings.autoAiStep3" },
-  { icon: Sparkles, titleKey: "settings.autoAiStep4Title", descKey: "settings.autoAiStep4" },
-  { icon: Link2, titleKey: "settings.autoAiStep5Title", descKey: "settings.autoAiStep5" },
-  { icon: BellOff, titleKey: "settings.autoAiStep6Title", descKey: "settings.autoAiStep6" },
-  { icon: CheckCircle2, titleKey: "settings.autoAiStep7Title", descKey: "settings.autoAiStep7" },
-] as const
-
 // Disparador "Notificación" de Atajos (iOS 27+): lee el aviso de pago del
 // banco/Wallet solo y registra el gasto sin abrir nada en pantalla — el
-// paso siguiente natural del Tap-to-Pay de arriba, para quien ya tenga
-// acceso a este disparador. Quien siga en iOS 26 o anterior no lo verá en
-// la app Atajos todavía; para esas cuentas sigue siendo mejor el atajo de
-// Apple Pay de arriba (pide un toque, pero funciona en cualquier versión).
+// único camino de automatización que se documenta aquí (ver el comentario
+// largo junto a SHORTCUT_ICLOUD_URL_ES arriba). No necesita ninguna tarjeta
+// añadida a Apple Pay/Wallet, solo que el banco mande notificaciones.
 const NOTIFICATION_AUTO_STEPS = [
   { icon: Smartphone, titleKey: "settings.notifAutoStep1Title", descKey: "settings.notifAutoStep1" },
   { icon: Bell, titleKey: "settings.notifAutoStep2Title", descKey: "settings.notifAutoStep2" },
@@ -496,15 +444,10 @@ function QuickAddShortcutCard() {
   const [token, setToken] = useState<string | null>(null)
   const [lastUsedAt, setLastUsedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [copiedField, setCopiedField] = useState<
-    "token" | "url" | "notifUrl" | "prefillUrl" | "autoAiUrl" | "autoAiFallbackUrl" | null
-  >(null)
+  const [copiedField, setCopiedField] = useState<"token" | "url" | "notifUrl" | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [origin, setOrigin] = useState("")
   const [showManual, setShowManual] = useState(false)
-  const [showTapToPay, setShowTapToPay] = useState(false)
-  const [showPrefill, setShowPrefill] = useState(false)
-  const [showAutoAi, setShowAutoAi] = useState(false)
   const [showNotificationAuto, setShowNotificationAuto] = useState(false)
 
   useEffect(() => {
@@ -581,10 +524,7 @@ function QuickAddShortcutCard() {
     }
   }
 
-  function copy(
-    value: string,
-    field: "token" | "url" | "notifUrl" | "prefillUrl" | "autoAiUrl" | "autoAiFallbackUrl",
-  ) {
+  function copy(value: string, field: "token" | "url" | "notifUrl") {
     navigator.clipboard.writeText(value)
     setCopiedField(field)
     setTimeout(() => setCopiedField(null), 1500)
@@ -596,29 +536,6 @@ function QuickAddShortcutCard() {
   // final — ella sola pide la cantidad/categoría con una pantalla propia
   // de ZentOS en vez de encadenar varios popups nativos de Atajos.
   const apiUrl = origin ? `${origin}/quick-confirm` : ""
-
-  // Mejora opcional (ver PREFILL_STEPS arriba): la misma pantalla de
-  // /quick-confirm ya sabe leer `amount`/`merchant` de la URL y salir con
-  // la cantidad puesta en vez de en blanco — solo falta que la
-  // automatización meta esos dos valores en el enlace antes de abrirlo.
-  // Igual que con notifAutoUrl, los corchetes son solo una plantilla
-  // visual: en Atajos se sustituyen tocando esa parte del texto pegado y
-  // eligiendo la variable mágica real, no se pegan literalmente.
-  const prefillUrl = origin
-    ? `${origin}/quick-confirm?token=TU_CODIGO&amount=[Importe]&merchant=[Comercio]`
-    : ""
-
-  // Un paso más allá (ver AUTO_AI_STEPS arriba): llama directo a la API con
-  // GET, sin `category` a propósito — así /api/quick-transaction cae en su
-  // propia inferencia por palabras clave y, si no reconoce el comercio, le
-  // pregunta a Gemini (la misma IA que ya clasifica al importar CSV/PDF).
-  // `description` lleva el comercio para que la transacción guardada no se
-  // quede con un texto genérico. La rama "Si no" reutiliza el mismo
-  // `apiUrl` en blanco de siempre como red de seguridad.
-  const autoAiUrl = origin
-    ? `${origin}/api/quick-transaction?token=TU_CODIGO&amount=[Importe]&description=[Comercio]`
-    : ""
-  const autoAiFallbackUrl = origin ? `${origin}/quick-confirm?token=TU_CODIGO` : ""
 
   // Para el disparador "Notificación" de Atajos (iOS 27+): el atajo llama
   // directo a la API con GET, pasando el texto de la notificación como
@@ -711,155 +628,6 @@ function QuickAddShortcutCard() {
 
           <button
             type="button"
-            onClick={() => setShowTapToPay((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showTapToPay ? t("settings.hideTapToPay") : t("settings.showTapToPay")}
-          </button>
-
-          {showTapToPay && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">{t("settings.tapToPayTitle")}</p>
-            <p className="mb-4">{t("settings.tapToPayNote")}</p>
-            <div>
-              {TAP_TO_PAY_STEPS.map((step, i) => (
-                <div key={step.titleKey} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <step.icon className="size-4" />
-                    </div>
-                    {i < TAP_TO_PAY_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className={i < TAP_TO_PAY_STEPS.length - 1 ? "pb-4" : ""}>
-                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{t(step.descKey)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowPrefill((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showPrefill ? t("settings.hidePrefill") : t("settings.showPrefill")}
-          </button>
-
-          {showPrefill && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">{t("settings.prefillTitle")}</p>
-            <p className="mb-4">{t("settings.prefillNote")}</p>
-            <div>
-              {PREFILL_STEPS.map((step, i) => (
-                <div key={step.titleKey} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <step.icon className="size-4" />
-                    </div>
-                    {i < PREFILL_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className={i < PREFILL_STEPS.length - 1 ? "pb-4" : ""}>
-                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {step.titleKey === "settings.prefillStep3Title" ? (
-                        <>
-                          {t(step.descKey)}
-                          <span className="mt-2 flex items-center gap-2">
-                            <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px]">
-                              {prefillUrl}
-                            </code>
-                            <Button
-                              size="icon-sm"
-                              variant="outline"
-                              onClick={() => copy(prefillUrl, "prefillUrl")}
-                              aria-label={t("settings.copyUrl")}
-                            >
-                              {copiedField === "prefillUrl" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                            </Button>
-                          </span>
-                        </>
-                      ) : (
-                        t(step.descKey)
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowAutoAi((v) => !v)}
-            className="text-xs font-medium text-primary underline underline-offset-2"
-          >
-            {showAutoAi ? t("settings.hideAutoAi") : t("settings.showAutoAi")}
-          </button>
-
-          {showAutoAi && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">{t("settings.autoAiTitle")}</p>
-            <p className="mb-4">{t("settings.autoAiNote")}</p>
-            <div>
-              {AUTO_AI_STEPS.map((step, i) => (
-                <div key={step.titleKey} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                      <step.icon className="size-4" />
-                    </div>
-                    {i < AUTO_AI_STEPS.length - 1 && <div className="my-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className={i < AUTO_AI_STEPS.length - 1 ? "pb-4" : ""}>
-                    <p className="text-xs font-semibold text-foreground">{t(step.titleKey)}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {step.titleKey === "settings.autoAiStep4Title" || step.titleKey === "settings.autoAiStep5Title" ? (
-                        <>
-                          {t(step.descKey)}
-                          <span className="mt-2 flex items-center gap-2">
-                            <code className="flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px]">
-                              {step.titleKey === "settings.autoAiStep4Title" ? autoAiUrl : autoAiFallbackUrl}
-                            </code>
-                            <Button
-                              size="icon-sm"
-                              variant="outline"
-                              onClick={() =>
-                                copy(
-                                  step.titleKey === "settings.autoAiStep4Title" ? autoAiUrl : autoAiFallbackUrl,
-                                  step.titleKey === "settings.autoAiStep4Title" ? "autoAiUrl" : "autoAiFallbackUrl",
-                                )
-                              }
-                              aria-label={t("settings.copyUrl")}
-                            >
-                              {(step.titleKey === "settings.autoAiStep4Title"
-                                ? copiedField === "autoAiUrl"
-                                : copiedField === "autoAiFallbackUrl") ? (
-                                <Check className="size-3.5" />
-                              ) : (
-                                <Copy className="size-3.5" />
-                              )}
-                            </Button>
-                          </span>
-                        </>
-                      ) : (
-                        t(step.descKey)
-                      )}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-4 rounded-md bg-amber-500/10 p-2.5 text-[11px] text-amber-500">
-              {t("settings.autoAiFlakyNote")}
-            </p>
-          </div>
-          )}
-
-          <button
-            type="button"
             onClick={() => setShowNotificationAuto((v) => !v)}
             className="text-xs font-medium text-primary underline underline-offset-2"
           >
@@ -907,9 +675,6 @@ function QuickAddShortcutCard() {
                 </div>
               ))}
             </div>
-            <p className="mt-4 rounded-md bg-amber-500/10 p-2.5 text-[11px] text-amber-500">
-              {t("settings.notifAutoOlderIos")}
-            </p>
           </div>
           )}
         </div>
