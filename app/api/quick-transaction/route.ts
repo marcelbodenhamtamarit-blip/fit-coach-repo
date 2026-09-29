@@ -98,21 +98,49 @@ async function inferCategoryWithAI(text: string): Promise<(typeof TRANSACTION_CA
               ],
             },
           ],
-          generationConfig: { temperature: 0, maxOutputTokens: 20, thinkingConfig: THINKING_CONFIG },
+          // OJO con maxOutputTokens en modelos "3.x": a diferencia de los 2.5,
+          // no se puede apagar del todo el "pensamiento" (thinkingLevel mínimo
+          // es "low", nunca 0/"none"), y esos tokens de pensamiento SALEN del
+          // mismo presupuesto que maxOutputTokens -- no son un extra aparte.
+          // Con 20 aquí (el valor que había antes), el modelo gastaba los 20
+          // tokens enteros "pensando" y nunca llegaba a escribir la categoría:
+          // la respuesta salía vacía SIEMPRE, silenciosamente, y todo caía a
+          // "Otros" -- esto es justo el bug que hacía que la IA "no hiciera
+          // nada nunca". Subido a 500 para dejar sitio de sobra al
+          // pensamiento (aunque sea "low") más la palabra de la categoría.
+          generationConfig: { temperature: 0, maxOutputTokens: 500, thinkingConfig: THINKING_CONFIG },
         }),
-        // Antes 4000ms, pensado para gemini-2.5-flash-lite (sin pensamiento).
-        // Con un modelo 3.x, aunque se pida thinkingLevel "low", el margen se
-        // sube un poco para no penalizar de más un caso que ya es solo un
-        // "mejor esfuerzo" (si falla o tarda, cae a "Otros" sin más, nunca
-        // bloquea el alta de la transacción).
-        signal: AbortSignal.timeout(6000),
+        // Subido de 6000 a 8000ms a la vez que sube maxOutputTokens -- más
+        // presupuesto de tokens puede tardar algo más en generarse. Sigue
+        // siendo "mejor esfuerzo": si tarda más que esto, cae a "Otros" sin
+        // más, nunca bloquea el alta de la transacción.
+        signal: AbortSignal.timeout(8000),
       },
     )
-    if (!res.ok) return null
+    if (!res.ok) {
+      // Antes esto era un `return null` mudo: si la clave estaba mal, el
+      // modelo no existía, o Google cambiaba el formato de la petición, no
+      // había forma de verlo salvo asumiéndolo por "todo cae en Otros". Con
+      // esto queda en los logs de Vercel (Runtime Logs) para poder
+      // diagnosticarlo la próxima vez sin tener que adivinar.
+      console.error(
+        "[quick-transaction] Gemini respondió con error:",
+        res.status,
+        (await res.text()).slice(0, 500),
+      )
+      return null
+    }
 
     const json = await res.json()
     const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
     const match = (TRANSACTION_CATEGORIES as readonly string[]).find((c) => normalize(c) === normalize(raw))
+    if (!match) {
+      // Igual que arriba: antes de esto no había ni rastro de por qué no
+      // matcheaba (¿respuesta vacía por el bug de arriba? ¿el modelo
+      // contestó con explicación de más pese a lo que se le pidió?). Ahora
+      // queda registrado el texto crudo que devolvió, para depurarlo.
+      console.warn("[quick-transaction] Gemini no devolvió una categoría reconocible:", JSON.stringify(raw))
+    }
     return (match as (typeof TRANSACTION_CATEGORIES)[number] | undefined) ?? null
   } catch (err) {
     console.error("[quick-transaction] error clasificando categoría con IA:", err)
