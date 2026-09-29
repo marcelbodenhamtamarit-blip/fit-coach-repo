@@ -15,11 +15,12 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 - `components/login-screen.tsx` — the logged-out screen: email/password login and signup (with an optional invite-code gate via `NEXT_PUBLIC_INVITE_CODE`, from the earlier "friends & family" phase — now redundant given the owner-only lock above, since Google OAuth never went through this code anyway; harmless to leave, safe to delete later if you want one less thing), plus "Continuar con Google" OAuth. Shows the ZentOS logo (`/icon.svg`) at the top.
 - Every Supabase table is scoped to `auth.uid()` via RLS policies, so one user's transactions, recurring templates, etc. are never visible to another user — the owner-only lock above is about keeping strangers from using the app at all, this RLS layer is what would keep them out of your data even without it.
 
-## Screens (nav: Resumen / Economía / Ajustes)
+## Screens (nav: Resumen / Economía / Turnos / Ajustes)
 
 - **Resumen**: a balance card (month/total toggle) with an optional savings goal tracker (deadline, progress %), plus four stat cards (Gastado/Ingresos/Balance/Categoría principal) for the selected period (Diario/Semanal/Mensual). Last opened tab is remembered (localStorage) across reloads. (There used to be a **Diario** tab with fitness data from Intervals.icu, and fitness stat cards here too — both removed 29 Sep 2026, see Changelog. Resumen is finance-only now.)
 - **Economía**: income/expense tracker in AUD, stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
-- **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios when beta-enabled, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically.
+- **Turnos** (added 29 Sep 2026): a Homebase-style weekly shift calendar — see its own section below.
+- **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios, Turnos, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically, and "Turnos" for the Turnos card.
 
 ## Recurring transactions (gastos e ingresos recurrentes)
 
@@ -30,6 +31,18 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 - **Active/paused** toggle, category, description and amount (income or expense).
 
 At the start of each period (month or week, depending on the template), active templates automatically generate a real transaction on their configured pay day. `lib/store.tsx`'s `runRecurringGeneration` handles this and tracks `lastCreatedPeriod` per template to avoid duplicates; `components/recurring-review-dialog.tsx` shows a popup when the app is opened so the user can review what got created.
+
+## Turnos (calendario semanal de turnos de trabajo, tipo Homebase)
+
+Added 29 Sep 2026, inspired by the Homebase app: a place to plan work shifts a week ahead, see the expected pay before it lands, and turn a shift into a real income transaction in Economía once it's actually been paid.
+
+- `components/sections/turnos-section.tsx` — the screen: a week view (respects Ajustes → Preferencias → Inicio de semana, same `lib/week.ts` helpers Economía uses) with prev/next navigation, a summary card (total hours/bruto/neto for the week), and one row per day. Tapping a day with no shift opens a form to add one; tapping an existing one opens it to edit.
+- Each shift stores `date`, optional `start_time`/`end_time` ("HH:MM", just for display — there's a "calcular horas" button to derive hours from them, but hours itself is always the number actually used for pay), `hours`, a `shift_type` (`normal`/`sabado`/`domingo`, pre-selected from the day of the week via `shiftTypeForDate()` but editable — a public holiday landing on a weekday, for example), and optional `notes`. Only one shift per day is supported (`shifts_user_date_unique`) — built for a single job; a split shift the same day is entered as one shift with the total hours.
+- **Rate math** (`lib/types.ts`): `shiftHourlyRate` (Ajustes → Turnos) is the normal per-hour rate; sábado and domingo are always `shiftHourlyRate × 1.5` / `× 2` (`SHIFT_RATE_MULTIPLIER`) — there's no separate field to keep in sync if the base rate changes. Bruto = `hours × rate × multiplier`; neto (estimate) additionally applies `shiftTaxPct`.
+- **Tax %**: there's no single accurate figure that works for everyone. A flat 15% is a reliable reference for Work and Holiday visa income up to $45,000 AUD/year (ATO working holiday maker rate), but Student visa tax depends on actual ATO tax-residency status and the progressive resident tax brackets, not the visa type alone — so `shiftTaxPct` is always a manually-set, editable percentage in Ajustes → Turnos, never something the app calculates from a visa selector. This isn't financial advice; treat the estimate as a starting point and adjust it to match your real payslips.
+- **Marking a shift as cobrado**: opens a small confirmation step showing the estimated neto (editable — in case the real amount that landed in the bank differs slightly from the estimate) and, on confirm, inserts a real transaction in `transactions` (category `Salario`, amount = the confirmed neto) via `lib/shifts-store.tsx`'s `markShiftPaid`, linking it back via `shifts.transaction_id`. Unmarking (`markShiftUnpaid`) or deleting an already-cobrado shift deletes that linked transaction too, so there's never an income entry in Economía left over from a shift that no longer exists or is no longer marked as paid.
+- `lib/shifts-store.tsx` — `ShiftsProvider`/`useShifts()`, mounted in `app/page.tsx` **inside** `StoreProvider` (unlike `AutomationsProvider`, which is independent) — it needs `useStore()`'s `refreshTransactions()` so Economía picks up the created/deleted transaction immediately instead of waiting for its next reload.
+- `supabase-migrations/shifts.sql` — the `shifts` table (RLS-scoped like the rest) plus two new nullable-with-defaults columns on `user_preferences`: `shift_hourly_rate` (default 34.6) and `shift_tax_pct` (default 15).
 
 ## Automatizaciones / Recordatorios (recordatorios y alertas, tipo Atajos de Apple)
 
@@ -61,6 +74,7 @@ This used to be gated behind a beta allowlist (`lib/beta.ts`, `AUTOMATIONS_BETA_
 
 - `transactions` — income/expense entries (date, description, category, amount, week_number). Insert/update/delete from the Economía screen.
 - `recurring_transactions` — recurring templates (description, category, amount, active, frequency, `pay_day`, `last_created_month`). RLS-scoped per user.
+- `shifts` — work shifts (date, start/end time, hours, shift_type, status, notes, transaction_id). See "Turnos" above. `user_preferences.shift_hourly_rate`/`shift_tax_pct` hold the rate and tax settings it uses.
 - `automations` / `automation_events` / `push_subscriptions` — see "Automatizaciones" above.
 - `feedback` — free-text messages from the Ajustes screen (`message`, timestamp). Write-only from the app's point of view; read by Marcel directly in Supabase.
 - `profile`, `pantry_items`, `meals`, `meal_ingredients`, `body_metrics` — leftover from an earlier fitness/nutrition-tracking version of the app, no longer written to or read by the current UI. Safe to ignore or drop later.
@@ -109,6 +123,10 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 29 Sep 2026 — Turnos (shift calendar), and a missed `login.private` i18n key fixed
+- **New "Turnos" feature**: a weekly shift calendar (date, hours, shift type, status) that estimates bruto/neto pay per shift and, once marked as cobrado, creates the matching income transaction in Economía automatically. See the "Turnos" section above for the full breakdown — new files are `components/sections/turnos-section.tsx`, `lib/shifts-store.tsx`, `supabase-migrations/shifts.sql`; `lib/types.ts`, `lib/supabase.ts`, `lib/store.tsx`, `lib/i18n.ts`, `app/page.tsx`, `components/dashboard.tsx` and `components/sections/settings-section.tsx` were extended, nothing existing was removed. **Run `supabase-migrations/shifts.sql` in the Supabase SQL editor** before using it, same as any other file in that folder.
+- **Found while building this — a real (small) bug, not just this feature**: `login-screen.tsx` (pasted 29 Sep 2026, see the owner-only-lock entry below) calls `tr("login.private")`, but that key was never actually present in the `lib/i18n.ts` that ended up live — likely dropped between the two `i18n.ts` pastes that same day. Net effect: `npx tsc --noEmit` failed on the whole project (a type error, since `translate()` is typed against the exact key list), and anyone blocked by the owner-only lock would have seen a broken lookup instead of the intended warning. Added the missing key back with the same text described in that changelog entry.
 
 ### 29 Sep 2026 — Diario/Intervals.icu removed, shortcut guides trimmed to what's actually used
 - **`app/api/intervals/route.ts` and `components/sections/diario-section.tsx` deleted**: neither was imported anywhere — `components/dashboard.tsx`'s nav (`TABS`) only ever had `overview`/`economy`/`settings`, so the Diario tab and its Intervals.icu data source had already gone fully orphaned at some earlier point without the README or a changelog entry ever catching up. Confirmed via `git grep` before deleting: zero live references anywhere. The `swr` dependency (only used by `diario-section.tsx`) and the already-unused `ai` package (still listed in `package.json` despite an earlier changelog entry claiming it was removed) were dropped from `package.json` too — `npm install` still resolves cleanly.
