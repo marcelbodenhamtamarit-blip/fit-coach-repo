@@ -58,6 +58,7 @@ export const TRANSLATIONS = {
   // Navegación / dashboard
   "nav.overview": { es: "Resumen", en: "Overview" },
   "nav.economy": { es: "Economía", en: "Finances" },
+  "nav.turnos": { es: "Turnos", en: "Shifts" },
   "nav.settings": { es: "Ajustes", en: "Settings" },
   "app.tagline": { es: "Tu economía, a tu manera", en: "Your finances, your way" },
   "dashboard.greeting.morning": { es: "Buenos días", en: "Good morning" },
@@ -88,6 +89,13 @@ export const TRANSLATIONS = {
   "login.enter": { es: "Entrar", en: "Sign in" },
   "login.or": { es: "o", en: "or" },
   "login.google": { es: "Continuar con Google", en: "Continue with Google" },
+  // Se muestra cuando alguien inicia sesión con una cuenta distinta a la
+  // guardada en NEXT_PUBLIC_OWNER_EMAIL (ver lib/use-auth.tsx) — la app
+  // cierra esa sesión sola y avisa de que es de uso personal.
+  "login.private": {
+    es: "Esta aplicación es de uso personal: solo esa cuenta puede entrar. Si has iniciado sesión y ves este mensaje, se te ha cerrado la sesión automáticamente.",
+    en: "This app is for personal use only: only that account can sign in. If you just signed in and see this message, your session was closed automatically.",
+  },
 
   // Resumen (overview)
   "overview.spent": { es: "Gastado", en: "Spent" },
@@ -528,6 +536,62 @@ export const TRANSLATIONS = {
   "push.testBody": {
     es: "Esto es una notificación de prueba. Si la ves, ¡ya funciona! 🎉",
     en: "This is a test notification. If you see it, it's working! 🎉",
+  },
+
+  // Turnos: calendario semanal de turnos de trabajo (ver
+  // components/sections/turnos-section.tsx y lib/shifts-store.tsx). Al
+  // marcar un turno como cobrado se crea una transacción real de ingreso en
+  // Economía (categoría "Salario") por el neto que se confirme.
+  "turnos.hoursTotal": { es: "Horas", en: "Hours" },
+  "turnos.grossTotal": { es: "Bruto estimado", en: "Estimated gross" },
+  "turnos.netTotal": { es: "Neto estimado", en: "Estimated net" },
+  "turnos.noShift": { es: "Sin turno", en: "No shift" },
+  "turnos.addShift": { es: "Añadir turno", en: "Add shift" },
+  "turnos.editShift": { es: "Editar turno", en: "Edit shift" },
+  "turnos.startTime": { es: "Entrada", en: "Start" },
+  "turnos.endTime": { es: "Salida", en: "End" },
+  "turnos.calcHours": { es: "Calcular horas desde el horario", en: "Calculate hours from times" },
+  "turnos.hours": { es: "Horas trabajadas", en: "Hours worked" },
+  "turnos.shiftType": { es: "Tipo de turno", en: "Shift type" },
+  "turnos.shiftType.normal": { es: "Normal", en: "Normal" },
+  "turnos.shiftType.sabado": { es: "Sábado (x1.5)", en: "Saturday (x1.5)" },
+  "turnos.shiftType.domingo": { es: "Domingo (x2)", en: "Sunday (x2)" },
+  "turnos.notes": { es: "Notas (opcional)", en: "Notes (optional)" },
+  "turnos.notesPlaceholder": { es: "Ej: cubriendo a un compañero", en: "E.g. covering a coworker" },
+  "turnos.gross": { es: "Bruto", en: "Gross" },
+  "turnos.netEstimate": { es: "Neto estimado", en: "Estimated net" },
+  "turnos.statusPlanned": { es: "Planificado", en: "Planned" },
+  "turnos.statusPaid": { es: "Cobrado", en: "Paid" },
+  "turnos.markPaid": { es: "Marcar como cobrado", en: "Mark as paid" },
+  "turnos.markUnpaid": { es: "Desmarcar como cobrado", en: "Unmark as paid" },
+  "turnos.confirmPaidDesc": {
+    es: "Se creará un ingreso en Economía por este importe (categoría Salario). Ajústalo si el importe real que ha llegado al banco es distinto de la estimación.",
+    en: "This will create an income transaction in Finances for this amount (Salary category). Adjust it if the real amount that landed in your bank differs from the estimate.",
+  },
+  "turnos.confirmPaidButton": { es: "Confirmar y crear ingreso", en: "Confirm and create income" },
+  "turnos.lockedNote": {
+    es: "Desmarca este turno como cobrado para poder editar las horas, el horario o el tipo de turno.",
+    en: "Unmark this shift as paid to edit the hours, times or shift type.",
+  },
+  "turnos.deleteShift": { es: "Eliminar turno", en: "Delete shift" },
+
+  // Ajustes > Turnos
+  "settings.turnosTitle": { es: "Turnos", en: "Shifts" },
+  "settings.turnosDesc": {
+    es: "Tarifa por hora e impuestos para calcular tus turnos",
+    en: "Hourly rate and tax for calculating your shifts",
+  },
+  "settings.turnosHourlyRate": { es: "Tarifa normal (por hora)", en: "Normal rate (per hour)" },
+  "settings.turnosHourlyRateDesc": {
+    es: "Se usa como base: el turno de sábado se calcula automáticamente x1.5 y el de domingo x2.",
+    en: "Used as the base: Saturday shifts are calculated automatically at x1.5 and Sunday at x2.",
+  },
+  "settings.turnosSaturdayRate": { es: "Sábado (x1.5)", en: "Saturday (x1.5)" },
+  "settings.turnosSundayRate": { es: "Domingo (x2)", en: "Sunday (x2)" },
+  "settings.turnosTaxPct": { es: "Impuestos estimados (%)", en: "Estimated tax (%)" },
+  "settings.turnosTaxPctDesc": {
+    es: "Con visa Work and Holiday, un 15% plano es una referencia fiable hasta 45.000$ de ingresos al año. Con visa Student no hay un número exacto único — depende de tu residencia fiscal según la ATO — así que ajusta este porcentaje a tu situación real. Es solo una estimación: el importe final del ingreso se puede corregir a mano al marcar cada turno como cobrado.",
+    en: "On a Work and Holiday visa, a flat 15% is a reliable reference up to $45,000 of income per year. On a Student visa there's no single exact number — it depends on your tax residency under the ATO — so adjust this percentage to your real situation. It's only an estimate: the final income amount can be corrected by hand when marking each shift as paid.",
   },
 } as const satisfies Record<string, Entry>
 
