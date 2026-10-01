@@ -15,11 +15,12 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 - `components/login-screen.tsx` — the logged-out screen: email/password login and signup (with an optional invite-code gate via `NEXT_PUBLIC_INVITE_CODE`, from the earlier "friends & family" phase — now redundant given the owner-only lock above, since Google OAuth never went through this code anyway; harmless to leave, safe to delete later if you want one less thing), plus "Continuar con Google" OAuth. Shows the ZentOS logo (`/icon.svg`) at the top.
 - Every Supabase table is scoped to `auth.uid()` via RLS policies, so one user's transactions, recurring templates, etc. are never visible to another user — the owner-only lock above is about keeping strangers from using the app at all, this RLS layer is what would keep them out of your data even without it.
 
-## Screens (nav: Resumen / Economía / Turnos / Ajustes)
+## Screens (nav: Resumen / Economía / Turnos / Winter Arc / Ajustes)
 
 - **Resumen**: a balance card (month/total toggle) with an optional savings goal tracker (deadline, progress %), plus four stat cards (Gastado/Ingresos/Balance/Categoría principal) for the selected period (Diario/Semanal/Mensual). Last opened tab is remembered (localStorage) across reloads. (There used to be a **Diario** tab with fitness data from Intervals.icu, and fitness stat cards here too — both removed 29 Sep 2026, see Changelog. Resumen is finance-only now.)
 - **Economía**: income/expense tracker in AUD, stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
 - **Turnos** (added 29 Sep 2026): a Homebase-style weekly shift calendar — see its own section below.
+- **Winter Arc** (added 1 Oct 2026): private end-of-year habit and training tracker — see its own section below.
 - **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios, Turnos, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically, and "Turnos" for the Turnos card.
 
 ## Recurring transactions (gastos e ingresos recurrentes)
@@ -43,6 +44,14 @@ Added 29 Sep 2026, inspired by the Homebase app: a place to plan work shifts a w
 - **Marking a shift as cobrado**: opens a small confirmation step showing the estimated neto (editable — in case the real amount that landed in the bank differs slightly from the estimate) and, on confirm, inserts a real transaction in `transactions` (category `Salario`, amount = the confirmed neto) via `lib/shifts-store.tsx`'s `markShiftPaid`, linking it back via `shifts.transaction_id`. Unmarking (`markShiftUnpaid`) or deleting an already-cobrado shift deletes that linked transaction too, so there's never an income entry in Economía left over from a shift that no longer exists or is no longer marked as paid.
 - `lib/shifts-store.tsx` — `ShiftsProvider`/`useShifts()`, mounted in `app/page.tsx` **inside** `StoreProvider` (unlike `AutomationsProvider`, which is independent) — it needs `useStore()`'s `refreshTransactions()` so Economía picks up the created/deleted transaction immediately instead of waiting for its next reload.
 - `supabase-migrations/shifts.sql` — the `shifts` table (RLS-scoped like the rest) plus two new nullable-with-defaults columns on `user_preferences`: `shift_hourly_rate` (default 34.6) and `shift_tax_pct` (default 15).
+
+## Winter Arc (plan personal de fin de año, privado)
+
+Added 1 Oct 2026. Tracks Cel's Winter Arc plan (day 1 in Spain, ~26 Oct → 31 Dec 2026; dates editable in the section itself). Private: every table is RLS-scoped to `auth.uid()` like the rest, on top of the owner-only lock.
+
+- `components/sections/winter-arc-section.tsx` — the screen: phase/day counter, streak, days done, days left and a 14-day strip; today's 9-rule checklist (a day counts with 7/9, or with the 4 core rules when "Día mínimo" is on) with prev/next to fix past days; the training session that's up next (fixed order Fuerza A → Rodaje → Fuerza B → Fuerza C → Tirada larga → Opcional, not fixed weekdays) plus the session actually done, minutes and notes; reading (current book, pages per day — 10+ pages ticks the reading rule automatically); the Sunday review (weight, waist, long run minutes, note) and a Recharts line chart of long run + weight per week.
+- `lib/winter-arc.ts` — rules, session order/details, long-run plan per week, and pure helpers (streak, next session, week index). `lib/winter-arc-store.tsx` — `WinterArcProvider`/`useWinterArc()`, independent of `StoreProvider`; saves are optimistic and queued so fast taps never land out of order.
+- `supabase-migrations/winter_arc.sql` — `winter_arc_settings`, `winter_arc_days`, `winter_arc_weekly`. **Run it once in the Supabase SQL editor**; until then the section shows a notice instead of erroring.
 
 ## Automatizaciones / Recordatorios (recordatorios y alertas, tipo Atajos de Apple)
 
@@ -123,6 +132,10 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 1 Oct 2026 — Winter Arc section
+- **New private "Winter Arc" tab** (between Turnos and Ajustes): daily 9-rule checklist with "día mínimo", streak, next training session, reading log, Sunday review and progress chart. See the "Winter Arc" section above. New files: `components/sections/winter-arc-section.tsx`, `lib/winter-arc.ts`, `lib/winter-arc-store.tsx`, `supabase-migrations/winter_arc.sql`; `lib/i18n.ts`, `app/page.tsx` and `components/dashboard.tsx` extended, nothing removed. **Run `supabase-migrations/winter_arc.sql`** in the Supabase SQL editor.
+- Noticed while checking types: `components/sections/diario-section.tsx` still exists and imports `swr`, which was removed from `package.json`, so `npx tsc --noEmit` reports one error there. It's not imported anywhere, so the app build is unaffected; left untouched.
 
 ### 29 Sep 2026 — Turnos (shift calendar), and a missed `login.private` i18n key fixed
 - **New "Turnos" feature**: a weekly shift calendar (date, hours, shift type, status) that estimates bruto/neto pay per shift and, once marked as cobrado, creates the matching income transaction in Economía automatically. See the "Turnos" section above for the full breakdown — new files are `components/sections/turnos-section.tsx`, `lib/shifts-store.tsx`, `supabase-migrations/shifts.sql`; `lib/types.ts`, `lib/supabase.ts`, `lib/store.tsx`, `lib/i18n.ts`, `app/page.tsx`, `components/dashboard.tsx` and `components/sections/settings-section.tsx` were extended, nothing existing was removed. **Run `supabase-migrations/shifts.sql` in the Supabase SQL editor** before using it, same as any other file in that folder.

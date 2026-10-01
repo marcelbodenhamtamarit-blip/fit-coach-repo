@@ -8,6 +8,7 @@ import {
   Wallet,
   RotateCw,
   CalendarDays,
+  Flame,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -15,6 +16,7 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { TurnosSection } from "@/components/sections/turnos-section"
 import { SettingsSection } from "@/components/sections/settings-section"
+import { WinterArcSection } from "@/components/sections/winter-arc-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
@@ -68,6 +70,7 @@ export function Dashboard() {
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
     { id: "turnos", label: t("nav.turnos"), icon: CalendarDays },
+    { id: "winterarc", label: t("nav.winterArc"), icon: Flame },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
 
@@ -75,6 +78,7 @@ export function Dashboard() {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
     turnos: t("nav.turnos"),
+    winterarc: t("nav.winterArc"),
     settings: t("nav.settings"),
   }
 
@@ -194,6 +198,7 @@ export function Dashboard() {
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
               {active === "turnos" && <TurnosSection />}
+              {active === "winterarc" && <WinterArcSection />}
               {active === "settings" && <SettingsSection />}
             </div>
           )}
