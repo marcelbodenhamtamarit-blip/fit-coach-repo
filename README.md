@@ -51,6 +51,7 @@ Added 1 Oct 2026. Tracks Cel's Winter Arc plan (day 1 in Spain, ~26 Oct → 31 D
 
 - `components/sections/winter-arc-section.tsx` — the screen: phase/day counter, streak, days done, days left and a 14-day strip; today's 9-rule checklist (a day counts with 7/9, or with the 4 core rules when "Día mínimo" is on) with prev/next to fix past days; the training session that's up next (fixed order Fuerza A → Rodaje → Fuerza B → Fuerza C → Tirada larga → Opcional, not fixed weekdays) plus the session actually done, minutes and notes; reading (current book, pages per day — 10+ pages ticks the reading rule automatically); the Sunday review (weight, waist, long run minutes, note) and a Recharts line chart of long run + weight per week.
 - `lib/winter-arc.ts` — rules, session order/details, long-run plan per week, and pure helpers (streak, next session, week index). `lib/winter-arc-store.tsx` — `WinterArcProvider`/`useWinterArc()`, independent of `StoreProvider`; saves are optimistic and queued so fast taps never land out of order.
+- **Coach IA** (`components/coach-card.tsx` + `app/api/coach/route.ts`, added 1 Oct 2026): daily advice (generated once per day and stored), a short chat, and a memory the model rewrites after each answer ("Lo que sabe de ti", can be cleared). The route checks the Supabase session and the owner email, builds context from the last 28 days, weekly reviews, memory and recent messages, and calls the Claude Messages API via `fetch`. Needs `ANTHROPIC_API_KEY` in Vercel; model overridable with `COACH_MODEL` (default `claude-sonnet-5-5`). Chat capped at 40 messages/day. Tables in `supabase-migrations/winter_arc_coach.sql`.
 - `supabase-migrations/winter_arc.sql` — `winter_arc_settings`, `winter_arc_days`, `winter_arc_weekly`. **Run it once in the Supabase SQL editor**; until then the section shows a notice instead of erroring.
 
 ## Automatizaciones / Recordatorios (recordatorios y alertas, tipo Atajos de Apple)
@@ -132,6 +133,9 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 1 Oct 2026 — Winter Arc AI coach
+- New coach card at the top of Winter Arc: daily advice, chat and an AI-maintained memory. New: `app/api/coach/route.ts`, `components/coach-card.tsx`, `supabase-migrations/winter_arc_coach.sql` (**run it**), env `ANTHROPIC_API_KEY` (required) and `COACH_MODEL` (optional).
 
 ### 1 Oct 2026 — Turnos removed, Winter Arc look and reminders
 - **Turnos tab removed**: `components/sections/turnos-section.tsx`, `lib/shifts-store.tsx` and the Turnos card in Ajustes deleted. The `shifts` table, its data and the `shift_*` columns in `user_preferences` were left untouched in Supabase (nothing dropped). A remembered last tab of "turnos" now falls back to Resumen.

@@ -30,6 +30,7 @@ import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
 import { useWinterArc } from "@/lib/winter-arc-store"
 import { useAutomations } from "@/lib/automations-store"
+import { CoachCard } from "@/components/coach-card"
 import {
   DAY_TARGET,
   MINIMUM_DAY_RULES,
@@ -193,6 +194,8 @@ export function WinterArcSection() {
           <p className="mt-1 text-right text-[10px] text-muted-foreground">{t("wa.last14")}</p>
         </div>
       </Card>
+
+      <CoachCard />
 
       {selected === today && missedYesterday(byDate, today, firstTracked) && !done && (
         <Card className="border-amber-500/40 bg-amber-500/10 p-3 text-sm font-medium text-amber-500">
