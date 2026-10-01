@@ -4,7 +4,7 @@
 // vez al día en /api/coach y queda guardado), chat corto y "lo que sabe de
 // ti" (la memoria que la IA va actualizando). Los mensajes y la memoria se
 // leen directamente de Supabase (RLS: solo tu usuario); generar respuestas
-// pasa por /api/coach, que es quien tiene la clave de la API de Claude.
+// pasa por /api/coach, que es quien tiene la clave de Gemini.
 
 import { useEffect, useRef, useState } from "react"
 import { Brain, ChevronDown, Send, Sparkles } from "lucide-react"

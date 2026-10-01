@@ -12,8 +12,9 @@ import {
   type WinterArcSession,
 } from "@/lib/winter-arc"
 
-// Coach IA del Winter Arc. Usa la API de Claude (ANTHROPIC_API_KEY en
-// Vercel) con tus datos reales del Winter Arc y una memoria que la propia
+// Coach IA del Winter Arc. Usa Gemini (capa gratuita, la misma
+// GEMINI_API_KEY que ya usan /api/import-csv y /api/quick-transaction) con
+// tus datos reales del Winter Arc y una memoria que la propia
 // IA va reescribiendo (winter_arc_coach_memory). Dos modos:
 //   - "daily": el consejo del día. Se genera una sola vez por día y se
 //     guarda; las siguientes veces se devuelve el guardado (no gasta).
@@ -21,7 +22,13 @@ import {
 // Solo el dueño de la app puede usarla (misma regla que lib/use-auth.tsx),
 // para que nadie más pueda gastar créditos de la API.
 
-const MODEL = process.env.COACH_MODEL || "claude-sonnet-5-5"
+// Configurable por si Google retira el modelo (ya pasó con 2.5-flash, ver
+// app/api/import-csv/route.ts).
+const MODEL = process.env.GEMINI_COACH_MODEL || "gemini-3.6-flash"
+// Los modelos 3.x piensan antes de responder; "low" basta para esto y deja
+// la respuesta rápida. Ojo: ese pensamiento sale del mismo presupuesto que
+// maxOutputTokens, por eso el margen es amplio.
+const THINKING_CONFIG = /^gemini-3/.test(MODEL) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
 const MAX_CHAT_PER_DAY = 40
 const MAX_MEMORY_CHARS = 2500
 
@@ -85,22 +92,30 @@ function fmtDay(d: WinterArcDay): string {
   return `${d.date} (${weekday}): ${d.checks.length}/9${d.minimumDay ? " [día mínimo]" : ""} ${isDayDone(d) ? "CUMPLIDO" : "no cumplido"}; falta: ${missing.join(", ") || "nada"}; sesión: ${d.session ? SESSION_TEXT[d.session] : "-"}${d.sessionMinutes ? ` ${d.sessionMinutes} min` : ""}${d.sessionNotes ? ` (${d.sessionNotes})` : ""}; páginas: ${d.pages ?? "-"}`
 }
 
-async function callClaude(system: string, messages: { role: "user" | "assistant"; content: string }[]) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
+async function callGemini(system: string, prompt: string): Promise<string> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+          responseMimeType: "application/json",
+          thinkingConfig: THINKING_CONFIG,
+        },
+      }),
+      signal: AbortSignal.timeout(45000),
     },
-    body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, messages }),
-  })
+  )
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Claude API ${res.status}: ${text.slice(0, 300)}`)
+    throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`)
   }
-  const json = (await res.json()) as { content?: { type: string; text?: string }[] }
-  return (json.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join("")
+  const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+  return (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("")
 }
 
 function parseCoach(raw: string): { reply: string; memory: string | null } {
@@ -150,9 +165,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(
-      { error: "Falta ANTHROPIC_API_KEY en Vercel (Settings → Environment Variables)." },
+      { error: "Falta GEMINI_API_KEY en Vercel (Settings → Environment Variables)." },
       { status: 503 },
     )
   }
@@ -246,12 +261,10 @@ export async function POST(req: NextRequest) {
   let reply: string
   let newMemory: string | null
   try {
-    const raw = await callClaude(SYSTEM_PROMPT, [
-      {
-        role: "user",
-        content: `${context}\n\nConversación reciente:\n${history || "(ninguna)"}\n\n${task}`,
-      },
-    ])
+    const raw = await callGemini(
+      SYSTEM_PROMPT,
+      `${context}\n\nConversación reciente:\n${history || "(ninguna)"}\n\n${task}`,
+    )
     ;({ reply, memory: newMemory } = parseCoach(raw))
   } catch (err) {
     console.error("[coach]", err)
