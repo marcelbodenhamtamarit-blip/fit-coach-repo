@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState, type ComponentProps } from "react"
 import {
+  BellRing,
   BookOpen,
   Check,
   ChevronLeft,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { todayISO } from "@/lib/types"
 import { useWinterArc } from "@/lib/winter-arc-store"
+import { useAutomations } from "@/lib/automations-store"
 import {
   DAY_TARGET,
   MINIMUM_DAY_RULES,
@@ -35,8 +37,13 @@ import {
   SESSION_LABEL,
   SESSION_ORDER,
   WINTER_ARC_RULES,
+  PUSH_REMINDER_PREFIX,
+  WINTER_ARC_PUSH_REMINDERS,
   addDaysISO,
   currentStreak,
+  doneMessageFor,
+  inAppReminders,
+  motivationFor,
   daysBetween,
   isDayDone,
   longRunTarget,
@@ -113,58 +120,100 @@ export function WinterArcSection() {
   const target = longRunTarget(settings, selected)
   const totalPages = days.reduce((sum, d) => sum + (d.pages ?? 0), 0)
   const last14 = Array.from({ length: 14 }, (_, i) => addDaysISO(today, i - 13))
+  const arcPct = dayNumber < 1 ? 0 : Math.min(100, (dayNumber / totalDays) * 100)
+  const reminders = inAppReminders({
+    day: byDate.get(today),
+    hour: new Date().getHours(),
+    isSunday: new Date().getDay() === 0,
+    weekReviewed: weeks.some((w) => w.weekStart === mondayOf(today) && (w.weight !== null || w.longRunMinutes !== null)),
+    sessionUp: t(SESSION_LABEL[nextSession(days, today)]),
+  })
 
   return (
     <div className="max-w-2xl space-y-3">
-      {/* Cabecera: fase, racha y cuenta atrás */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-orange-500/15 text-orange-500">
-              <Flame className="size-5" />
+      {/* Cabecera motivacional: fase, frase del día, avance del arco y racha */}
+      <Card className="overflow-hidden border-orange-500/30 bg-black/35 p-0 backdrop-blur-md">
+        <div className="bg-gradient-to-br from-orange-500/25 via-red-600/10 to-transparent p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-400">Winter Arc</span>
+            <span className="flex items-center gap-1 text-[11px] text-white/60">
+              <Lock className="size-3" />
+              {t("wa.private").split(":")[0]}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-red-600 text-white shadow-lg shadow-orange-600/40">
+              <Flame className="size-7" />
             </div>
             <div>
-              <p className="text-sm font-semibold">{phaseLabel}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-2xl font-extrabold leading-tight text-white">{phaseLabel}</p>
+              <p className="text-xs text-white/60">
                 {shortDate(settings.startDate)} – {shortDate(settings.endDate)}
               </p>
             </div>
           </div>
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Lock className="size-3" />
-            {t("wa.private").split(":")[0]}
-          </span>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Stat label={t("wa.streak")} value={`${streak}`} accent />
-          <Stat label={t("wa.doneDays")} value={`${doneCount}`} />
-          <Stat label={t("wa.daysLeft")} value={`${daysLeft}`} />
-        </div>
-        <div className="mt-3 flex justify-between gap-1">
-          {last14.map((d) => {
-            const status = isDayDone(byDate.get(d)) ? "done" : d < today && d >= firstTracked ? "miss" : "empty"
-            return (
-              <button
-                key={d}
-                onClick={() => setSelected(d)}
-                title={shortDate(d)}
-                className={cn(
-                  "h-2.5 flex-1 rounded-full transition-all",
-                  status === "done" && "bg-emerald-500",
-                  status === "miss" && "bg-red-500/60",
-                  status === "empty" && "bg-muted",
-                  d === selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-                )}
+          <p className="mt-4 text-balance text-lg font-semibold leading-snug text-white">
+            «{motivationFor(today)}»
+          </p>
+          <div className="mt-4">
+            <div className="h-2 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500 transition-all duration-700"
+                style={{ width: `${arcPct}%` }}
               />
-            )
-          })}
+            </div>
+            <p className="mt-1 text-right text-[10px] text-white/60">{Math.round(arcPct)}% del arco</p>
+          </div>
         </div>
-        <p className="mt-1 text-right text-[10px] text-muted-foreground">{t("wa.last14")}</p>
+        <div className="p-4 pt-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Stat label={t("wa.streak")} value={`${streak}`} accent />
+            <Stat label={t("wa.doneDays")} value={`${doneCount}`} />
+            <Stat label={t("wa.daysLeft")} value={`${daysLeft}`} />
+          </div>
+          <div className="mt-3 flex justify-between gap-1">
+            {last14.map((d) => {
+              const status = isDayDone(byDate.get(d)) ? "done" : d < today && d >= firstTracked ? "miss" : "empty"
+              return (
+                <button
+                  key={d}
+                  onClick={() => setSelected(d)}
+                  title={shortDate(d)}
+                  className={cn(
+                    "h-2.5 flex-1 rounded-full transition-all",
+                    status === "done" && "bg-orange-500",
+                    status === "miss" && "bg-red-900/70",
+                    status === "empty" && "bg-white/10",
+                    d === selected && "ring-2 ring-orange-300 ring-offset-1 ring-offset-black",
+                  )}
+                />
+              )
+            })}
+          </div>
+          <p className="mt-1 text-right text-[10px] text-muted-foreground">{t("wa.last14")}</p>
+        </div>
       </Card>
 
       {selected === today && missedYesterday(byDate, today, firstTracked) && !done && (
         <Card className="border-amber-500/40 bg-amber-500/10 p-3 text-sm font-medium text-amber-500">
           {t("wa.noFailToday")}
+        </Card>
+      )}
+
+      {selected === today && reminders.length > 0 && (
+        <Card className="border-orange-500/30 bg-orange-500/10 p-4">
+          <div className="flex items-center gap-2">
+            <BellRing className="size-4 text-orange-400" />
+            <p className="text-sm font-semibold">Ahora toca</p>
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {reminders.map((r) => (
+              <li key={r.id} className="flex items-start gap-2 text-sm">
+                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-orange-400" />
+                {r.text}
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 
@@ -192,7 +241,10 @@ export function WinterArcSection() {
 
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
           <div
-            className={cn("h-full rounded-full transition-all", done ? "bg-emerald-500" : "bg-primary")}
+            className={cn(
+              "h-full rounded-full transition-all",
+              done ? "bg-emerald-500" : "bg-gradient-to-r from-orange-400 to-red-500",
+            )}
             style={{ width: `${Math.min(100, (checks.length / DAY_TARGET) * 100)}%` }}
           />
         </div>
@@ -235,7 +287,7 @@ export function WinterArcSection() {
           </Button>
           {done && (
             <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-500">
-              {t("wa.dayDone")}
+              {doneMessageFor(selected)}
             </span>
           )}
         </div>
@@ -326,6 +378,8 @@ export function WinterArcSection() {
       />
 
       <ProgressChart />
+
+      <PushRemindersCard />
 
       {/* Fechas del arco */}
       <Card className="p-4">
@@ -483,6 +537,76 @@ function ProgressChart() {
           </ResponsiveContainer>
         </div>
       )}
+    </Card>
+  )
+}
+
+// Notificaciones al móvil: crea (o pausa/reactiva) 5 recordatorios en el
+// sistema de Recordatorios de Ajustes, marcados con PUSH_REMINDER_PREFIX.
+function PushRemindersCard() {
+  const { automations, ready, addAutomation, toggleAutomation } = useAutomations()
+  const [busy, setBusy] = useState(false)
+  const mine = automations.filter((a) => a.name.startsWith(PUSH_REMINDER_PREFIX))
+  const allOn = mine.length > 0 && mine.every((a) => a.active)
+
+  const create = async () => {
+    setBusy(true)
+    for (const r of WINTER_ARC_PUSH_REMINDERS) {
+      if (mine.some((a) => a.name === PUSH_REMINDER_PREFIX + r.name)) continue
+      await addAutomation({
+        name: PUSH_REMINDER_PREFIX + r.name,
+        active: true,
+        triggerType: "schedule",
+        scheduleFrequency: r.frequency,
+        scheduleTime: r.time,
+        scheduleWeekday: r.weekday,
+        conditionMetric: null,
+        conditionOperator: null,
+        conditionValue: null,
+        conditionCategory: null,
+        conditionCooldownHours: 24,
+        actionType: "both",
+        messageTitle: r.title,
+        messageBody: r.body,
+      })
+    }
+    setBusy(false)
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2">
+        <BellRing className="size-4 text-orange-400" />
+        <p className="text-sm font-semibold">Recordatorios en el móvil</p>
+      </div>
+      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+        {WINTER_ARC_PUSH_REMINDERS.map((r) => (
+          <li key={r.name} className="flex gap-2">
+            <span className="w-14 shrink-0 font-medium tabular-nums text-foreground">
+              {r.frequency === "weekly" ? `Dom ${r.time}` : r.time}
+            </span>
+            {r.body}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3">
+        {!ready ? null : mine.length < WINTER_ARC_PUSH_REMINDERS.length ? (
+          <Button size="sm" disabled={busy} onClick={create} className="bg-orange-500 text-white hover:bg-orange-600">
+            {busy ? "Activando..." : "Activar recordatorios"}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant={allOn ? "outline" : "default"}
+            onClick={() => mine.forEach((a) => toggleAutomation(a.id, !allOn))}
+          >
+            {allOn ? "Pausar recordatorios" : "Reactivar recordatorios"}
+          </Button>
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Llegan como notificación si las tienes activadas en Ajustes → Recordatorios.
+      </p>
     </Card>
   )
 }

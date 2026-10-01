@@ -7,14 +7,12 @@ import {
   Dumbbell,
   Wallet,
   RotateCw,
-  CalendarDays,
   Flame,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
-import { TurnosSection } from "@/components/sections/turnos-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { WinterArcSection } from "@/components/sections/winter-arc-section"
 import { useAuth } from "@/lib/use-auth"
@@ -42,7 +40,9 @@ export function Dashboard() {
   }
   useEffect(() => {
     const stored = localStorage.getItem("marcel-fit-coach:active-tab")
-    if (stored) setActive(stored)
+    // "turnos" ya no existe (quitado 1 Oct 2026): si era la última pestaña
+    // abierta, se vuelve a Resumen en vez de mostrar una pantalla vacía.
+    if (stored && ["overview", "economy", "winterarc", "settings"].includes(stored)) setActive(stored)
   }, [])
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
@@ -66,10 +66,18 @@ export function Dashboard() {
   const BACKGROUND_GRADIENT =
     "linear-gradient(to bottom, oklch(0.68 0.17 145) 0%, oklch(0.56 0.15 148) 10%, oklch(0.40 0.10 152) 28%, oklch(0.26 0.05 190) 44%, oklch(0.16 0.012 250) 60%, oklch(0.16 0.012 250) 100%)"
 
+  // Winter Arc tiene su propio ambiente: al entrar, el fondo pasa (con un
+  // fundido, ver más abajo) de verde a fuego sobre negro, y la cabecera
+  // cambia a texto claro para que se lea encima.
+  const WINTER_ARC_GRADIENT =
+    "linear-gradient(to bottom, oklch(0.62 0.21 40) 0%, oklch(0.48 0.19 32) 12%, oklch(0.30 0.11 25) 30%, oklch(0.17 0.04 20) 48%, oklch(0.12 0.01 260) 65%, oklch(0.12 0.01 260) 100%)"
+  const isWinterArc = active === "winterarc"
+  const headerColor = isWinterArc ? "oklch(0.97 0.02 60)" : "oklch(0.22 0.05 150)"
+  const headerSubColor = isWinterArc ? "oklch(0.92 0.04 60 / 85%)" : "oklch(0.32 0.05 150 / 80%)"
+
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
-    { id: "turnos", label: t("nav.turnos"), icon: CalendarDays },
     { id: "winterarc", label: t("nav.winterArc"), icon: Flame },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
@@ -77,7 +85,6 @@ export function Dashboard() {
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
-    turnos: t("nav.turnos"),
     winterarc: t("nav.winterArc"),
     settings: t("nav.settings"),
   }
@@ -154,10 +161,10 @@ export function Dashboard() {
         <header className="sticky top-0 z-20 bg-white/10 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-balance text-lg font-semibold sm:text-xl" style={{ color: "oklch(0.22 0.05 150)" }}>
+              <h1 className="text-balance text-lg font-semibold transition-colors duration-700 sm:text-xl" style={{ color: headerColor }}>
                 {TAB_TITLES[active] ?? active}
               </h1>
-              <p className="hidden text-xs sm:block" style={{ color: "oklch(0.32 0.05 150 / 80%)" }}>
+              <p className="hidden text-xs transition-colors duration-700 sm:block" style={{ color: headerSubColor }}>
                 {t(greetingKey())}, {displayName}. {t("dashboard.subtitle")}
               </p>
             </div>
@@ -165,7 +172,7 @@ export function Dashboard() {
               <button
                 onClick={() => window.location.reload()}
                 className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
-                style={{ color: "oklch(0.22 0.05 150)" }}
+                style={{ color: headerColor }}
                 title={t("dashboard.reload")}
               >
                 <RotateCw className="size-4" />
@@ -173,7 +180,7 @@ export function Dashboard() {
               <button
                 onClick={signOut}
                 className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
-                style={{ color: "oklch(0.22 0.05 150)" }}
+                style={{ color: headerColor }}
                 title={t("dashboard.signOut")}
               >
                 <LogOut className="size-4" />
@@ -197,7 +204,6 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
-              {active === "turnos" && <TurnosSection />}
               {active === "winterarc" && <WinterArcSection />}
               {active === "settings" && <SettingsSection />}
             </div>
@@ -231,6 +237,13 @@ export function Dashboard() {
   return (
     <div className="fixed inset-0 overflow-hidden">
       <div aria-hidden className="absolute inset-0" style={{ background: BACKGROUND_GRADIENT }} />
+      {/* Los degradados no se pueden animar entre sí, así que el de Winter
+          Arc vive en su propia capa encima y solo cambia su opacidad. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 transition-opacity duration-700 ease-out"
+        style={{ background: WINTER_ARC_GRADIENT, opacity: isWinterArc ? 1 : 0 }}
+      />
       <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
         {shellContent}
       </div>

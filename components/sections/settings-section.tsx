@@ -21,7 +21,6 @@ import {
   ChevronDown,
   Zap,
   MessageSquare,
-  Banknote,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CURRENCIES, SHIFT_RATE_MULTIPLIER, currencySymbol } from "@/lib/types"
@@ -55,15 +54,6 @@ export function SettingsSection() {
         color="#fbbf24"
       >
         <RemindersCard />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        icon={Banknote}
-        title={t("settings.turnosTitle")}
-        description={t("settings.turnosDesc")}
-        color="#fb923c"
-      >
-        <TurnosSettingsCard />
       </CollapsibleCard>
 
       <CollapsibleCard
@@ -298,107 +288,6 @@ function PreferencesCard() {
           </select>
           {savedField === "weekStartDay" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
         </div>
-      </div>
-    </div>
-  )
-}
-
-// Tarifa por hora (turno normal) e impuestos estimados para Turnos. La
-// tarifa de sábado/domingo no se pide aparte: se muestra ya calculada
-// (SHIFT_RATE_MULTIPLIER, x1.5/x2) para que quede claro de dónde sale, pero
-// solo hay un número que editar si cambia el sueldo. El % de impuestos no
-// tiene un valor exacto único para todo el mundo (depende de si trabajas
-// con visa Work and Holiday o Student, y de tu residencia fiscal real ante
-// la ATO) — por eso se explica en el aviso de abajo en vez de calcularse
-// solo por tipo de visa.
-function TurnosSettingsCard() {
-  const { data, ready, setShiftHourlyRate, setShiftTaxPct, t } = useStore()
-  const symbol = currencySymbol(data.homeCurrency)
-  const [rateInput, setRateInput] = useState(String(data.shiftHourlyRate ?? 34.6))
-  const [taxInput, setTaxInput] = useState(String(data.shiftTaxPct ?? 15))
-  const [savedField, setSavedField] = useState<"rate" | "tax" | null>(null)
-
-  function flash(field: "rate" | "tax") {
-    setSavedField(field)
-    setTimeout(() => setSavedField((f) => (f === field ? null : f)), 1500)
-  }
-
-  function saveRate() {
-    const parsed = parseFloat(rateInput)
-    if (isNaN(parsed) || parsed <= 0) return
-    setShiftHourlyRate(parsed)
-    flash("rate")
-  }
-
-  function saveTax() {
-    const parsed = parseFloat(taxInput)
-    if (isNaN(parsed) || parsed < 0) return
-    setShiftTaxPct(parsed)
-    flash("tax")
-  }
-
-  const rate = parseFloat(rateInput) || 0
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border p-3">
-        <p className="text-sm font-medium">{t("settings.turnosHourlyRate")}</p>
-        <p className="mb-2 text-xs text-muted-foreground">{t("settings.turnosHourlyRateDesc")}</p>
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            step="0.1"
-            min="0"
-            value={rateInput}
-            disabled={!ready}
-            onChange={(e) => setRateInput(e.target.value)}
-            onBlur={saveRate}
-            className="max-w-32"
-          />
-          <Button size="sm" variant="outline" onClick={saveRate} disabled={!ready}>
-            {t("common.save")}
-          </Button>
-        </div>
-        {savedField === "rate" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
-
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-md bg-muted/40 p-2">
-            <p className="text-muted-foreground">{t("settings.turnosSaturdayRate")}</p>
-            <p className="font-semibold tabular-nums">
-              {symbol}
-              {(rate * SHIFT_RATE_MULTIPLIER.sabado).toFixed(2)}
-            </p>
-          </div>
-          <div className="rounded-md bg-muted/40 p-2">
-            <p className="text-muted-foreground">{t("settings.turnosSundayRate")}</p>
-            <p className="font-semibold tabular-nums">
-              {symbol}
-              {(rate * SHIFT_RATE_MULTIPLIER.domingo).toFixed(2)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-border p-3">
-        <p className="text-sm font-medium">{t("settings.turnosTaxPct")}</p>
-        <p className="mb-2 text-xs text-muted-foreground">{t("settings.turnosTaxPctDesc")}</p>
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            step="0.5"
-            min="0"
-            value={taxInput}
-            disabled={!ready}
-            onChange={(e) => setTaxInput(e.target.value)}
-            onBlur={saveTax}
-            className="max-w-32"
-          />
-          <span className="text-sm text-muted-foreground">%</span>
-          <Button size="sm" variant="outline" onClick={saveTax} disabled={!ready}>
-            {t("common.save")}
-          </Button>
-        </div>
-        {savedField === "tax" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
       </div>
     </div>
   )

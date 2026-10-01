@@ -15,11 +15,11 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 - `components/login-screen.tsx` — the logged-out screen: email/password login and signup (with an optional invite-code gate via `NEXT_PUBLIC_INVITE_CODE`, from the earlier "friends & family" phase — now redundant given the owner-only lock above, since Google OAuth never went through this code anyway; harmless to leave, safe to delete later if you want one less thing), plus "Continuar con Google" OAuth. Shows the ZentOS logo (`/icon.svg`) at the top.
 - Every Supabase table is scoped to `auth.uid()` via RLS policies, so one user's transactions, recurring templates, etc. are never visible to another user — the owner-only lock above is about keeping strangers from using the app at all, this RLS layer is what would keep them out of your data even without it.
 
-## Screens (nav: Resumen / Economía / Turnos / Winter Arc / Ajustes)
+## Screens (nav: Resumen / Economía / Winter Arc / Ajustes)
 
 - **Resumen**: a balance card (month/total toggle) with an optional savings goal tracker (deadline, progress %), plus four stat cards (Gastado/Ingresos/Balance/Categoría principal) for the selected period (Diario/Semanal/Mensual). Last opened tab is remembered (localStorage) across reloads. (There used to be a **Diario** tab with fitness data from Intervals.icu, and fitness stat cards here too — both removed 29 Sep 2026, see Changelog. Resumen is finance-only now.)
 - **Economía**: income/expense tracker in AUD, stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
-- **Turnos** (added 29 Sep 2026): a Homebase-style weekly shift calendar — see its own section below.
+- **Turnos**: removed from the app 1 Oct 2026 (see Changelog); the section below documents how it worked.
 - **Winter Arc** (added 1 Oct 2026): private end-of-year habit and training tracker — see its own section below.
 - **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios, Turnos, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically, and "Turnos" for the Turnos card.
 
@@ -132,6 +132,12 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 1 Oct 2026 — Turnos removed, Winter Arc look and reminders
+- **Turnos tab removed**: `components/sections/turnos-section.tsx`, `lib/shifts-store.tsx` and the Turnos card in Ajustes deleted. The `shifts` table, its data and the `shift_*` columns in `user_preferences` were left untouched in Supabase (nothing dropped). A remembered last tab of "turnos" now falls back to Resumen.
+- **Winter Arc look**: opening the tab fades the app background to a fire-on-black gradient (separate layer in `components/dashboard.tsx`, opacity transition) with light header text; the section opens with a motivational hero (daily phrase from `MOTIVATION` in `lib/winter-arc.ts`, arc progress bar, streak).
+- **Reminders**: an "Ahora toca" card shows up to 3 time-of-day nudges for unchecked rules (`inAppReminders`, uses the phone's local time). A "Recordatorios en el móvil" card creates 5 scheduled automations (prefix `Winter Arc · `) through the existing Recordatorios system, and can pause/resume them all.
+- **`AUTOMATIONS_TZ`** env var (optional) in `app/api/automations/evaluate/route.ts`: the timezone reminder times are read in; defaults to `Australia/Brisbane`. Set `Europe/Madrid` once in Spain. Push reminders only fire at their hour if the evaluator runs hourly (Vercel Pro or an external pinger, see above).
 
 ### 1 Oct 2026 — Winter Arc section
 - **New private "Winter Arc" tab** (between Turnos and Ajustes): daily 9-rule checklist with "día mínimo", streak, next training session, reading log, Sunday review and progress chart. See the "Winter Arc" section above. New files: `components/sections/winter-arc-section.tsx`, `lib/winter-arc.ts`, `lib/winter-arc-store.tsx`, `supabase-migrations/winter_arc.sql`; `lib/i18n.ts`, `app/page.tsx` and `components/dashboard.tsx` extended, nothing removed. **Run `supabase-migrations/winter_arc.sql`** in the Supabase SQL editor.

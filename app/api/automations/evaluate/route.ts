@@ -23,7 +23,10 @@ export const maxDuration = 60
 // cron externo gratuito (cron-job.org, EasyCron...) a esta misma URL con
 // el secreto — el endpoint no distingue quién lo llama, solo el secreto.
 
-const TZ = "Australia/Brisbane"
+// Zona horaria en la que se interpretan las horas de los recordatorios.
+// Configurable con AUTOMATIONS_TZ en Vercel (p.ej. "Europe/Madrid" al
+// volver a España); por defecto, Brisbane como hasta ahora.
+const TZ = process.env.AUTOMATIONS_TZ || "Australia/Brisbane"
 
 function todayISO(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date())
