@@ -145,8 +145,9 @@ export async function POST(req: NextRequest) {
   const { data: userData, error: userError } = await anon.auth.getUser(token)
   if (userError || !userData.user) return NextResponse.json({ error: "Sesión no válida" }, { status: 401 })
 
+  // Falla cerrado: sin NEXT_PUBLIC_OWNER_EMAIL nadie usa el coach.
   const owner = (process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "").trim().toLowerCase()
-  if (owner && (userData.user.email ?? "").toLowerCase() !== owner) {
+  if (!owner || (userData.user.email ?? "").toLowerCase() !== owner) {
     return NextResponse.json({ error: "Solo el dueño de la app puede usar el coach" }, { status: 403 })
   }
   const userId = userData.user.id
