@@ -17,9 +17,7 @@ import { todayISO, uid, TRANSACTION_CATEGORIES, CURRENCIES, type Transaction } f
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
 import { categoryLabel, type Language } from "@/lib/i18n"
-
-const GOOGLE_SHEETS_WEBHOOK =
-  "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
+import { backupToSheets } from "@/lib/sheets-backup"
 
 type TxType = "gasto" | "ingreso"
 
@@ -135,22 +133,16 @@ export function BatchAddDialog() {
 
     addTransactions(items)
 
-    // Best-effort, igual que el alta individual: si el webhook falla no
+    // Best-effort, igual que el alta individual: si el backup falla no
     // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
     items.forEach((tx) => {
       const weekNum = getWeekNumberFromISO(tx.date)
-      const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
-      fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          week: weekNum,
-          category: tx.category,
-          amount: formattedAmount,
-          date: tx.date.split("-").reverse().join("/"),
-        }),
-      }).catch(() => {})
+      backupToSheets({
+        week: weekNum,
+        category: tx.category,
+        amount: tx.amount.toFixed(2).replace(".", ","),
+        date: tx.date.split("-").reverse().join("/"),
+      })
     })
 
     setSaving(false)
