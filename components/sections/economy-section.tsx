@@ -24,9 +24,7 @@ import { getWeekNumberFromISO, getWeekDateRangeFromNum } from "@/lib/week"
 import { RecurringManagerDialog } from "@/components/recurring-manager-dialog"
 import { supabase } from "@/lib/supabase"
 import { convertAmount, getExchangeRates } from "@/lib/exchange-rates"
-
-const GOOGLE_SHEETS_WEBHOOK =
-  "https://script.google.com/macros/s/AKfycbyA7cBEfe1vrWkclk4fKInoSa0hhenbC5iaCAzwl-rqOMEcOp1GLchAeeCstE1foBsx/exec"
+import { backupToSheets } from "@/lib/sheets-backup"
 
 type TabId = "diario" | "semanal" | "mensual"
 type TxType = "gasto" | "ingreso"
@@ -304,21 +302,14 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
 
     addTransaction(tx)
 
-    try {
-      const weekNum = getWeekNumberFromISO(date, weekStartDay)
-      const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
-      await fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          week: weekNum,
-          category: tx.category,
-          amount: formattedAmount,
-          date: tx.date.split("-").reverse().join("/"),
-        }),
-      })
-    } catch {
+    const weekNum = getWeekNumberFromISO(date, weekStartDay)
+    const backedUp = await backupToSheets({
+      week: weekNum,
+      category: tx.category,
+      amount: tx.amount.toFixed(2).replace(".", ","),
+      date: tx.date.split("-").reverse().join("/"),
+    })
+    if (!backedUp) {
       setToastError(t("economy.googleSheetsError"))
       setTimeout(() => setToastError(null), 3000)
     }
@@ -384,22 +375,16 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
 
     addTransactions(items)
 
-    // Best-effort, igual que el alta individual: si el webhook falla no
+    // Best-effort, igual que el alta individual: si el backup falla no
     // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
     items.forEach((tx) => {
       const weekNum = getWeekNumberFromISO(tx.date, weekStartDay)
-      const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
-      fetch(GOOGLE_SHEETS_WEBHOOK, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          week: weekNum,
-          category: tx.category,
-          amount: formattedAmount,
-          date: tx.date.split("-").reverse().join("/"),
-        }),
-      }).catch(() => {})
+      backupToSheets({
+        week: weekNum,
+        category: tx.category,
+        amount: tx.amount.toFixed(2).replace(".", ","),
+        date: tx.date.split("-").reverse().join("/"),
+      })
     })
 
     setBatchSaving(false)
@@ -554,22 +539,16 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
       if (newItems.length > 0) {
         addTransactions(newItems)
 
-        // Best-effort, igual que el resto de altas: si el webhook falla no
+        // Best-effort, igual que el resto de altas: si el backup falla no
         // bloquea nada, las transacciones ya quedaron guardadas en Supabase.
         newItems.forEach((tx) => {
           const weekNum = getWeekNumberFromISO(tx.date, weekStartDay)
-          const formattedAmount = tx.amount.toFixed(2).replace(".", ",")
-          fetch(GOOGLE_SHEETS_WEBHOOK, {
-            method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              week: weekNum,
-              category: tx.category,
-              amount: formattedAmount,
-              date: tx.date.split("-").reverse().join("/"),
-            }),
-          }).catch(() => {})
+          backupToSheets({
+            week: weekNum,
+            category: tx.category,
+            amount: tx.amount.toFixed(2).replace(".", ","),
+            date: tx.date.split("-").reverse().join("/"),
+          })
         })
       }
 
