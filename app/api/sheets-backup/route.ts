@@ -28,6 +28,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true })
   }
 
+  // La hoja es la del dueño (#6: recibía los movimientos de TODOS los
+  // usuarios). Solo se reenvía si el email de la sesión es el de
+  // NEXT_PUBLIC_OWNER_EMAIL — la misma que usan lib/use-auth.tsx y el
+  // coach. Sin esa env var no se reenvía nada (fail-closed).
+  const owner = (process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "").trim().toLowerCase()
+  const email = (userData.user.email ?? "").trim().toLowerCase()
+  if (!owner || email !== owner) {
+    return NextResponse.json({ ok: true, skipped: true })
+  }
+
   const body = await req.json().catch(() => null)
   const week = Number(body?.week)
   const category = typeof body?.category === "string" ? body.category.slice(0, 50) : ""
