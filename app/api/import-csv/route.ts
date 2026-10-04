@@ -147,135 +147,126 @@ export async function POST(req: NextRequest) {
   // importar el extracto de Revolut). gemini-3.6-flash es el reemplazo que
   // el propio error de Google recomendaba. Como esto puede volver a pasar,
   // sigue siendo configurable por variable de entorno sin tocar código.
-  const model = process.env.GEMINI_CSV_MODEL || "gemini-3.6-flash"
+  //
+  // GEMINI_CSV_FALLBACK_MODEL (opcional) es un segundo modelo al que se
+  // salta cuando el principal está saturado: el 4 Oct 2026 gemini-3.6-flash
+  // devolvió 503 "This model is currently experiencing high demand" varias
+  // veces seguidas, y con un solo modelo no había forma de esquivarlo.
+  const models = [process.env.GEMINI_CSV_MODEL || "gemini-3.6-flash", process.env.GEMINI_CSV_FALLBACK_MODEL || ""].filter(
+    Boolean,
+  )
 
-  const prompt = isPdf
-    ? `Este es un extracto bancario en PDF (puede tener una o varias páginas, con los movimientos ` +
-      `en una tabla, en texto plano, o repartidos entre varias secciones). Puede ser de cualquier ` +
-      `banco (CommBank, Revolut, un banco español, etc.) y cada uno maqueta su extracto de forma ` +
-      `distinta. Lee el documento entero y devuelve TODOS los movimientos reales que encuentres ` +
-      `(ignora cabeceras, pies de página repetidos en cada hoja, el saldo inicial/final, y cualquier ` +
-      `fila de resumen o totales que no sea un movimiento individual).\n\n${skipHint}\n\n${currencyHint}\n\n` +
-      `Para cada movimiento, elige la categoría que mejor encaje de esta lista fija (usa exactamente ` +
-      `uno de estos nombres, no inventes categorías nuevas):\n${categoryHints}`
-    : `Este es un extracto bancario en CSV. Puede ser de cualquier banco (CommBank, Revolut, ` +
-      `un banco español, etc.) y cada uno usa sus propias columnas, formato de fecha y forma de ` +
-      `indicar el importe (una sola columna con signo, o columnas separadas de cargo/abono, con ` +
-      `coma o punto decimal, con o sin símbolo de divisa). Detecta el formato y devuelve TODOS los ` +
-      `movimientos del archivo, uno por fila del CSV (ignora la fila de cabecera y cualquier fila ` +
-      `de saldo/resumen que no sea un movimiento real).\n\n${skipHint}\n\n${currencyHint}\n\n` +
-      `Para cada movimiento, elige la categoría que mejor encaje de esta lista fija (usa exactamente ` +
-      `uno de estos nombres, no inventes categorías nuevas):\n${categoryHints}\n\n` +
-      `CSV:\n${csv}`
+  // Todo el trabajo tiene que caber en maxDuration (180s arriba). Se deja
+  // margen para que, si Gemini de verdad no responde, la función devuelva un
+  // error legible en vez de que Vercel la mate en seco sin dar respuesta.
+  const deadline = Date.now() + 170_000
 
-  // Para el PDF, el documento se manda como una parte "inlineData" separada
-  // (Gemini lo lee de forma nativa, página a página, tablas incluidas) en
-  // vez de intentar extraer el texto a mano en el servidor — así funciona
-  // igual de bien con un extracto con texto seleccionable que con uno
-  // escaneado. Para el CSV, el contenido ya va embebido en el propio prompt
-  // de texto (arriba), así que aquí solo hace falta esa única parte.
-  const contentParts = isPdf
-    ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: pdfBase64 } }]
-    : [{ text: prompt }]
+  const instructions = (kind: string) =>
+    `Para cada movimiento, elige la categoría que mejor encaje de esta lista fija (usa exactamente ` +
+    `uno de estos nombres, no inventes categorías nuevas):\n${categoryHints}\n\n${skipHint}\n\n${currencyHint}\n\n` +
+    `Recuerda: devuelve TODOS los movimientos reales del ${kind}, sin saltarte ninguno.`
 
-  // Los modelos "3.x" de Gemini (a diferencia de los 2.5) piensan antes de
-  // responder por defecto — y con nivel "medium" de serie, tardan de sobra
-  // más de los 55s que se le dan más abajo antes de abortar, sobre todo con
-  // un extracto de decenas de movimientos (esto es justo lo que provocó
-  // "The operation was aborted due to timeout" al probar con el extracto de
-  // Revolut real, justo después de migrar a gemini-3.6-flash por el 404 de
-  // gemini-2.5-flash). Para una tarea de extracción/clasificación como esta
-  // no hace falta razonamiento profundo, así que se pide el nivel mínimo de
-  // "pensamiento": los modelos 3.x usan thinkingLevel (no se puede desactivar
-  // del todo en la familia Flash, pero "low" es lo más rápido disponible);
-  // los 2.5 (por si se vuelve a ese modelo vía GEMINI_CSV_MODEL) usan
-  // thinkingBudget, y ahí sí se puede poner a 0 para desactivarlo entero.
-  const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
+  const pdfPrompt =
+    `Este es un extracto bancario en PDF (puede tener una o varias páginas, con los movimientos ` +
+    `en una tabla, en texto plano, o repartidos entre varias secciones). Puede ser de cualquier ` +
+    `banco (CommBank, Revolut, un banco español, etc.) y cada uno maqueta su extracto de forma ` +
+    `distinta. Lee el documento entero y devuelve TODOS los movimientos reales que encuentres ` +
+    `(ignora cabeceras, pies de página repetidos en cada hoja, el saldo inicial/final, y cualquier ` +
+    `fila de resumen o totales que no sea un movimiento individual).\n\n${instructions("documento")}`
 
-  // Llama a Gemini una vez. Se separa en su propia función para poder
-  // reintentar (ver más abajo) sin duplicar el fetch entero.
-  const callGemini = () =>
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: contentParts }],
-        generationConfig: {
-          temperature: 0,
-          thinkingConfig,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              transactions: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    date: { type: "STRING", description: "Fecha del movimiento en formato ISO yyyy-mm-dd" },
-                    description: {
-                      type: "STRING",
-                      description: "Descripción o concepto del movimiento, tal cual aparece en el extracto (sin traducir ni inventar).",
+  // `preamble` son las líneas del principio del archivo (cabecera de
+  // columnas, datos de la cuenta...) que no son movimientos: van en cada
+  // fragmento solo para que el modelo entienda las columnas.
+  const csvPrompt = (preamble: string, rows: string, part: string) =>
+    `Este es un extracto bancario en CSV${part}. Puede ser de cualquier banco (CommBank, Revolut, ` +
+    `un banco español, etc.) y cada uno usa sus propias columnas, formato de fecha y forma de ` +
+    `indicar el importe (una sola columna con signo, o columnas separadas de cargo/abono, con ` +
+    `coma o punto decimal, con o sin símbolo de divisa). Detecta el formato y devuelve TODOS los ` +
+    `movimientos de las FILAS, uno por fila (ignora cualquier fila de saldo/resumen que no sea un ` +
+    `movimiento real).\n\n${instructions("CSV")}\n\n` +
+    (preamble ? `CABECERA DEL ARCHIVO (solo para entender las columnas, no contiene movimientos):\n${preamble}\n\n` : "") +
+    `FILAS:\n${rows}`
+
+  type GeminiResult = { ok: true; transactions: unknown[] } | { ok: false; retryable: boolean; error: string }
+
+  // Una llamada a Gemini con un modelo concreto. Nunca lanza: devuelve si
+  // fue bien y, si no, si merece la pena reintentar (timeout, 429, 5xx) o
+  // es un error "duro" (API key inválida, modelo no encontrado...).
+  const callGemini = async (model: string, parts: unknown[], timeoutMs: number): Promise<GeminiResult> => {
+    // Los modelos "3.x" de Gemini piensan antes de responder por defecto, y
+    // con el nivel "medium" de serie tardan demasiado para una tarea de
+    // extracción/clasificación como esta — así que se pide el mínimo: los
+    // 3.x usan thinkingLevel ("low" es lo más rápido en la familia Flash) y
+    // los 2.5 usan thinkingBudget, que ahí sí se puede poner a 0.
+    const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
+
+    let res: Response
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0,
+            thinkingConfig,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                transactions: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      date: { type: "STRING", description: "Fecha del movimiento en formato ISO yyyy-mm-dd" },
+                      description: {
+                        type: "STRING",
+                        description: "Descripción o concepto del movimiento, tal cual aparece en el extracto (sin traducir ni inventar).",
+                      },
+                      amount: {
+                        type: "NUMBER",
+                        description: "Importe con signo: negativo si es un gasto/cargo, positivo si es un ingreso/abono.",
+                      },
+                      category: { type: "STRING", enum: [...TRANSACTION_CATEGORIES] },
+                      currency: {
+                        type: "STRING",
+                        description:
+                          "Código ISO 4217 de 3 letras de la divisa de ESTE movimiento (p.ej. EUR, AUD, VND), " +
+                          "solo si el extracto la distingue por fila. Vacío si todo el extracto está en una " +
+                          "sola divisa implícita.",
+                      },
                     },
-                    amount: {
-                      type: "NUMBER",
-                      description: "Importe con signo: negativo si es un gasto/cargo, positivo si es un ingreso/abono.",
-                    },
-                    category: { type: "STRING", enum: [...TRANSACTION_CATEGORIES] },
-                    currency: {
-                      type: "STRING",
-                      description:
-                        "Código ISO 4217 de 3 letras de la divisa de ESTE movimiento (p.ej. EUR, AUD, VND), " +
-                        "solo si el extracto la distingue por fila. Vacío si todo el extracto está en una " +
-                        "sola divisa implícita.",
-                    },
+                    required: ["date", "description", "amount", "category"],
                   },
-                  required: ["date", "description", "amount", "category"],
                 },
               },
+              required: ["transactions"],
             },
-            required: ["transactions"],
           },
-        },
-      }),
-      // Deja margen por debajo de maxDuration (180s arriba) para que, si
-      // Gemini de verdad no responde, la función pueda devolver un error
-      // legible en vez de que Vercel la mate en seco sin dar ninguna
-      // respuesta al cliente.
-      signal: AbortSignal.timeout(165_000),
-    })
-
-  try {
-    let geminiRes = await callGemini()
-
-    // Un fallo puntual de cuota/carga (429 o 5xx) es habitual en la capa
-    // gratuita de Gemini y suele resolverse solo unos segundos después — así
-    // que antes de darlo por perdido se reintenta una vez. Un error "duro"
-    // (API key inválida, modelo no encontrado, etc. → 4xx que no sea 429) no
-    // se beneficia de reintentar, así que va directo al mensaje de error.
-    if (!geminiRes.ok && (geminiRes.status === 429 || geminiRes.status >= 500)) {
-      await new Promise((r) => setTimeout(r, 2000))
-      geminiRes = await callGemini()
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    } catch (err) {
+      console.error("[import-csv] Gemini fetch error:", model, err)
+      const timedOut = err instanceof Error && err.name === "TimeoutError"
+      return { ok: false, retryable: true, error: timedOut ? "Gemini tardó demasiado en responder" : "No se pudo contactar con Gemini" }
     }
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text().catch(() => "")
-      console.error("[import-csv] Gemini API error:", geminiRes.status, errText)
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "")
+      console.error("[import-csv] Gemini API error:", model, res.status, errText)
       // Se manda un fragmento del error real de Gemini en vez de un mensaje
-      // genérico: así, si vuelve a fallar, el aviso que se ve en pantalla ya
-      // dice por qué (cuota agotada, modelo retirado, clave inválida...) sin
-      // tener que ir a mirar los logs de Vercel.
-      return NextResponse.json(
-        {
-          error:
-            `No se pudo leer el ${isPdf ? "PDF" : "CSV"} con la IA ` +
-            `(Gemini respondió ${geminiRes.status}: ${errText.slice(0, 200) || "sin detalle"}).`,
-        },
-        { status: 502 },
-      )
+      // genérico: así el aviso que se ve en pantalla ya dice por qué (cuota
+      // agotada, modelo retirado, clave inválida...) sin mirar los logs.
+      return {
+        ok: false,
+        retryable: res.status === 429 || res.status >= 500,
+        error: `Gemini respondió ${res.status}: ${errText.slice(0, 200) || "sin detalle"}`,
+      }
     }
 
-    const result = await geminiRes.json()
+    const result = await res.json()
     const rawText: string | undefined = result?.candidates?.[0]?.content?.parts?.[0]?.text
     const finishReason: string | undefined = result?.candidates?.[0]?.finishReason
 
@@ -287,24 +278,119 @@ export async function POST(req: NextRequest) {
     }
 
     const transactions = (parsed as { transactions?: unknown } | null)?.transactions
-
     if (!Array.isArray(transactions)) {
       console.error("[import-csv] Respuesta inesperada de Gemini:", JSON.stringify(result).slice(0, 2000))
-      // finishReason distingue el caso más probable en un extracto real: el
-      // modelo cortó la respuesta a medias por exceder el límite de salida
-      // (MAX_TOKENS, extractos muy largos) frente a cualquier otra causa.
+      // MAX_TOKENS (respuesta cortada por exceso de movimientos) saldría
+      // igual al repetir, así que no se reintenta.
       const reasonHint =
         finishReason === "MAX_TOKENS"
           ? " (el extracto tiene demasiados movimientos para una sola pasada; pruébalo por partes)"
           : finishReason
             ? ` (motivo: ${finishReason})`
             : ""
+      return {
+        ok: false,
+        retryable: finishReason !== "MAX_TOKENS",
+        error: `La IA no devolvió los movimientos en el formato esperado${reasonHint}`,
+      }
+    }
+    return { ok: true, transactions }
+  }
+
+  // La capa gratuita de Gemini da 429/503 a menudo, y suele resolverse en
+  // unos segundos — así que se reintenta con espera creciente, alternando
+  // con el modelo de respaldo si hay uno configurado, y sin pasarse nunca
+  // del deadline de la función.
+  const RETRY_DELAYS = [0, 2_000, 5_000, 10_000]
+  const extract = async (parts: unknown[], maxCallMs: number): Promise<GeminiResult> => {
+    let last: GeminiResult = { ok: false, retryable: true, error: "Gemini tardó demasiado en responder" }
+    for (let i = 0; i < RETRY_DELAYS.length; i++) {
+      if (RETRY_DELAYS[i]) await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]))
+      const remaining = deadline - Date.now()
+      if (remaining < 10_000) break
+      last = await callGemini(models[i % models.length], parts, Math.min(maxCallMs, remaining))
+      if (last.ok || !last.retryable) return last
+    }
+    return last
+  }
+
+  // Un CSV largo en UNA sola llamada obligaba a Gemini a generar todos los
+  // movimientos de golpe, y con el modelo lento eso pasaba de los 165s que
+  // había antes ("The operation was aborted due to timeout", 4 Oct 2026).
+  // Ahora el CSV se parte en fragmentos de CSV_CHUNK_ROWS filas que se
+  // procesan en paralelo: cada llamada tarda segundos, y si una falla se
+  // reintenta solo esa. El PDF no se puede partir así (Gemini lo lee
+  // entero), así que va en una sola llamada con los mismos reintentos.
+  const CSV_CHUNK_ROWS = 80
+  const CSV_MAX_CHUNKS = 12
+  const CONCURRENCY = 4
+
+  let jobs: { parts: unknown[]; label: string }[]
+  if (isPdf) {
+    jobs = [{ parts: [{ text: pdfPrompt }, { inlineData: { mimeType: "application/pdf", data: pdfBase64 } }], label: "" }]
+  } else {
+    // Las filas de movimientos empiezan en la primera línea con algo que
+    // parezca una fecha (01/10/2026, 2026-10-01, 1.10.26...). Lo de antes es
+    // cabecera/datos de la cuenta (CommBank, por ejemplo, no tiene cabecera
+    // y empieza directamente en el primer movimiento).
+    const lines = csv.split(/\r?\n/).filter((l) => l.trim())
+    const datePattern = /\b\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}\b/
+    const first = lines.slice(0, 20).findIndex((l) => datePattern.test(l))
+
+    if (first < 0) {
+      // Formato raro sin fechas reconocibles: se manda entero, como antes.
+      jobs = [{ parts: [{ text: csvPrompt("", lines.join("\n"), "") }], label: "" }]
+    } else {
+      const preamble = lines.slice(0, first).join("\n")
+      const rows = lines.slice(first)
+      const total = Math.ceil(rows.length / CSV_CHUNK_ROWS)
+      if (total > CSV_MAX_CHUNKS) {
+        return NextResponse.json(
+          {
+            error:
+              `El CSV tiene demasiados movimientos (${rows.length}) para importarlo de una vez. ` +
+              `Pruébalo por partes (por ejemplo, un extracto por trimestre).`,
+          },
+          { status: 400 },
+        )
+      }
+      jobs = Array.from({ length: total }, (_, i) => {
+        const part = total > 1 ? ` (fragmento ${i + 1} de ${total})` : ""
+        const chunk = rows.slice(i * CSV_CHUNK_ROWS, (i + 1) * CSV_CHUNK_ROWS).join("\n")
+        return { parts: [{ text: csvPrompt(preamble, chunk, part) }], label: total > 1 ? ` (fragmento ${i + 1} de ${total})` : "" }
+      })
+    }
+  }
+
+  try {
+    // Fragmentos en paralelo, como mucho CONCURRENCY a la vez para no
+    // disparar el límite de peticiones por minuto de la capa gratuita.
+    // Cada llamada se corta a los 75s: con 80 filas sobra, y así quedan
+    // segundos para reintentar dentro del deadline.
+    const maxCallMs = isPdf ? 165_000 : 75_000
+    const results: GeminiResult[] = new Array(jobs.length)
+    let next = 0
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, async () => {
+        while (next < jobs.length) {
+          const i = next++
+          results[i] = await extract(jobs[i].parts, maxCallMs)
+        }
+      }),
+    )
+
+    // Si falla un fragmento se devuelve error en vez de una importación a
+    // medias: así el usuario reintenta el archivo entero y la detección de
+    // duplicados del cliente se encarga de lo que ya estuviera.
+    const failed = results.findIndex((r) => !r.ok)
+    if (failed >= 0) {
+      const r = results[failed] as Extract<GeminiResult, { ok: false }>
       return NextResponse.json(
-        { error: `La IA no devolvió los movimientos en el formato esperado${reasonHint}.` },
+        { error: `No se pudo leer el ${isPdf ? "PDF" : "CSV"} con la IA${jobs[failed].label}: ${r.error}.` },
         { status: 502 },
       )
     }
-
+    const transactions = results.flatMap((r) => (r.ok ? r.transactions : []))
     // Validación básica de cada fila antes de devolverla — así un movimiento
     // mal formado no tumba la importación entera ni acaba guardado a medias.
     type ValidRow = { date: string; description: string; amount: number; category: string; currency?: string }
