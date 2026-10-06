@@ -3,7 +3,6 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Card } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Check,
@@ -23,7 +22,7 @@ import {
   MessageSquare,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { CURRENCIES, SHIFT_RATE_MULTIPLIER, currencySymbol } from "@/lib/types"
+import { CURRENCIES } from "@/lib/types"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/use-auth"
 import { LANGUAGES, weekdayLabel, type Language } from "@/lib/i18n"
