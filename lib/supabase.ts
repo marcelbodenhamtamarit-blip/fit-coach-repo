@@ -34,23 +34,11 @@ export type UserPreferencesRow = {
   // 0=domingo...6=sábado (Date.getDay()). Ver lib/week.ts y Ajustes >
   // Preferencias > Inicio de semana.
   week_start_day: number | null
-  // Ver Ajustes > Turnos y lib/shifts-store.tsx.
+  // Restos de Turnos (quitado el 1 Oct 2026). Las columnas siguen en la
+  // tabla y lib/store.tsx las lee; se retiran con el issue #14.
   shift_hourly_rate: number | null
   shift_tax_pct: number | null
   updated_at: string
-}
-
-export type ShiftRow = {
-  id: string
-  date: string
-  start_time: string | null
-  end_time: string | null
-  hours: number
-  shift_type: string
-  status: string
-  notes: string | null
-  transaction_id: string | null
-  created_at: string
 }
 
 export type RecurringTransactionRow = {
@@ -62,49 +50,6 @@ export type RecurringTransactionRow = {
   frequency: string
   pay_day: number | null
   last_created_month: string | null
-  created_at: string
-}
-
-export type ProfileRow = {
-  id: number
-  name: string
-  calorie_goal: number
-  protein_goal: number
-  weight_goal: number
-  updated_at: string
-}
-
-export type PantryItemRow = {
-  id: string
-  name: string
-  quantity_grams: number
-  calories_per_100g: number
-  protein_per_100g: number
-  carbs_per_100g: number
-  fat_per_100g: number
-  price_per_kg: number
-  woolworths_url: string | null
-  date_added: string
-  created_at: string
-}
-
-export type BodyMetricRow = {
-  id: string
-  date: string
-  weight: number
-  body_fat: number | null
-  waist: number | null
-  created_at: string
-}
-
-export type MealRow = {
-  id: string
-  date: string
-  total_calories: number
-  total_protein: number
-  total_carbs: number
-  total_fat: number
-  total_cost: number
   created_at: string
 }
 
@@ -137,26 +82,4 @@ export type AutomationEventRow = {
   push_sent: boolean
   popup_seen: boolean
   created_at: string
-}
-
-export type PushSubscriptionRow = {
-  id: string
-  endpoint: string
-  p256dh: string
-  auth: string
-  user_agent: string | null
-  created_at: string
-}
-
-export type MealIngredientRow = {
-  id: string
-  meal_id: string
-  name: string
-  quantity_grams: number
-  calories_per_100g: number
-  protein_per_100g: number
-  carbs_per_100g: number
-  fat_per_100g: number
-  price_per_kg: number
-  woolworths_url: string | null
 }
