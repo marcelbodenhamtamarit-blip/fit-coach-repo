@@ -97,10 +97,10 @@ export type AppData = {
   // un recurrente semanal. Por defecto domingo, para no cambiar el
   // comportamiento de nadie que no toque este ajuste (ver lib/week.ts).
   weekStartDay: number
-  // Tarifa por hora del turno normal y % de impuestos a estimar al marcar
-  // un turno como cobrado (ver Ajustes > Turnos y lib/shifts-store.tsx). La
-  // tarifa de sábado/domingo no se guarda aparte: se calcula multiplicando
-  // esta misma por SHIFT_RATE_MULTIPLIER.
+  // Restos de Turnos (quitado el 1 Oct 2026): la pantalla y los helpers de
+  // cálculo ya no existen. Los campos siguen aquí porque lib/store.tsx los
+  // lee y escribe en user_preferences. Se retiran junto con el issue #14
+  // (tarifa y divisa por usuario).
   shiftHourlyRate: number
   shiftTaxPct: number
 }
@@ -159,67 +159,6 @@ export type AutomationEvent = {
   pushSent: boolean
   popupSeen: boolean
   createdAt: string
-}
-
-// ---------- Turnos (calendario de turnos estilo Homebase) ----------
-// Cada turno guarda cuántas horas se trabajaron un día y a qué tarifa le
-// corresponden (normal/sábado/domingo — ver SHIFT_RATE_MULTIPLIER).
-// Mientras no se ha cobrado vive solo como plan; al marcarlo como
-// "cobrado" se genera una transacción de ingreso real en Economía (ver
-// lib/shifts-store.tsx) y transactionId queda enlazado con ella, para
-// poder borrarla si el turno se desmarca o se elimina.
-
-export const SHIFT_TYPES = ["normal", "sabado", "domingo"] as const
-export type ShiftType = (typeof SHIFT_TYPES)[number]
-
-export const SHIFT_STATUSES = ["planificado", "cobrado"] as const
-export type ShiftStatus = (typeof SHIFT_STATUSES)[number]
-
-// Recargo sobre shiftHourlyRate según el tipo de turno (convenio habitual:
-// sábado x1.5, domingo x2). Si algún día la tarifa real no encaja
-// exactamente con esto, se ajusta shiftHourlyRate en Ajustes > Turnos en
-// vez de tocar estos multiplicadores.
-export const SHIFT_RATE_MULTIPLIER: Record<ShiftType, number> = {
-  normal: 1,
-  sabado: 1.5,
-  domingo: 2,
-}
-
-export type Shift = {
-  id: string
-  date: string // ISO date yyyy-mm-dd
-  startTime: string | null // "HH:MM", opcional (solo para mostrar el horario)
-  endTime: string | null // "HH:MM", opcional
-  hours: number
-  shiftType: ShiftType
-  status: ShiftStatus
-  notes: string | null
-  transactionId: string | null // fila de `transactions` creada al marcar como cobrado
-}
-
-// Tipo de turno sugerido a partir del día de la semana de `dateISO`
-// (0=domingo...6=sábado, igual que Date.getDay()): domingo y sábado usan
-// recargo, el resto es turno normal. Es solo el valor de partida al crear
-// un turno nuevo — shiftType queda editable por si algún festivo entre
-// semana paga distinto.
-export function shiftTypeForDate(dateISO: string): ShiftType {
-  const day = new Date(dateISO + "T00:00:00").getDay()
-  if (day === 0) return "domingo"
-  if (day === 6) return "sabado"
-  return "normal"
-}
-
-export function shiftGrossPay(hours: number, shiftType: ShiftType, hourlyRate: number): number {
-  return hours * hourlyRate * SHIFT_RATE_MULTIPLIER[shiftType]
-}
-
-// Estimación de neto aplicando shiftTaxPct al bruto del turno. Solo es una
-// estimación (no hay un % de impuestos exacto único para todo el mundo —
-// ver el aviso en Ajustes > Turnos), por eso al marcar un turno como
-// cobrado este número aparece pre-rellenado pero editable, no se guarda a
-// ciegas.
-export function shiftNetPay(hours: number, shiftType: ShiftType, hourlyRate: number, taxPct: number): number {
-  return shiftGrossPay(hours, shiftType, hourlyRate) * (1 - taxPct / 100)
 }
 
 // Fecha de hoy en la zona horaria del dispositivo (Brisbane por defecto).
