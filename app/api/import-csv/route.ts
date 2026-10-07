@@ -12,6 +12,35 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 // acercarse al límite real de la plataforma.
 export const maxDuration = 180
 
+// Presupuesto total de tiempo para hablar con Gemini (intentos + esperas
+// entre reintentos). Queda por debajo de maxDuration (180s) para que la
+// función siempre pueda devolver un error legible en vez de que Vercel la
+// mate en seco.
+const GEMINI_BUDGET_MS = 170_000
+// Tiempo máximo de un solo intento (el original, antes de los reintentos).
+const GEMINI_ATTEMPT_TIMEOUT_MS = 165_000
+// Si queda menos que esto, ya no merece la pena lanzar otro intento.
+const GEMINI_MIN_ATTEMPT_MS = 20_000
+// Backoff creciente: 2s, 4s, 8s, 16s, 30s (tope), con ±25% de jitter para
+// no reintentar todos a la vez cuando Google está saturado.
+const RETRY_BASE_MS = 2_000
+const RETRY_CAP_MS = 30_000
+
+// 503 = "model is currently experiencing high demand": picos de Google que
+// pueden durar un minuto o más, así que ahí se insiste más. 429 y el resto
+// de 5xx se siguen reintentando una sola vez, como antes. Cualquier otro
+// error (clave inválida, modelo no encontrado...) no se reintenta.
+function maxRetriesFor(status: number): number {
+  if (status === 503) return 5
+  if (status === 429 || status >= 500) return 1
+  return 0
+}
+
+function retryDelayMs(retryIndex: number): number {
+  const base = Math.min(RETRY_CAP_MS, RETRY_BASE_MS * 2 ** retryIndex)
+  return Math.round(base * (0.75 + Math.random() * 0.5))
+}
+
 // Importar extracto bancario en CSV o PDF: el usuario sube el archivo tal
 // cual lo exportó su banco (CommBank, Revolut, el que sea) desde el botón
 // "Importar CSV o PDF" en Economía (ver economy-section.tsx). Cada banco usa
@@ -38,6 +67,9 @@ export const maxDuration = 180
 // prefiere evitarlo, la alternativa es un parser local por patrones (sin
 // mandar nada fuera) a costa de no cubrir bancos con formatos muy raros.
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now()
+  const budgetLeftMs = () => GEMINI_BUDGET_MS - (Date.now() - startedAt)
+
   const authHeader = req.headers.get("authorization") || ""
   const token = authHeader.replace(/^Bearer\s+/i, "").trim()
   if (!token) {
@@ -193,8 +225,9 @@ export async function POST(req: NextRequest) {
   const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
 
   // Llama a Gemini una vez. Se separa en su propia función para poder
-  // reintentar (ver más abajo) sin duplicar el fetch entero.
-  const callGemini = () =>
+  // reintentar (ver más abajo) sin duplicar el fetch entero. Recibe el
+  // tiempo máximo del intento para no pasarse del presupuesto total.
+  const callGemini = (timeoutMs: number) =>
     fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -238,33 +271,62 @@ export async function POST(req: NextRequest) {
           },
         },
       }),
-      // Deja margen por debajo de maxDuration (180s arriba) para que, si
-      // Gemini de verdad no responde, la función pueda devolver un error
-      // legible en vez de que Vercel la mate en seco sin dar ninguna
-      // respuesta al cliente.
-      signal: AbortSignal.timeout(165_000),
+      // El timeout de cada intento sale del presupuesto que queda (ver
+      // GEMINI_BUDGET_MS arriba), que deja margen por debajo de maxDuration
+      // (180s) para que, si Gemini de verdad no responde, la función pueda
+      // devolver un error legible en vez de que Vercel la mate en seco sin
+      // dar ninguna respuesta al cliente.
+      signal: AbortSignal.timeout(timeoutMs),
     })
 
   try {
-    let geminiRes = await callGemini()
+    let geminiRes = await callGemini(Math.min(GEMINI_ATTEMPT_TIMEOUT_MS, budgetLeftMs()))
 
     // Un fallo puntual de cuota/carga (429 o 5xx) es habitual en la capa
     // gratuita de Gemini y suele resolverse solo unos segundos después — así
-    // que antes de darlo por perdido se reintenta una vez. Un error "duro"
-    // (API key inválida, modelo no encontrado, etc. → 4xx que no sea 429) no
-    // se beneficia de reintentar, así que va directo al mensaje de error.
-    if (!geminiRes.ok && (geminiRes.status === 429 || geminiRes.status >= 500)) {
-      await new Promise((r) => setTimeout(r, 2000))
-      geminiRes = await callGemini()
+    // que antes de darlo por perdido se reintenta. Para el 503 ("high
+    // demand") se insiste hasta 5 veces con espera creciente y jitter; para
+    // 429 y otros 5xx, una sola vez. Un error "duro" (API key inválida,
+    // modelo no encontrado, etc. → 4xx que no sea 429) no se beneficia de
+    // reintentar, así que va directo al mensaje de error. Nunca se supera
+    // el presupuesto total de tiempo.
+    let retries = 0
+    while (!geminiRes.ok && retries < maxRetriesFor(geminiRes.status)) {
+      const waitMs = retryDelayMs(retries)
+      if (budgetLeftMs() < waitMs + GEMINI_MIN_ATTEMPT_MS) break
+      console.warn(
+        `[import-csv] Gemini ${geminiRes.status}, reintento ${retries + 1} en ${waitMs}ms ` +
+          `(presupuesto restante ${budgetLeftMs()}ms)`,
+      )
+      await geminiRes.body?.cancel().catch(() => {})
+      await new Promise((r) => setTimeout(r, waitMs))
+      retries++
+      geminiRes = await callGemini(Math.min(GEMINI_ATTEMPT_TIMEOUT_MS, budgetLeftMs()))
     }
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text().catch(() => "")
-      console.error("[import-csv] Gemini API error:", geminiRes.status, errText)
+      console.error("[import-csv] Gemini API error:", geminiRes.status, `tras ${retries} reintentos`, errText)
+
+      // 429 / 5xx (incluido el 503 de alta demanda) son temporales: el
+      // mensaje lo dice claro y no enseña el detalle técnico de Google (ya
+      // queda en los logs de Vercel).
+      if (geminiRes.status === 429 || geminiRes.status >= 500) {
+        return NextResponse.json(
+          {
+            error:
+              `La IA de Google tiene mucha demanda ahora mismo y no pudo leer el ${isPdf ? "PDF" : "CSV"}. ` +
+              `Es algo temporal y no se ha guardado nada. Vuelve a intentarlo en unos minutos.`,
+            retryable: true,
+          },
+          { status: 502, headers: { "Retry-After": "120" } },
+        )
+      }
+
       // Se manda un fragmento del error real de Gemini en vez de un mensaje
       // genérico: así, si vuelve a fallar, el aviso que se ve en pantalla ya
-      // dice por qué (cuota agotada, modelo retirado, clave inválida...) sin
-      // tener que ir a mirar los logs de Vercel.
+      // dice por qué (modelo retirado, clave inválida...) sin tener que ir
+      // a mirar los logs de Vercel.
       return NextResponse.json(
         {
           error:
