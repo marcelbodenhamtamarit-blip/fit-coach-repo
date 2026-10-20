@@ -412,9 +412,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fromCode: string,
     toCode: string,
   ): Promise<{ transactionsConverted: number; recurringConverted: number; failed: number }> => {
-    const from = fromCode.toUpperCase()
     const to = toCode.toUpperCase()
-    if (from === to) return { transactionsConverted: 0, recurringConverted: 0, failed: 0 }
+
+    // BUG CORREGIDO (20 oct 2026): antes `from` se tomaba tal cual del
+    // estado local (`data.homeCurrency`), que puede estar desfasado —por
+    // ejemplo si la pantalla se recargó a mitad de una conversión anterior
+    // antes de que terminara de guardar, o si se pulsó "Confirmar" dos
+    // veces porque la primera vez pareció no haberse guardado—. Como cada
+    // transacción sin `currency` propio se reconvertía a partir de su
+    // `amount` actual (ya mutado por la conversión anterior, no de un
+    // importe original estable), repetir la llamada con un `from` que ya
+    // no era real volvía a aplicar el cambio sobre números que ya estaban
+    // convertidos, encogiéndolos de nuevo. Para que esto sea imposible,
+    // ahora se relee la divisa principal real desde Supabase (nunca el
+    // estado local) justo antes de convertir, y si ya coincide con `to` no
+    // se toca ni un importe: se trata como éxito inmediato (ya estaba
+    // hecho) en vez de volver a correr la conversión.
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) {
+      throw new Error("No hay sesión activa")
+    }
+    const { data: prefsRow, error: prefsError } = await supabase
+      .from("user_preferences")
+      .select("home_currency")
+      .eq("user_id", userId)
+      .maybeSingle()
+    if (prefsError) {
+      throw new Error(`No se pudo confirmar la divisa actual: ${prefsError.message}`)
+    }
+    const actualFrom = (prefsRow?.home_currency ?? fromCode).toUpperCase()
+
+    if (actualFrom === to) {
+      // Ya está en la divisa pedida de verdad (servidor), aunque la
+      // pantalla todavía mostrara la antigua: solo sincroniza el estado
+      // local, sin recalcular ni un importe.
+      setHomeCurrency(toCode)
+      return { transactionsConverted: 0, recurringConverted: 0, failed: 0 }
+    }
+
+    const from = actualFrom
 
     // Tasas necesarias: la divisa principal antigua, y cada divisa distinta
     // en la que haya alguna transacción guardada con su importe original.
