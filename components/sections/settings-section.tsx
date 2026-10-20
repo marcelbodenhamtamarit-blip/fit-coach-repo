@@ -207,10 +207,20 @@ function AccountCard() {
 // dentro de una sola tarjeta en vez de dos tarjetas casi idénticas
 // repitiendo icono + título + descripción.
 function PreferencesCard() {
-  const { data, ready, setHomeCurrency, setLanguage, setWeekStartDay, t } = useStore()
+  const { data, ready, convertHomeCurrency, setLanguage, setWeekStartDay, t } = useStore()
   const lang = (data.language as Language) ?? "es"
   const weekStartDay = data.weekStartDay ?? 0
   const [savedField, setSavedField] = useState<"currency" | "language" | "weekStartDay" | null>(null)
+
+  // Cambiar la divisa principal es dos pasos a propósito: el <select> solo
+  // propone el cambio (pendingCurrency), y hace falta confirmar aparte
+  // antes de disparar convertHomeCurrency — que reescribe de verdad el
+  // importe de cada transacción guardada, así que no debería poder pasar
+  // sin querer con un solo clic en un desplegable.
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null)
+  const [converting, setConverting] = useState(false)
+  const [convertResult, setConvertResult] = useState<string | null>(null)
+  const [convertError, setConvertError] = useState<string | null>(null)
 
   function flash(field: "currency" | "language" | "weekStartDay") {
     setSavedField(field)
@@ -218,8 +228,42 @@ function PreferencesCard() {
   }
 
   function handleCurrencyChange(code: string) {
-    setHomeCurrency(code)
-    flash("currency")
+    setConvertResult(null)
+    setConvertError(null)
+    if (code === data.homeCurrency) {
+      setPendingCurrency(null)
+      return
+    }
+    setPendingCurrency(code)
+  }
+
+  function cancelCurrencyChange() {
+    setPendingCurrency(null)
+  }
+
+  async function confirmCurrencyChange() {
+    if (!pendingCurrency) return
+    const fromCode = data.homeCurrency
+    const toCode = pendingCurrency
+    setConverting(true)
+    setConvertError(null)
+    try {
+      const result = await convertHomeCurrency(fromCode, toCode)
+      if (result.failed > 0) {
+        setConvertError(t("settings.currencyChangeError"))
+      } else {
+        setConvertResult(
+          t("settings.currencyChangeSuccess", { count: result.transactionsConverted, to: toCode }),
+        )
+        flash("currency")
+      }
+    } catch (err) {
+      console.error("[settings] convertHomeCurrency error:", err)
+      setConvertError(t("settings.currencyChangeError"))
+    } finally {
+      setConverting(false)
+      setPendingCurrency(null)
+    }
   }
 
   function handleLanguageChange(code: string) {
@@ -239,8 +283,8 @@ function PreferencesCard() {
           <p className="text-sm font-medium">{t("settings.homeCurrency")}</p>
           <p className="mb-2 text-xs text-muted-foreground">{t("settings.homeCurrencyDesc")}</p>
           <select
-            value={data.homeCurrency}
-            disabled={!ready}
+            value={pendingCurrency ?? data.homeCurrency}
+            disabled={!ready || converting}
             onChange={(e) => handleCurrencyChange(e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
@@ -250,7 +294,42 @@ function PreferencesCard() {
               </option>
             ))}
           </select>
-          {savedField === "currency" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+
+          {pendingCurrency && !converting && (
+            <div className="mt-2 space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5">
+              <p className="text-xs text-foreground">
+                {t("settings.currencyChangeConfirmTitle")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {t("settings.currencyChangeConfirmBody", {
+                  from: data.homeCurrency,
+                  to: pendingCurrency,
+                  count: data.transactions.length,
+                })}
+              </p>
+              <div className="flex gap-2">
+                <Button onClick={confirmCurrencyChange} className="h-7 px-2.5 text-xs">
+                  {t("settings.currencyChangeConfirmButton")}
+                </Button>
+                <Button onClick={cancelCurrencyChange} variant="outline" className="h-7 px-2.5 text-xs">
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {converting && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <RefreshCw className="size-3 animate-spin" />
+              {t("settings.currencyChangeConverting")}
+            </p>
+          )}
+
+          {convertError && <p className="mt-1.5 text-[11px] text-red-500">{convertError}</p>}
+          {convertResult && <p className="mt-1.5 text-[11px] text-emerald-500">{convertResult}</p>}
+          {savedField === "currency" && !convertResult && (
+            <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>
+          )}
         </div>
 
         <div className="p-3">
