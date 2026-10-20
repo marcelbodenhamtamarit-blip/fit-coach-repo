@@ -38,6 +38,7 @@ export function LoginScreen() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [inviteCode, setInviteCode] = useState("")
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState("")
   const [info, setInfo] = useState("")
   const [loading, setLoading] = useState(false)
@@ -57,6 +58,10 @@ export function LoginScreen() {
 
     if (INVITE_CODE && inviteCode.trim() !== INVITE_CODE) {
       setError(tr("login.wrongInvite"))
+      return
+    }
+    if (!acceptedTerms) {
+      setError(tr("login.mustAcceptTerms"))
       return
     }
     if (password.length < 6) {
@@ -85,6 +90,14 @@ export function LoginScreen() {
 
   async function handleGoogle() {
     setError("")
+    // El botón de Google es el mismo para entrar y para crear cuenta (no
+    // sabemos de antemano si ese email ya existe). Si la persona está en la
+    // pestaña "Crear cuenta", exigimos el mismo consentimiento que en el
+    // formulario de email/contraseña antes de abrir el popup de Google.
+    if (view === "signup" && !acceptedTerms) {
+      setError(tr("login.mustAcceptTerms"))
+      return
+    }
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
@@ -179,9 +192,28 @@ export function LoginScreen() {
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
           )}
+          {view === "signup" && (
+            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-0.5 size-3.5 shrink-0 rounded border-border accent-foreground"
+              />
+              <span>
+                <a href="/legal" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                  {tr("login.acceptTerms")}
+                </a>
+              </span>
+            </label>
+          )}
           {error && <p className="text-xs text-red-500">{error}</p>}
           {info && <p className="text-xs text-emerald-500">{info}</p>}
-          <Button onClick={submit} disabled={loading || !email || !password} className="w-full">
+          <Button
+            onClick={submit}
+            disabled={loading || !email || !password || (view === "signup" && !acceptedTerms)}
+            className="w-full"
+          >
             {loading ? tr("login.wait") : view === "login" ? tr("login.enter") : tr("login.signUp")}
           </Button>
         </div>
