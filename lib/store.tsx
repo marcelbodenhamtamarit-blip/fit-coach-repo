@@ -22,6 +22,7 @@ import {
   type RecurringTransactionRow,
 } from "./supabase"
 import { useAuth } from "./use-auth"
+import { getExchangeRates } from "./exchange-rates"
 
 // Clave del periodo actual para una plantilla recurrente: "YYYY-MM" si es
 // mensual, "YYYY-Www" si es semanal. Se usa para saber si ya se generó la
@@ -234,6 +235,16 @@ type StoreContextType = {
   reviewOpen: boolean
   dismissReview: () => void
   setHomeCurrency: (code: string) => void
+  // A diferencia de setHomeCurrency (que solo cambia la etiqueta a partir
+  // de ahora), esto reconvierte de verdad todo lo ya guardado — cada
+  // transacción y cada plantilla recurrente — de `fromCode` a `toCode`,
+  // usando el tipo de cambio de hoy. Devuelve cuántas filas se
+  // convirtieron y cuántas fallaron; solo actualiza la divisa principal si
+  // no hubo ningún fallo.
+  convertHomeCurrency: (
+    fromCode: string,
+    toCode: string,
+  ) => Promise<{ transactionsConverted: number; recurringConverted: number; failed: number }>
   setLanguage: (code: string) => void
   setTravelMode: (active: boolean, currency: string) => void
   setWeekStartDay: (day: number) => void
@@ -374,6 +385,115 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.error("[supabase] setHomeCurrency error:", error.message)
       }
     })()
+  }
+
+  // Reconversión real de todo lo guardado al cambiar de divisa principal
+  // "para siempre" (distinto de modo viaje, que es temporal y nunca toca
+  // datos ya guardados — ver setTravelMode). `amount` de cada transacción
+  // y cada plantilla recurrente queda siempre en home_currency, así que
+  // cambiar la divisa sin recalcular esos números dejaría el mismo número
+  // con un símbolo distinto (p.ej. $100 pasaría a mostrarse como "€100" en
+  // vez de convertirse a ~€61). Esto recalcula cada número con el tipo de
+  // cambio de hoy antes de guardar la nueva divisa principal.
+  //
+  // Para las transacciones que ya se registraron en otra divisa distinta
+  // de la principal (currency/originalAmount presentes — p.ej. un gasto en
+  // EUR hecho en modo viaje), se reconvierte directamente desde esa divisa
+  // original a la nueva, que es más preciso que pasar por la divisa
+  // principal antigua. Para el resto, se convierte de la antigua divisa
+  // principal a la nueva.
+  //
+  // Limitación conocida: lib/exchange-rates.ts no guarda tipos de cambio
+  // históricos por fecha, solo el de "hoy" — así que esto usa el tipo de
+  // cambio actual para todo el historial, no el que había el día de cada
+  // transacción. Es una aproximación, pero muchísimo más correcta que solo
+  // cambiar el símbolo.
+  const convertHomeCurrency = async (
+    fromCode: string,
+    toCode: string,
+  ): Promise<{ transactionsConverted: number; recurringConverted: number; failed: number }> => {
+    const from = fromCode.toUpperCase()
+    const to = toCode.toUpperCase()
+    if (from === to) return { transactionsConverted: 0, recurringConverted: 0, failed: 0 }
+
+    // Tasas necesarias: la divisa principal antigua, y cada divisa distinta
+    // en la que haya alguna transacción guardada con su importe original.
+    const neededBases = new Set<string>([from])
+    for (const tx of data.transactions) {
+      if (tx.currency) neededBases.add(tx.currency.toUpperCase())
+    }
+
+    const ratesByBase: Record<string, Record<string, number>> = {}
+    for (const base of neededBases) {
+      if (base === to) continue
+      ratesByBase[base] = await getExchangeRates(base, supabase)
+    }
+
+    function rateFrom(base: string): number {
+      const b = base.toUpperCase()
+      if (b === to) return 1
+      const rate = ratesByBase[b]?.[to]
+      if (typeof rate !== "number" || !isFinite(rate)) {
+        throw new Error(`No hay tipo de cambio de ${b} a ${to}`)
+      }
+      return rate
+    }
+
+    const txUpdates = data.transactions.map((tx) => {
+      const base = tx.currency ?? from
+      const sourceAmount = tx.currency && tx.originalAmount != null ? tx.originalAmount : tx.amount
+      return { id: tx.id, newAmount: sourceAmount * rateFrom(base) }
+    })
+    const recUpdates = data.recurring.map((r) => ({ id: r.id, newAmount: r.amount * rateFrom(from) }))
+
+    const CHUNK_SIZE = 25
+    async function applyUpdates(
+      table: "transactions" | "recurring_transactions",
+      updates: { id: string; newAmount: number }[],
+    ): Promise<number> {
+      let failed = 0
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        const chunk = updates.slice(i, i + CHUNK_SIZE)
+        const results = await Promise.all(
+          chunk.map(({ id, newAmount }) => supabase.from(table).update({ amount: newAmount }).eq("id", id)),
+        )
+        for (const r of results) {
+          if (r.error) {
+            console.error(`[supabase] convertHomeCurrency ${table} update error:`, r.error.message)
+            failed++
+          }
+        }
+      }
+      return failed
+    }
+
+    const txFailed = await applyUpdates("transactions", txUpdates)
+    const recFailed = await applyUpdates("recurring_transactions", recUpdates)
+
+    // Solo se actualiza la divisa principal si no hubo ningún fallo, para
+    // no dejar la app mostrando una divisa nueva con números a medio
+    // convertir.
+    if (txFailed === 0 && recFailed === 0) {
+      setHomeCurrency(toCode)
+    }
+
+    setData((d) => ({
+      ...d,
+      transactions: d.transactions.map((tx) => {
+        const match = txUpdates.find((u) => u.id === tx.id)
+        return match ? { ...tx, amount: match.newAmount } : tx
+      }),
+      recurring: d.recurring.map((r) => {
+        const match = recUpdates.find((u) => u.id === r.id)
+        return match ? { ...r, amount: match.newAmount } : r
+      }),
+    }))
+
+    return {
+      transactionsConverted: txUpdates.length - txFailed,
+      recurringConverted: recUpdates.length - recFailed,
+      failed: txFailed + recFailed,
+    }
   }
 
   const setLanguage = (code: string) => {
@@ -678,6 +798,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         reviewOpen,
         dismissReview,
         setHomeCurrency,
+        convertHomeCurrency,
         setLanguage,
         setTravelMode,
         setWeekStartDay,

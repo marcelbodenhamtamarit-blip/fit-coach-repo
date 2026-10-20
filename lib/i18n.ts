@@ -97,6 +97,15 @@ export const TRANSLATIONS = {
     es: "Esta aplicación es de uso personal: solo esa cuenta puede entrar. Si has iniciado sesión y ves este mensaje, se te ha cerrado la sesión automáticamente.",
     en: "This app is for personal use only: only that account can sign in. If you just signed in and see this message, your session was closed automatically.",
   },
+  // Checkbox de consentimiento obligatorio al crear cuenta, enlaza a /legal.
+  "login.acceptTerms": {
+    es: "He leído y acepto los Términos y la Política de Privacidad",
+    en: "I have read and accept the Terms and Privacy Policy",
+  },
+  "login.mustAcceptTerms": {
+    es: "Tienes que aceptar los Términos y la Política de Privacidad para crear una cuenta",
+    en: "You need to accept the Terms and Privacy Policy to create an account",
+  },
 
   // Resumen (overview)
   "overview.spent": { es: "Gastado", en: "Spent" },
@@ -259,6 +268,26 @@ export const TRANSLATIONS = {
     en: "All your totals and summaries are shown in this currency. If you record an expense in another one (say, while traveling), it's converted automatically using today's exchange rate.",
   },
   "settings.saved": { es: "Guardado.", en: "Saved." },
+  // Confirmación antes de reconvertir todo el historial al cambiar de
+  // divisa principal "para siempre" (ver lib/store.tsx convertHomeCurrency).
+  "settings.currencyChangeConfirmTitle": {
+    es: "¿Convertir también lo ya guardado?",
+    en: "Convert what's already saved too?",
+  },
+  "settings.currencyChangeConfirmBody": {
+    es: "Vas a cambiar tu divisa principal de {from} a {to}. Esto recalcula los {count} movimientos que ya tienes guardados (y tus recurrentes) con el tipo de cambio de hoy — no solo cambia el símbolo. No es una conversión exacta día a día, y si más adelante cambias de divisa otra vez, se usará el tipo de cambio de ese momento.",
+    en: "You're about to change your main currency from {from} to {to}. This recalculates the {count} transactions you already have saved (and your recurring ones) using today's exchange rate — not just the symbol. It isn't an exact day-by-day conversion, and if you change currency again later, that change will use the rate at that time.",
+  },
+  "settings.currencyChangeConfirmButton": { es: "Convertir y cambiar", en: "Convert and switch" },
+  "settings.currencyChangeConverting": { es: "Convirtiendo tus movimientos...", en: "Converting your transactions..." },
+  "settings.currencyChangeSuccess": {
+    es: "Listo: {count} movimientos convertidos a {to}.",
+    en: "Done: {count} transactions converted to {to}.",
+  },
+  "settings.currencyChangeError": {
+    es: "Algo falló al convertir y no se ha cambiado la divisa principal. Vuelve a intentarlo.",
+    en: "Something failed while converting, so the main currency wasn't changed. Please try again.",
+  },
   "settings.language": { es: "Idioma", en: "Language" },
   "settings.languageDesc": {
     es: "Elige en qué idioma quieres ver la app.",
