@@ -264,9 +264,9 @@ export function Dashboard() {
             // vez de un cambio seco.
             <div key={active} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
               {active === "overview" && (
-                <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} />
+                <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} redesign={isRedesign} />
               )}
-              {active === "economy" && <EconomySection autoOpenSignal={addSignal} />}
+              {active === "economy" && <EconomySection autoOpenSignal={addSignal} redesign={isRedesign} />}
               {active === "winterarc" && <WinterArcSection />}
               {active === "settings" && <SettingsSection />}
             </div>
