@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Activity,
   Settings,
@@ -21,6 +21,12 @@ import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
 import { AutomationPopup } from "@/components/automation-popup"
 import { LogOut } from "lucide-react"
 import { isPushSupported, getNotificationPermission, subscribeToPush, needsHomeScreenInstall } from "@/lib/push"
+import { isRedesignBetaUser } from "@/lib/redesign-beta"
+import { breakdownForMonth } from "@/lib/timmy-insights"
+import { TreeSheet, type PlanLine } from "@/components/tree-sheet"
+import { TimmyDrawer } from "@/components/timmy-drawer"
+import { supabase } from "@/lib/supabase"
+import { todayISO } from "@/lib/types"
 
 type Tab = {
   id: string
@@ -47,8 +53,46 @@ export function Dashboard() {
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
-  const { ready, t } = useStore()
+  const { ready, t, data } = useStore()
   const { mode, user, signOut } = useAuth()
+
+  // Árbol de Gastos + IA Timmy: la "nueva versión" del dock, visible solo
+  // para la cuenta de lib/redesign-beta.ts mientras se prueba — el resto de
+  // usuarios ve exactamente el dock y las pantallas de siempre, sin cambios.
+  const isRedesign = isRedesignBetaUser(user?.email)
+  const [treeOpen, setTreeOpen] = useState(false)
+  const [timmyOpen, setTimmyOpen] = useState(false)
+  const monthBreakdown = useMemo(
+    () => breakdownForMonth(data.transactions ?? [], todayISO().slice(0, 7)),
+    [data.transactions],
+  )
+  const [plan, setPlan] = useState<{ lines: PlanLine[]; summary: string } | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const requestPlan = async () => {
+    if (plan || planLoading || monthBreakdown.categories.length === 0) return
+    setPlanLoading(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) return
+      const res = await fetch("/api/timmy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          mode: "plan",
+          income: monthBreakdown.income,
+          expense: monthBreakdown.expense,
+          categories: monthBreakdown.categories.map((c) => ({ category: c.category, amount: c.amount })),
+        }),
+      })
+      const json = await res.json()
+      if (Array.isArray(json.lines)) setPlan({ lines: json.lines, summary: json.summary ?? "" })
+    } catch (err) {
+      console.error("[timmy] plan error", err)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
 
   // Fondo con degradado: en vez de "background-attachment: fixed" (poco
   // fiable en iOS Safari — muchas versiones lo ignoran y lo tratan como si
@@ -153,6 +197,25 @@ export function Dashboard() {
               </button>
             )
           })}
+
+          {isRedesign && (
+            <>
+              <button
+                onClick={() => setTreeOpen(true)}
+                className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#a3e635] transition-all duration-200 hover:bg-[#a3e635]/10 active:scale-[0.98]"
+              >
+                <span className="text-base">🌳</span>
+                Árbol de Gastos
+              </button>
+              <button
+                onClick={() => setTimmyOpen(true)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#c084fc] transition-all duration-200 hover:bg-[#c084fc]/10 active:scale-[0.98]"
+              >
+                <span className="text-base">✨</span>
+                IA Timmy
+              </button>
+            </>
+          )}
         </nav>
       </aside>
 
@@ -213,7 +276,62 @@ export function Dashboard() {
 
       {/* Bottom nav (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
-        {TABS.map((tab) => {
+        {TABS.slice(0, 2).map((tab) => {
+          const Icon = tab.icon
+          const isActive = active === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActive(tab.id)}
+              className={cn(
+                "flex flex-1 flex-col items-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-all duration-200 active:scale-95",
+                isActive ? "bg-primary/10 text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Icon className="size-5" />
+              {tab.label}
+            </button>
+          )
+        })}
+
+        {/* Árbol de Gastos + IA Timmy: ambos elevados y con brillo — a
+            propósito ninguno de los dos es "solo un icono más" del dock, los
+            dos destacan igual (petición explícita: que Timmy destaque como
+            el árbol). Solo para la cuenta beta del rediseño. */}
+        {isRedesign && (
+          <>
+            <button
+              type="button"
+              onClick={() => setTreeOpen(true)}
+              aria-label="Ver árbol de gastos"
+              className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px] text-[21px]"
+              style={{
+                borderColor: "oklch(0.185 0.013 250)",
+                background: "linear-gradient(135deg, #4ade80, #a3e635)",
+                boxShadow: "0 8px 20px rgba(163,230,53,0.45)",
+                animation: "tmyPulseGlow 2.6s ease-in-out infinite",
+              }}
+            >
+              🌳
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimmyOpen(true)}
+              aria-label="Apartado IA Timmy"
+              className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px]"
+              style={{
+                borderColor: "oklch(0.185 0.013 250)",
+                background: "radial-gradient(circle at 32% 28%, #f3e8ff, #c084fc 55%, #7e22ce 100%)",
+                boxShadow: "0 8px 20px rgba(168,85,247,0.5)",
+                animation: "tmyPulseGlowPurple 2.6s ease-in-out infinite",
+              }}
+            >
+              <span className="text-[20px]">✨</span>
+            </button>
+          </>
+        )}
+
+        {TABS.slice(2).map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (
@@ -231,6 +349,37 @@ export function Dashboard() {
           )
         })}
       </nav>
+
+      {isRedesign && (
+        <>
+          <TreeSheet
+            open={treeOpen}
+            onClose={() => setTreeOpen(false)}
+            categories={monthBreakdown.categories}
+            income={monthBreakdown.income}
+            expense={monthBreakdown.expense}
+            homeCurrency={data.homeCurrency}
+            planLines={plan?.lines ?? null}
+            planSummary={plan?.summary ?? null}
+            onOpenTimmy={() => {
+              setTreeOpen(false)
+              setTimmyOpen(true)
+            }}
+          />
+          <TimmyDrawer
+            open={timmyOpen}
+            onClose={() => setTimmyOpen(false)}
+            categories={monthBreakdown.categories}
+            income={monthBreakdown.income}
+            expense={monthBreakdown.expense}
+            homeCurrency={data.homeCurrency}
+            planLines={plan?.lines ?? null}
+            planSummary={plan?.summary ?? null}
+            planLoading={planLoading}
+            onRequestPlan={requestPlan}
+          />
+        </>
+      )}
     </>
   )
 
