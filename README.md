@@ -148,10 +148,17 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 
 - Dark theme, background `#0d0d0f`, green accent (`--primary: oklch(0.85 0.19 135)`, ≈ `#95e85f`)
 - Mobile first, all text in Spanish
-- Amounts always show `$` with 2 decimals, `-` for gastos and `+` for ganancias
+- Amounts always show 2 decimals with `-` for gastos and `+` for ganancias, prefixed with the symbol for the user's own `home_currency` (`currencySymbol()` in `lib/types.ts` — see "Multi-divisa" above), not a hardcoded `$`
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 21 Oct 2026 — Pulido PWA móvil (dock, teclado numérico, háptica, swipe-to-close)
+- **Dock inferior**: el bottom nav de `components/dashboard.tsx` (ya existía para todas las cuentas, con los botones elevados de Árbol/Timmy solo en la beta) ahora respeta la zona segura del teléfono (`env(safe-area-inset-bottom)`, home indicator de iPhone / barra de gestos de Android) en vez de pegarse al borde físico, y da una micro-vibración al cambiar de pestaña o abrir Árbol/Timmy (`navigator.vibrate`, no-op en navegadores sin soporte). El contenido de cada pantalla (`<main>`) deja el mismo hueco de siempre más esa zona segura, para que nunca quede tapado por el dock.
+- **Teclado numérico inmediato al añadir gastos**: el campo de importe en el alta individual (`economy-section.tsx`) y en ambos formularios de alta en lote (`economy-section.tsx` y `batch-add-dialog.tsx`) llevan `inputMode="decimal"`, y el campo se enfoca solo al abrir el formulario (o al añadir una fila nueva en el alta en lote) — así se abre el teclado numérico grande sin un toque de más.
+- **Árbol de Gastos con gestos nativos**: `components/tree-sheet.tsx` vibra al tocar una rama (categoría) y ahora se puede cerrar arrastrando hacia abajo desde el tirador o la cabecera, además del botón X de siempre — ya no hace falta estirar el pulgar hasta la esquina superior derecha.
+- **CSS anti-rebote/anti-retardo** (`app/globals.css`): `overscroll-behavior-y: none` en html/body (quita el rebote elástico de "tirar para recargar" de Safari/Chrome — la app ya vive en su propia caja con scroll interno, ver `components/dashboard.tsx`, así que ese rebote del navegador no aportaba nada), `-webkit-tap-highlight-color: transparent` (quita el resaltado gris de iOS al tocar) y `touch-action: manipulation` en botones/enlaces (quita el retardo de ~300ms antes de un click en móvil). Nueva utilidad `.mobile-safe-bottom` reutilizable para cualquier contenido futuro que viva pegado a un dock/barra inferior fija.
+- **Divisa**: no se tocó nada aquí a propósito — los importes ya se muestran siempre con el símbolo de `home_currency` de cada cuenta (`currencySymbol()`), nunca un `$` fijo en el código, así que forzar `€` a mano habría roto la pantalla para cualquier otra cuenta en AUD/RON/etc. En cuanto conviertas tu propia cuenta a EUR desde Ajustes (ver "Multi-divisa" arriba), todo pasa a mostrarse en € solo, sin tocar código.
 
 ### 21 Oct 2026 — Vista previa del rediseño (Árbol de Gastos + Timmy IA)
 - New beta-only screens: see "Vista previa del rediseño" above. New files: `lib/redesign-beta.ts`, `lib/timmy-insights.ts`, `components/tree-sheet.tsx`, `components/timmy-drawer.tsx`, `app/api/timmy/route.ts`; `components/dashboard.tsx` extended. Visible only to the account in `REDESIGN_BETA_EMAILS`.
