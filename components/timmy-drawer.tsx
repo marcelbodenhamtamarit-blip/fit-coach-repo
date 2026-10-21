@@ -100,7 +100,7 @@ export function TimmyDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-sm lg:left-60"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="animate-in slide-in-from-bottom-4 fade-in duration-300 ease-out flex h-[88vh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#0c1115] shadow-2xl">
