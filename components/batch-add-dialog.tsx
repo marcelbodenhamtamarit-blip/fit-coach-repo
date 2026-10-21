@@ -238,6 +238,7 @@ export function BatchAddDialog() {
               <div className="flex gap-2">
                 <Input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   placeholder={t("economy.amountPlaceholder")}
                   value={row.amount}
