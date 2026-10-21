@@ -95,3 +95,15 @@
     @apply font-sans;
   }
 }
+
+/* Árbol de Gastos + IA Timmy (rediseño, cuenta beta — ver
+   lib/redesign-beta.ts): brillo pulsante de los dos botones elevados del
+   dock, para que ambos destaquen por igual. */
+@keyframes tmyPulseGlow {
+  0%, 100% { transform: scale(1); box-shadow: 0 8px 20px rgba(163, 230, 53, 0.35); }
+  50% { transform: scale(1.06); box-shadow: 0 10px 26px rgba(163, 230, 53, 0.55); }
+}
+@keyframes tmyPulseGlowPurple {
+  0%, 100% { transform: scale(1); box-shadow: 0 8px 20px rgba(168, 85, 247, 0.4); }
+  50% { transform: scale(1.06); box-shadow: 0 10px 26px rgba(168, 85, 247, 0.65); }
+}
