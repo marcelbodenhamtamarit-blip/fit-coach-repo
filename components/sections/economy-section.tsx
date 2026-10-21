@@ -98,7 +98,17 @@ interface GroupedData {
   categories: CategoryGroup[]
 }
 
-export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } = {}) {
+export function EconomySection({
+  autoOpenSignal,
+  redesign,
+}: {
+  autoOpenSignal?: number
+  // Nueva versión (ver lib/redesign-beta.ts): mismo lenguaje visual que el
+  // Árbol de Gastos/IA Timmy — tarjeta de balance y chips de categoría con
+  // borde de color en vez del borde neutro de siempre. Solo para la cuenta
+  // beta; el resto de usuarios ve Economía exactamente igual que antes.
+  redesign?: boolean
+} = {}) {
   const { data, addTransaction, addTransactions, updateTransaction, deleteTransaction, t } = useStore()
   const lang = (data.language as Language) ?? "es"
   const locale = lang === "en" ? "en-US" : "es-ES"
@@ -922,7 +932,10 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         </div>
       )}
 
-      <Card className="overflow-hidden p-0">
+      <Card
+        className={`overflow-hidden p-0 ${redesign ? "border-2" : ""}`}
+        style={redesign ? { borderColor: ahorro >= 0 ? "#34d399" : "#f87171" } : undefined}
+      >
         <button
           onClick={() => setShowSummary((v) => !v)}
           className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
@@ -942,8 +955,8 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
         {showSummary && (
           <div className="border-t border-border p-4">
             <div className="mb-4 grid grid-cols-2 gap-3">
-              <MiniStat label={t("economy.incomeMonth")} value={`+${currencySymbol(homeCurrency)}${ingresos.toFixed(2)}`} tone="green" />
-              <MiniStat label={t("economy.spentMonth")} value={`-${currencySymbol(homeCurrency)}${gastos.toFixed(2)}`} tone="red" />
+              <MiniStat label={t("economy.incomeMonth")} value={`+${currencySymbol(homeCurrency)}${ingresos.toFixed(2)}`} tone="green" redesign={redesign} />
+              <MiniStat label={t("economy.spentMonth")} value={`-${currencySymbol(homeCurrency)}${gastos.toFixed(2)}`} tone="red" redesign={redesign} />
             </div>
 
           </div>
@@ -976,9 +989,9 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
             </ResponsiveContainer>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <MiniStat label={t("economy.totalSaved")} value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} />
-            {bestWeek && <MiniStat label={t("economy.best")} value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" />}
-            {worstWeek && <MiniStat label={t("economy.worst")} value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} />}
+            <MiniStat label={t("economy.totalSaved")} value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} redesign={redesign} />
+            {bestWeek && <MiniStat label={t("economy.best")} value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" redesign={redesign} />}
+            {worstWeek && <MiniStat label={t("economy.worst")} value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} redesign={redesign} />}
           </div>
         </Card>
       )}
@@ -1037,14 +1050,17 @@ export function EconomySection({ autoOpenSignal }: { autoOpenSignal?: number } =
                       const groupAbs = group.categories.reduce((s, c) => s + Math.abs(c.net), 0)
                       const catPct = groupAbs > 0 ? (Math.abs(catGroup.net) / groupAbs) * 100 : 0
                       return (
-                        <div key={catKey}>
+                        <div
+                          key={catKey}
+                          style={redesign ? { borderLeft: `3px solid ${catColor}` } : undefined}
+                        >
                           <button
                             onClick={() => setExpandedCategory(isCatExpanded ? null : catKey)}
                             className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                           >
                             <div
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-base"
-                              style={{ backgroundColor: catColor + "24" }}
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-base ${redesign ? "border" : ""}`}
+                              style={{ backgroundColor: catColor + "24", borderColor: redesign ? catColor + "88" : undefined }}
                             >
                               {CATEGORY_EMOJI[catGroup.category] ?? "\u{1F4CC}"}
                             </div>
@@ -1199,14 +1215,20 @@ function MiniStat({
   label,
   value,
   tone,
+  redesign,
 }: {
   label: string
   value: string
   tone: "green" | "red" | "neutral"
+  redesign?: boolean
 }) {
   const color = tone === "green" ? "text-emerald-400" : tone === "red" ? "text-red-400" : "text-zinc-100"
+  const borderColor = tone === "green" ? "rgba(52,211,153,0.4)" : tone === "red" ? "rgba(248,113,113,0.4)" : "rgba(255,255,255,0.1)"
   return (
-    <div className="rounded-md border border-white/10 bg-white/5 p-2 text-center">
+    <div
+      className={`rounded-md p-2 text-center ${redesign ? "border-2 bg-white/[0.04]" : "border border-white/10 bg-white/5"}`}
+      style={redesign ? { borderColor } : undefined}
+    >
       <p className="text-[10px] text-zinc-400">{label}</p>
       <p className={`text-sm font-semibold ${color}`}>{value}</p>
     </div>
