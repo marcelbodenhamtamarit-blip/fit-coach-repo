@@ -18,10 +18,20 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 ## Screens (nav: Resumen / Economía / Winter Arc / Ajustes)
 
 - **Resumen**: a balance card (month/total toggle) with an optional savings goal tracker (deadline, progress %), plus four stat cards (Gastado/Ingresos/Balance/Categoría principal) for the selected period (Diario/Semanal/Mensual). Last opened tab is remembered (localStorage) across reloads. (There used to be a **Diario** tab with fitness data from Intervals.icu, and fitness stat cards here too — both removed 29 Sep 2026, see Changelog. Resumen is finance-only now.)
-- **Economía**: income/expense tracker in AUD, stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
+- **Economía**: income/expense tracker in the user's **home currency** (see "Multi-divisa" below — AUD by default, editable in Ajustes), stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
 - **Turnos**: removed from the app 1 Oct 2026 (see Changelog); the section below documents how it worked.
 - **Winter Arc** (added 1 Oct 2026): private end-of-year habit and training tracker — see its own section below.
 - **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios, Turnos, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically, and "Turnos" for the Turnos card.
+
+## Multi-divisa (home_currency)
+
+Added 20 Oct 2026. Each user has a **home currency** (`user_preferences.home_currency`, default `AUD`) — every stored `amount` (transactions and recurring templates) lives in that currency. A transaction logged while traveling can be entered in a different currency: `transactions.currency`/`original_amount` keep the figure as actually paid, alongside `amount` already converted to home currency, so both can be shown together.
+
+- `lib/types.ts` — `CURRENCIES` (20 codes with symbol/name) and `currencySymbol(code)`, which **falls back to `"$"` when `code` is falsy** — worth remembering when debugging a wrong-looking symbol, since several currencies (USD, AUD, ARS, MXN, COP, CLP, UYU, CAD, NZD, SGD) also legitimately use `$`.
+- `lib/exchange-rates.ts` — `getExchangeRates(base, supabase)` caches one day's rates per base currency in the `exchange_rates` table (shared/public, RLS lets any authenticated user refresh it) so the external API (`open.er-api.com`) is called at most once a day per base; `convertAmount()` is the single-amount helper used when adding a transaction in a non-home currency.
+- **Changing home currency for real** (Ajustes → Preferencias → divisa): `lib/store.tsx`'s `convertHomeCurrency(fromCode, toCode)` re-reads the actual `home_currency` from Supabase first (not local state) before converting, re-prices every stored transaction and recurring template at today's rate, and only then updates `home_currency` itself — see the Oct 2026 Changelog entries below for the double-conversion bug this fixed. `setHomeCurrency(code)` alone (used internally, and as the fallback when `convertHomeCurrency` sees `from === to`) just relabels going forward, with no recalculation.
+- **Known limitation**: `lib/exchange-rates.ts` only ever has *today's* rate, not historical ones, so a full `convertHomeCurrency` approximates every past transaction using today's rate rather than the rate on the day it actually happened.
+- `supabase-migrations/multi_currency.sql` — adds `transactions.currency`/`original_amount`, the `user_preferences` table, and `exchange_rates`. **Run it once in the Supabase SQL editor** if a project hasn't already.
 
 ## Recurring transactions (gastos e ingresos recurrentes)
 
@@ -53,6 +63,15 @@ Added 1 Oct 2026. Tracks Cel's Winter Arc plan (day 1 in Spain, ~26 Oct → 31 D
 - `lib/winter-arc.ts` — rules, session order/details, long-run plan per week, and pure helpers (streak, next session, week index). `lib/winter-arc-store.tsx` — `WinterArcProvider`/`useWinterArc()`, independent of `StoreProvider`; saves are optimistic and queued so fast taps never land out of order.
 - **Coach IA** (`components/coach-card.tsx` + `app/api/coach/route.ts`, added 1 Oct 2026): daily advice (generated once per day and stored), a short chat, and a memory the model rewrites after each answer ("Lo que sabe de ti", can be cleared). The route checks the Supabase session and the owner email, builds context from the last 28 days, weekly reviews, memory and recent messages, and calls Gemini (free tier) with the same `GEMINI_API_KEY` the CSV import and quick-add already use; model overridable with `GEMINI_COACH_MODEL` (default `gemini-3.6-flash`, JSON response mode, thinking "low"). Chat capped at 40 messages/day. Tables in `supabase-migrations/winter_arc_coach.sql`.
 - `supabase-migrations/winter_arc.sql` — `winter_arc_settings`, `winter_arc_days`, `winter_arc_weekly`. **Run it once in the Supabase SQL editor**; until then the section shows a notice instead of erroring.
+
+## Vista previa del rediseño: Árbol de Gastos + Timmy IA (beta, una sola cuenta)
+
+Added 21 Oct 2026. A from-scratch alternate look at Resumen/Economía, gated behind `lib/redesign-beta.ts`'s `REDESIGN_BETA_EMAILS` (currently just `marcelbodenham@gmail.com` — same on/off pattern as the old `AUTOMATIONS_BETA_EMAILS`, see Changelog) so it can be tried on one account before deciding whether to open it to everyone. Everyone else keeps seeing the app exactly as described above.
+
+- `components/tree-sheet.tsx` — **Árbol de Gastos**: a bottom sheet with a decorative SVG tree (trunk + branches, each branch ending in its own leaf cluster) above a grid of cards, one per spending category this month, ordered highest to lowest. Tapping a card opens a detail view (total, reduction margin from Timmy's plan, the month's actual movements in that category, and Timmy's advice for it).
+- `components/timmy-drawer.tsx` + `app/api/timmy/route.ts` — **Timmy**, a Gemini-backed assistant (same free-tier pattern as the Winter Arc coach) that reads the month's real category totals (never invented numbers) and can propose a reduction plan or chat about it. The API route only answers `lib/redesign-beta.ts`'s account — any other session gets a 403, same approach as the Winter Arc coach restricting itself to the app owner.
+- `lib/timmy-insights.ts` — pure aggregation from `data.transactions` (category totals, icons/colors matching Economía's own so the same category looks the same in both places) — no sample data anywhere.
+- Entry points live in `components/dashboard.tsx`; non-beta accounts never load any of these files' UI.
 
 ## Automatizaciones / Recordatorios (recordatorios y alertas, tipo Atajos de Apple)
 
@@ -133,6 +152,16 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 21 Oct 2026 — Vista previa del rediseño (Árbol de Gastos + Timmy IA)
+- New beta-only screens: see "Vista previa del rediseño" above. New files: `lib/redesign-beta.ts`, `lib/timmy-insights.ts`, `components/tree-sheet.tsx`, `components/timmy-drawer.tsx`, `app/api/timmy/route.ts`; `components/dashboard.tsx` extended. Visible only to the account in `REDESIGN_BETA_EMAILS`.
+- **Fixed same day**: the Árbol's SVG was a bare trunk topped with a few overlapping circles — it read as a lollipop, not a tree. `tree-sheet.tsx` now draws actual branches forking off the trunk at several heights, each ending in its own small leaf cluster, before the top canopy.
+
+### 20 Oct 2026 — Multi-divisa (home currency) + Términos y privacidad
+- **Real currency conversion**: see "Multi-divisa" above for the full feature. New `supabase-migrations/multi_currency.sql` (**run it once**); `lib/store.tsx`, `lib/exchange-rates.ts`, `lib/types.ts`, `components/sections/settings-section.tsx` extended.
+- **Fixed same day**: `convertHomeCurrency` was comparing against the home currency already held in local React state, which could be stale — converting twice in a row (or converting right after a reload that hadn't finished fetching the real saved value yet) silently re-converted already-converted amounts. It now re-reads `home_currency` straight from Supabase before deciding whether there's anything to convert.
+- Added a two-step confirm + progress UI in Ajustes for the conversion (shows how many transactions/recurring templates will be touched, then a live count while it runs).
+- **`/legal`**: a combined Terms & Privacy page re-added (distinct from the old separate `/privacy`/`/terms` pages deleted 28 Sep 2026 — see below), plus a consent checkbox on the login screen's signup form, now that the app accepts new signups again (`NEXT_PUBLIC_OWNER_EMAIL`/`NEXT_PUBLIC_INVITE_CODE` are both empty in Vercel, see "Auth & multi-tenancy").
 
 ### 1 Oct 2026 — Winter Arc AI coach
 - New coach card at the top of Winter Arc: daily advice, chat and an AI-maintained memory. New: `app/api/coach/route.ts`, `components/coach-card.tsx`, `supabase-migrations/winter_arc_coach.sql` (**run it**), uses the existing `GEMINI_API_KEY`; optional `GEMINI_COACH_MODEL`.
