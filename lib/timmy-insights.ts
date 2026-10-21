@@ -4,31 +4,37 @@
 // (useStore()), nunca con cifras inventadas.
 import type { Transaction, TransactionCategory } from "./types"
 
+// Mismo emoji y mismo color que ya usa Economía por categoría (ver
+// CATEGORY_EMOJI/CATEGORY_COLOR en components/sections/economy-section.tsx):
+// antes el Árbol tenía su propia paleta inventada, y una misma categoría
+// (p.ej. Transporte) salía con un icono y un color distintos en Economía y
+// en el Árbol — confuso para reconocerla de un vistazo entre pantallas. Se
+// duplican los valores aquí en vez de importar desde economy-section.tsx
+// para no arrastrar ese componente (formularios, recharts, etc.) a un
+// módulo de lib/; si en el futuro se tocan los colores de categoría, hay
+// que actualizar los dos sitios a la vez.
 export const CATEGORY_ICON: Record<TransactionCategory, string> = {
   Alojamiento: "🏠",
   Supermercado: "🛒",
-  "Comida fuera": "🍜",
-  Transporte: "🚌",
-  Salario: "💼",
+  "Comida fuera": "🍽️",
+  Transporte: "🚗",
+  Salario: "💰",
   Compras: "🛍️",
-  Necesidades: "🧻",
-  Ocio: "🎉",
-  Otros: "📦",
+  Necesidades: "🧾",
+  Ocio: "🎬",
+  Otros: "📌",
 }
 
-// Paleta ramas del árbol: lima/esmeralda para marca y dinero, el resto en
-// colores distintos entre sí para que cada rama se reconozca a simple
-// vista. --ai (morado) queda reservado solo para la superficie de Timmy.
 export const CATEGORY_COLOR: Record<TransactionCategory, string> = {
-  Alojamiento: "#38bdf8",
-  Supermercado: "#a3e635",
-  "Comida fuera": "#f59e0b",
-  Transporte: "#22d3ee",
-  Salario: "#4ade80",
+  Alojamiento: "#fbbf24",
+  Supermercado: "#2dd4bf",
+  "Comida fuera": "#fb7185",
+  Transporte: "#60a5fa",
+  Salario: "#34d399",
   Compras: "#c084fc",
-  Necesidades: "#f472b6",
-  Ocio: "#facc15",
-  Otros: "#94a3b8",
+  Necesidades: "#f87171",
+  Ocio: "#a78bfa",
+  Otros: "#8a8a93",
 }
 
 export type CategoryBreakdown = {
