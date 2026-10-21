@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState, type TouchEvent as ReactTouchEvent } from "react"
 import { X, Sprout } from "lucide-react"
 import type { CategoryBreakdown } from "@/lib/timmy-insights"
 import { currencySymbol } from "@/lib/types"
@@ -38,6 +38,35 @@ export function TreeSheet({
   const [tipIndex, setTipIndex] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
 
+  // Arrastrar hacia abajo desde el tirador/cabecera para cerrar, como una
+  // hoja nativa de iOS/Android — así no hace falta estirar el pulgar hasta
+  // la X de la esquina superior derecha. Solo arrastre vertical hacia
+  // abajo: un gesto horizontal (p.ej. deslizar para ver otra cosa debajo)
+  // no lo dispara.
+  const dragStartY = useRef<number | null>(null)
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const DRAG_CLOSE_THRESHOLD = 90
+
+  function handleDragStart(e: ReactTouchEvent) {
+    dragStartY.current = e.touches[0].clientY
+    setDragging(true)
+  }
+  function handleDragMove(e: ReactTouchEvent) {
+    if (dragStartY.current == null) return
+    const delta = e.touches[0].clientY - dragStartY.current
+    if (delta > 0) setDragY(delta)
+  }
+  function handleDragEnd() {
+    setDragging(false)
+    if (dragY > DRAG_CLOSE_THRESHOLD) {
+      navigator.vibrate?.(10)
+      onClose()
+    }
+    dragStartY.current = null
+    setDragY(0)
+  }
+
   if (!open) return null
 
   const symbol = currencySymbol(homeCurrency)
@@ -49,12 +78,30 @@ export function TreeSheet({
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-sm lg:left-60"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="animate-in slide-in-from-bottom-4 fade-in duration-300 ease-out flex max-h-[92vh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#0c1115] shadow-2xl">
-        <div className="flex justify-center pt-2">
+      <div
+        className={`flex max-h-[92vh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#0c1115] pb-[env(safe-area-inset-bottom,0px)] shadow-2xl ${
+          dragging ? "" : "animate-in slide-in-from-bottom-4 fade-in duration-300 ease-out"
+        }`}
+        style={{
+          transform: dragY ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 200ms ease-out",
+        }}
+      >
+        <div
+          className="flex justify-center pt-2"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div className="h-1.5 w-9 rounded-full bg-white/20" />
         </div>
 
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 bg-[#0c1115]/90 px-5 pb-3 pt-1">
+        <div
+          className="flex items-start justify-between gap-3 border-b border-white/10 bg-[#0c1115]/90 px-5 pb-3 pt-1"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg">🌳</span>
@@ -153,7 +200,10 @@ export function TreeSheet({
                   <button
                     key={c.category}
                     type="button"
-                    onClick={() => setSelected(c.category)}
+                    onClick={() => {
+                      navigator.vibrate?.(10)
+                      setSelected(c.category)
+                    }}
                     className="min-w-0 rounded-2xl border-2 p-2.5 text-left shadow-lg transition-transform active:scale-95"
                     style={{ background: "rgba(20,27,31,0.95)", borderColor: c.color }}
                   >
