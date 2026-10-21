@@ -252,7 +252,7 @@ export function Dashboard() {
           </div>
         </header>
 
-        <main className="px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">
+        <main className="px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-8 lg:pb-10">
           {!ready ? (
             <div className="flex h-[60vh] items-center justify-center text-sm text-muted-foreground">
               {t("common.loadingData")}
@@ -274,15 +274,20 @@ export function Dashboard() {
         </main>
       </div>
 
-      {/* Bottom nav (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 py-1.5 backdrop-blur-md lg:hidden">
+      {/* Bottom nav (mobile): fijo al alcance del pulgar, con la zona
+          segura del teléfono (home indicator de iPhone, barra de gestos de
+          Android) respetada en vez de pegado al borde físico. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-sidebar/95 px-1 pt-1.5 pb-[calc(6px+env(safe-area-inset-bottom,0px))] backdrop-blur-md lg:hidden">
         {TABS.slice(0, 2).map((tab) => {
           const Icon = tab.icon
           const isActive = active === tab.id
           return (
             <button
               key={tab.id}
-              onClick={() => setActive(tab.id)}
+              onClick={() => {
+                navigator.vibrate?.(8)
+                setActive(tab.id)
+              }}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-all duration-200 active:scale-95",
                 isActive ? "bg-primary/10 text-primary" : "text-muted-foreground",
@@ -302,7 +307,10 @@ export function Dashboard() {
           <>
             <button
               type="button"
-              onClick={() => setTreeOpen(true)}
+              onClick={() => {
+                navigator.vibrate?.(15)
+                setTreeOpen(true)
+              }}
               aria-label="Ver árbol de gastos"
               className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px] text-[21px]"
               style={{
@@ -316,7 +324,10 @@ export function Dashboard() {
             </button>
             <button
               type="button"
-              onClick={() => setTimmyOpen(true)}
+              onClick={() => {
+                navigator.vibrate?.(15)
+                setTimmyOpen(true)
+              }}
               aria-label="Apartado IA Timmy"
               className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px]"
               style={{
@@ -337,7 +348,10 @@ export function Dashboard() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActive(tab.id)}
+              onClick={() => {
+                navigator.vibrate?.(8)
+                setActive(tab.id)
+              }}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-all duration-200 active:scale-95",
                 isActive ? "bg-primary/10 text-primary" : "text-muted-foreground",
