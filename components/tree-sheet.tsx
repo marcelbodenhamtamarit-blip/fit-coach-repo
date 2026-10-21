@@ -103,10 +103,14 @@ export function TreeSheet({
             </div>
           ) : (
             <>
-              {/* Tronco y copa, versión estática y compacta (sin la animación de
-                  crecimiento del prototipo): ya no hace de lienzo para las
-                  ramas, que ahora viven debajo en una rejilla que crece con
-                  el número real de categorías sin solaparse ni cortarse. */}
+              {/* Tronco, ramas y copa, versión estática y compacta (sin la
+                  animación de crecimiento del prototipo): el dibujo ya no
+                  hace de lienzo interactivo para las categorías, que ahora
+                  viven debajo en una rejilla que crece con el número real de
+                  categorías sin solaparse ni cortarse — pero sigue siendo un
+                  árbol de verdad, con ramas que se bifurcan del tronco y
+                  terminan en su propio grupo de hojas, no solo un tronco con
+                  una bola encima. */}
               <svg viewBox="0 0 300 190" className="mx-auto h-[150px] w-auto opacity-90" aria-hidden>
                 <defs>
                   <linearGradient id="trunkG" x1="0%" y1="100%" x2="0%" y2="0%">
@@ -120,10 +124,28 @@ export function TreeSheet({
                   </radialGradient>
                 </defs>
                 <ellipse cx="150" cy="178" rx="78" ry="12" fill="#141c19" stroke="#25352e" strokeWidth="2" />
-                <path d="M150 170 C 147 135, 153 110, 150 80 C 146 55, 150 40, 150 22" stroke="url(#trunkG)" strokeWidth="14" strokeLinecap="round" fill="none" />
-                <circle cx="150" cy="42" r="40" fill="url(#canopyG)" />
-                <circle cx="118" cy="58" r="24" fill="url(#canopyG)" opacity="0.9" />
-                <circle cx="185" cy="60" r="27" fill="url(#canopyG)" opacity="0.9" />
+
+                {/* Tronco principal */}
+                <path d="M150 172 C 147 145, 153 120, 150 95 C 148 75, 151 55, 150 38" stroke="url(#trunkG)" strokeWidth="13" strokeLinecap="round" fill="none" />
+
+                {/* Ramas: cada una sale del tronco en un punto distinto y
+                    termina en su propio grupo de hojas, para que se note
+                    que son ramas y no decoración suelta. */}
+                <path d="M150 158 C 128 150, 108 140, 92 124" stroke="url(#trunkG)" strokeWidth="7" strokeLinecap="round" fill="none" />
+                <path d="M150 136 C 172 127, 192 118, 206 103" stroke="url(#trunkG)" strokeWidth="7" strokeLinecap="round" fill="none" />
+                <path d="M150 108 C 131 98, 116 86, 106 68" stroke="url(#trunkG)" strokeWidth="6" strokeLinecap="round" fill="none" />
+                <path d="M150 88 C 167 77, 182 64, 191 48" stroke="url(#trunkG)" strokeWidth="6" strokeLinecap="round" fill="none" />
+                <path d="M150 70 C 141 58, 136 48, 136 36" stroke="url(#trunkG)" strokeWidth="5" strokeLinecap="round" fill="none" />
+                <path d="M150 64 C 158 52, 163 42, 163 30" stroke="url(#trunkG)" strokeWidth="5" strokeLinecap="round" fill="none" />
+
+                {/* Hojas al final de cada rama */}
+                <circle cx="88" cy="118" r="19" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="210" cy="97" r="21" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="102" cy="62" r="17" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="195" cy="43" r="18" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="134" cy="30" r="15" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="165" cy="24" r="16" fill="url(#canopyG)" opacity="0.92" />
+                <circle cx="150" cy="30" r="24" fill="url(#canopyG)" />
               </svg>
 
               <div className="mt-3 grid grid-cols-2 gap-2.5">
