@@ -14,24 +14,6 @@ const TIPS = [
   "Pídele a Timmy un plan de reducción con el botón morado de abajo.",
 ]
 
-// Posiciones relativas de cada rama alrededor del tronco (porcentaje del
-// escenario). Pensadas para hasta 6 categorías; con más, se van apilando
-// hacia abajo alternando lado.
-function layoutFor(n: number) {
-  const base = [
-    { top: "9%", left: "62%" },
-    { top: "24%", left: "16%" },
-    { top: "42%", left: "72%" },
-    { top: "56%", left: "14%" },
-  ]
-  const out = base.slice(0, Math.min(n, base.length))
-  for (let i = base.length; i < n; i++) {
-    const side = i % 2 === 0
-    out.push({ top: `${Math.min(80, 64 + (i - base.length) * 13)}%`, left: side ? "68%" : "16%" })
-  }
-  return out
-}
-
 export function TreeSheet({
   open,
   onClose,
@@ -59,13 +41,12 @@ export function TreeSheet({
   if (!open) return null
 
   const symbol = currencySymbol(homeCurrency)
-  const layouts = layoutFor(categories.length)
   const selectedCat = categories.find((c) => c.category === selected) ?? null
   const selectedPlan = selectedCat ? planLines?.find((l) => l.category === selectedCat.category) ?? null : null
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-sm lg:left-60"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="animate-in slide-in-from-bottom-4 fade-in duration-300 ease-out flex max-h-[92vh] w-full max-w-[460px] flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-[#0c1115] shadow-2xl">
@@ -114,16 +95,19 @@ export function TreeSheet({
           </button>
         </div>
 
-        <div className="relative min-h-[300px] flex-1 overflow-hidden bg-[#0c1115] p-4">
+        <div className="min-h-[260px] flex-1 overflow-y-auto bg-[#0c1115] p-4">
           {categories.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-[#8a97a0]">
+            <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-2 text-center text-[#8a97a0]">
               <Sprout className="size-8 text-[#4ade80]" />
               <p className="text-sm">Todavía no hay gastos este mes — tu árbol está esperando su primera rama.</p>
             </div>
           ) : (
             <>
-              {/* Tronco y copa, versión estática (sin la animación de crecimiento del prototipo). */}
-              <svg viewBox="0 0 300 340" className="mx-auto h-full max-h-[320px] w-auto opacity-90" aria-hidden>
+              {/* Tronco y copa, versión estática y compacta (sin la animación de
+                  crecimiento del prototipo): ya no hace de lienzo para las
+                  ramas, que ahora viven debajo en una rejilla que crece con
+                  el número real de categorías sin solaparse ni cortarse. */}
+              <svg viewBox="0 0 300 190" className="mx-auto h-[150px] w-auto opacity-90" aria-hidden>
                 <defs>
                   <linearGradient id="trunkG" x1="0%" y1="100%" x2="0%" y2="0%">
                     <stop offset="0%" stopColor="#2c1a0e" />
@@ -135,45 +119,42 @@ export function TreeSheet({
                     <stop offset="100%" stopColor="#14532d" />
                   </radialGradient>
                 </defs>
-                <ellipse cx="150" cy="300" rx="90" ry="16" fill="#141c19" stroke="#25352e" strokeWidth="2" />
-                <path d="M150 290 C 146 230, 156 190, 150 140 C 145 95, 150 70, 150 40" stroke="url(#trunkG)" strokeWidth="18" strokeLinecap="round" fill="none" />
-                <circle cx="150" cy="55" r="52" fill="url(#canopyG)" />
-                <circle cx="110" cy="80" r="30" fill="url(#canopyG)" opacity="0.9" />
-                <circle cx="195" cy="85" r="34" fill="url(#canopyG)" opacity="0.9" />
+                <ellipse cx="150" cy="178" rx="78" ry="12" fill="#141c19" stroke="#25352e" strokeWidth="2" />
+                <path d="M150 170 C 147 135, 153 110, 150 80 C 146 55, 150 40, 150 22" stroke="url(#trunkG)" strokeWidth="14" strokeLinecap="round" fill="none" />
+                <circle cx="150" cy="42" r="40" fill="url(#canopyG)" />
+                <circle cx="118" cy="58" r="24" fill="url(#canopyG)" opacity="0.9" />
+                <circle cx="185" cy="60" r="27" fill="url(#canopyG)" opacity="0.9" />
               </svg>
 
-              <div className="absolute inset-0 p-4">
-                {categories.slice(0, layouts.length).map((c, i) => {
-                  const l = layouts[i]
-                  return (
-                    <button
-                      key={c.category}
-                      type="button"
-                      onClick={() => setSelected(c.category)}
-                      className="absolute w-[128px] -translate-x-1/2 rounded-2xl border-2 p-2.5 text-left shadow-lg transition-transform active:scale-95"
-                      style={{ top: l.top, left: l.left, background: "rgba(20,27,31,0.95)", borderColor: c.color }}
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                {categories.map((c, i) => (
+                  <button
+                    key={c.category}
+                    type="button"
+                    onClick={() => setSelected(c.category)}
+                    className="min-w-0 rounded-2xl border-2 p-2.5 text-left shadow-lg transition-transform active:scale-95"
+                    style={{ background: "rgba(20,27,31,0.95)", borderColor: c.color }}
+                  >
+                    <span
+                      className="mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase"
+                      style={{ background: c.color, color: "#06230f" }}
                     >
-                      <span
-                        className="mb-1.5 inline-block rounded-md px-1.5 py-0.5 text-[8px] font-extrabold uppercase"
-                        style={{ background: c.color, color: "#06230f" }}
+                      {i === 0 ? "⭐ #1 Mayor" : `#${i + 1} Gasto`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="flex size-[30px] shrink-0 items-center justify-center rounded-[10px] text-[15px]"
+                        style={{ background: `${c.color}22`, border: `1px solid ${c.color}55` }}
                       >
-                        {i === 0 ? "⭐ #1 Mayor" : `#${i + 1} Gasto`}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="flex size-[30px] shrink-0 items-center justify-center rounded-[10px] text-[15px]"
-                          style={{ background: `${c.color}22`, border: `1px solid ${c.color}55` }}
-                        >
-                          {c.icon}
-                        </div>
-                        <div className="overflow-hidden">
-                          <div className="truncate text-[10.5px] font-semibold text-[#dfe3e6]">{c.category}</div>
-                          <div className="text-[13.5px] font-extrabold text-white">{symbol}{c.amount.toFixed(0)}</div>
-                        </div>
+                        {c.icon}
                       </div>
-                    </button>
-                  )
-                })}
+                      <div className="min-w-0 overflow-hidden">
+                        <div className="truncate text-[10.5px] font-semibold text-[#dfe3e6]">{c.category}</div>
+                        <div className="text-[13.5px] font-extrabold text-white">{symbol}{c.amount.toFixed(0)}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </>
           )}
