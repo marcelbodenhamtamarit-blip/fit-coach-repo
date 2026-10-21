@@ -719,6 +719,8 @@ export function EconomySection({
                 <Input
                   id="tx-amount"
                   type="number"
+                  inputMode="decimal"
+                  autoFocus
                   min="0"
                   placeholder={t("economy.amountPlaceholder")}
                   value={amount}
@@ -807,7 +809,7 @@ export function EconomySection({
                 )}
                 {batchConversionError && <p className="text-xs text-red-500">{batchConversionError}</p>}
 
-                {batchRows.map((row) => (
+                {batchRows.map((row, batchRowIdx) => (
                   <div key={row.key} className="space-y-2 rounded-xl border border-border bg-card/40 p-3 animate-in slide-in-from-top-2 duration-200">
                     <div className="flex items-center gap-2">
                       <div className="flex flex-1 gap-1 rounded-lg border border-border bg-muted/40 p-1">
@@ -843,6 +845,8 @@ export function EconomySection({
                     <div className="flex gap-2">
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        autoFocus={batchRowIdx === batchRows.length - 1 && batchRowIdx > 0}
                         min="0"
                         placeholder={t("economy.amountPlaceholder")}
                         value={row.amount}
