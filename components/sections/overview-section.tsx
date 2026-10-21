@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store"
 import { currencySymbol } from "@/lib/types"
 import { categoryLabel, type Language } from "@/lib/i18n"
 import { getWeekNumberFromISO } from "@/lib/week"
+import { CATEGORY_COLOR } from "@/lib/timmy-insights"
 
 type Period = "diario" | "semanal" | "mensual"
 
@@ -34,9 +35,16 @@ function daysLeftInMonth(dateStr: string): number {
 export function OverviewSection({
   onNavigate,
   onAddExpense,
+  redesign,
 }: {
   onNavigate: (tab: string) => void
   onAddExpense: () => void
+  // Nueva versión (ver lib/redesign-beta.ts): tarjetas con el mismo
+  // lenguaje visual oscuro + borde de color que el Árbol de Gastos/IA
+  // Timmy, en vez del overlay claro pensado para ir sobre el degradado
+  // verde de cabecera. Solo se activa para la cuenta beta; el resto de
+  // usuarios ve exactamente el Resumen de siempre.
+  redesign?: boolean
 }) {
   const { data, t } = useStore()
   const lang = (data.language as Language) ?? "es"
@@ -171,6 +179,26 @@ export function OverviewSection({
   const movementsCount = periodTx.filter((t) => t.amount < 0).length
   const movementsLabel = `${movementsCount} ${movementsCount === 1 ? t("common.movement") : t("common.movements")}`
 
+  // Nueva versión (ver prop "redesign" arriba): las tarjetas de Balance y
+  // Objetivo estaban pensadas en claro/translúcido para ir encima del
+  // degradado verde de cabecera. Aquí se calculan una vez los tokens de
+  // color para la variante oscura (a juego con el Árbol/Timmy) y se
+  // reutilizan en toda la tarjeta, para no dejar ningún texto oscuro
+  // olvidado sobre un fondo que ahora también es oscuro.
+  const panelBg = redesign ? "rgba(12,17,21,0.95)" : "oklch(1 0 0 / 14%)"
+  const panelBorder = redesign ? "1px solid rgba(255,255,255,0.1)" : "none"
+  const textStrong = redesign ? "#f4f4f5" : "oklch(0.18 0.04 150)"
+  const textLabel = redesign ? "#a3e635" : "oklch(0.16 0.05 150)"
+  const textMuted = redesign ? "#8a97a0" : "oklch(0.22 0.05 150 / 75%)"
+  const textSoft = redesign ? "#c9d6de" : "oklch(0.2 0.05 150 / 90%)"
+  const inputClass = redesign
+    ? "h-8 w-full rounded-md border border-white/10 bg-white/5 px-2.5 text-base font-medium text-white outline-none md:text-sm placeholder:text-white/30"
+    : "h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
+  const periodToggleWrapStyle = redesign ? { background: "rgba(255,255,255,0.06)" } : { background: "oklch(1 0 0 / 35%)" }
+  const periodToggleActiveStyle = redesign
+    ? { background: "#a3e635", color: "#06230f" }
+    : { background: "oklch(0.2 0.05 150)", color: "oklch(0.98 0.01 150)" }
+
   return (
     <div className="space-y-5">
       <p className="text-xs leading-snug" style={{ color: "oklch(0.22 0.05 150 / 88%)" }}>
@@ -181,18 +209,21 @@ export function OverviewSection({
         type="button"
         onClick={() => setBalanceView((v) => (v === "month" ? "total" : "month"))}
         className="w-full rounded-2xl p-4 text-left transition-opacity active:opacity-80"
-        style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}
+        style={{ background: panelBg, border: panelBorder, backdropFilter: redesign ? undefined : "blur(6px)" }}
       >
         <div className="flex items-baseline justify-between gap-3">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: "oklch(0.22 0.05 150 / 75%)" }}>
+            <p className="text-[11px] font-medium uppercase tracking-wide" style={{ color: textMuted }}>
               {balanceView === "month" ? t("overview.monthBalanceLabel") : t("overview.totalBalanceLabel")}
             </p>
-            <p className="mt-0.5 text-2xl font-bold tabular-nums" style={{ color: "oklch(0.18 0.04 150)" }}>
+            <p
+              className="mt-0.5 text-2xl font-bold tabular-nums"
+              style={{ color: redesign ? (displayedBalance >= 0 ? "#a3e635" : "#f87171") : textStrong }}
+            >
               {displayedBalance >= 0 ? "+" : "-"}{symbol}{Math.abs(displayedBalance).toFixed(2)}
             </p>
           </div>
-          <p className="shrink-0 text-xs font-medium" style={{ color: "oklch(0.22 0.05 150 / 70%)" }}>
+          <p className="shrink-0 text-xs font-medium" style={{ color: textMuted }}>
             {balanceView === "month"
               ? daysLeftLabel
               : `${transactions.length} ${transactions.length === 1 ? t("common.movement") : t("common.movements")}`}
@@ -200,10 +231,10 @@ export function OverviewSection({
         </div>
       </button>
 
-      <div className="rounded-2xl p-4" style={{ background: "oklch(1 0 0 / 14%)", backdropFilter: "blur(6px)" }}>
+      <div className="rounded-2xl p-4" style={{ background: panelBg, border: panelBorder, backdropFilter: redesign ? undefined : "blur(6px)" }}>
         <div className="flex items-center gap-1.5">
-          <Target className="size-3.5" style={{ color: "oklch(0.16 0.05 150)" }} />
-          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "oklch(0.16 0.05 150)" }}>
+          <Target className="size-3.5" style={{ color: textLabel }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: textLabel }}>
             {t("overview.goalTitle")}
           </span>
         </div>
@@ -211,7 +242,7 @@ export function OverviewSection({
         {/* Resumen/progreso: siempre visible si hay objetivo, se edite o no. */}
         {goal != null && (
           <div className="mt-2">
-            <p className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+            <p className="text-[11px] font-semibold" style={{ color: textSoft }}>
               {goal.period === "total" ? t("overview.goalPeriodTotal") : t("overview.thisMonth")}
               {goal.deadline &&
                 (goalDaysLeft !== null && goalDaysLeft < 0
@@ -219,17 +250,17 @@ export function OverviewSection({
                   : ` · ${t("overview.goalDeadlineUntil", { date: new Date(goal.deadline + "T00:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }) })}`)}
             </p>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-sm font-bold tabular-nums" style={{ color: "oklch(0.16 0.05 150)" }}>
+              <span className="text-sm font-bold tabular-nums" style={{ color: textLabel }}>
                 {symbol}{Math.max(goalBase, 0).toFixed(0)} / {symbol}{goal.amount.toFixed(0)}
               </span>
-              <span className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 90%)" }}>
+              <span className="text-[11px] font-semibold" style={{ color: textSoft }}>
                 {goalReached ? t("overview.goalReached") : `${Math.round(goalPct)}%`}
               </span>
             </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: "oklch(0.16 0.05 150 / 20%)" }}>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: redesign ? "rgba(163,230,53,0.15)" : "oklch(0.16 0.05 150 / 20%)" }}>
               <div
                 className="h-full rounded-full transition-all"
-                style={{ width: `${goalPct}%`, background: "oklch(0.35 0.12 150)" }}
+                style={{ width: `${goalPct}%`, background: redesign ? "#a3e635" : "oklch(0.35 0.12 150)" }}
               />
             </div>
           </div>
@@ -245,7 +276,7 @@ export function OverviewSection({
             else setEditingGoal(false)
           }}
           className="mt-2 flex items-center gap-1 text-xs font-semibold transition-colors"
-          style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+          style={{ color: textSoft }}
         >
           <ChevronDown className={`size-3 transition-transform ${editingGoal ? "rotate-180" : ""}`} />
           {editingGoal ? t("overview.goalHideForm") : goal != null ? t("overview.goalEdit") : t("overview.goalSet")}
@@ -266,22 +297,18 @@ export function OverviewSection({
               // zoom automático de toda la página al enfocar el campo —
               // "text-base" evita ese zoom (en pantallas grandes baja a
               // 14px con md:text-sm, donde el zoom de iOS no aplica).
-              className="h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
-              style={{ color: "oklch(0.16 0.05 150)" }}
+              className={inputClass}
+              style={{ color: redesign ? undefined : textLabel }}
             />
 
-            <div className="flex gap-1 rounded-md p-1" style={{ background: "oklch(1 0 0 / 35%)" }}>
+            <div className="flex gap-1 rounded-md p-1" style={periodToggleWrapStyle}>
               {(["month", "total"] as GoalPeriod[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setGoalPeriodInput(p)}
                   className="flex-1 rounded py-1 text-xs font-semibold transition-colors"
-                  style={
-                    goalPeriodInput === p
-                      ? { background: "oklch(0.2 0.05 150)", color: "oklch(0.98 0.01 150)" }
-                      : { color: "oklch(0.2 0.05 150 / 85%)" }
-                  }
+                  style={goalPeriodInput === p ? periodToggleActiveStyle : { color: textSoft }}
                 >
                   {p === "month" ? t("overview.thisMonth") : t("overview.goalPeriodTotal")}
                 </button>
@@ -289,7 +316,7 @@ export function OverviewSection({
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold" style={{ color: "oklch(0.2 0.05 150 / 85%)" }}>
+              <label className="text-[11px] font-semibold" style={{ color: textSoft }}>
                 {t("overview.goalDeadlineLabel")}
               </label>
               <input
@@ -297,8 +324,8 @@ export function OverviewSection({
                 min={today}
                 value={goalDeadlineInput}
                 onChange={(e) => setGoalDeadlineInput(e.target.value)}
-                className="mt-1 h-8 w-full rounded-md border-0 bg-white/70 px-2.5 text-base font-medium outline-none md:text-sm"
-                style={{ color: "oklch(0.16 0.05 150)" }}
+                className={`mt-1 ${inputClass}`}
+                style={{ color: redesign ? undefined : textLabel }}
               />
             </div>
 
@@ -308,7 +335,7 @@ export function OverviewSection({
                 <button
                   onClick={removeGoal}
                   className="text-xs font-semibold underline-offset-2 hover:underline"
-                  style={{ color: "oklch(0.2 0.05 150 / 85%)" }}
+                  style={{ color: textSoft }}
                 >
                   {t("overview.goalRemove")}
                 </button>
@@ -318,7 +345,7 @@ export function OverviewSection({
               <button
                 onClick={saveGoal}
                 className="rounded-md px-2.5 py-1.5 text-xs font-semibold text-white"
-                style={{ backgroundColor: "oklch(0.3 0.1 150)" }}
+                style={{ backgroundColor: redesign ? "#16a34a" : "oklch(0.3 0.1 150)" }}
               >
                 {t("common.save")}
               </button>
@@ -364,6 +391,7 @@ export function OverviewSection({
             value={`-${symbol}${spent.toFixed(2)}`}
             sub={movementsLabel}
             accent="red"
+            redesign={redesign}
           />
         </button>
 
@@ -374,6 +402,7 @@ export function OverviewSection({
             value={`+${symbol}${income.toFixed(2)}`}
             sub={income > 0 ? t("overview.registered") : t("overview.noIncome")}
             accent="green"
+            redesign={redesign}
           />
         </button>
 
@@ -384,6 +413,7 @@ export function OverviewSection({
             value={`${balance >= 0 ? "+" : "-"}${symbol}${Math.abs(balance).toFixed(2)}`}
             sub={period === "diario" ? t("overview.today") : period === "semanal" ? t("overview.thisWeek") : t("overview.thisMonth")}
             accent={balance >= 0 ? "primary" : "amber"}
+            redesign={redesign}
           />
         </button>
 
@@ -394,6 +424,12 @@ export function OverviewSection({
             value={topCategory ? categoryLabel(topCategory.category, lang) : "--"}
             sub={topCategory ? `-${symbol}${topCategory.total.toFixed(2)}` : t("overview.noExpenses")}
             accent="pink"
+            // Color real de la categoría (mismo que en el Árbol de Gastos y
+            // en Economía) en vez del rosa genérico — así cada vez que
+            // cambia la categoría con más gasto, la tarjeta cambia de
+            // color con ella.
+            accentColor={topCategory ? CATEGORY_COLOR[topCategory.category as keyof typeof CATEGORY_COLOR] : undefined}
+            redesign={redesign}
           />
         </button>
       </div>
