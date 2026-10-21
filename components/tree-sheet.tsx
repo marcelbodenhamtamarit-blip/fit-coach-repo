@@ -132,7 +132,7 @@ export function TreeSheet({
         </div>
 
         <div className="flex items-center justify-between gap-2 border-b border-[#1f3827] bg-[#121c17] px-5 py-2 text-[11px]">
-          <p className="flex-1 truncate text-[#dfe3e6]">🌳 {TIPS[tipIndex]}</p>
+          <p className="flex-1 text-xs leading-tight whitespace-normal text-[#dfe3e6]">🌳 {TIPS[tipIndex]}</p>
           <button
             type="button"
             onClick={() => setTipIndex((i) => (i + 1) % TIPS.length)}
