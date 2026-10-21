@@ -96,6 +96,29 @@
   }
 }
 
+/* Pulido PWA móvil (21 Oct 2026): quita el "rebote" elástico de recarga de
+   Safari/Chrome al arrastrar desde arriba (la app ya vive en su propia caja
+   "position: fixed" que scrollea por dentro — ver components/dashboard.tsx —
+   así que este rebote del navegador nunca aportaba nada, solo se sentía
+   como una web, no como una app), el resaltado gris al tocar en iOS, y el
+   retardo de ~300ms que algunos navegadores móviles añaden antes de
+   disparar un click (para esperar a ver si es un doble-tap de zoom). */
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, a, .touch-target {
+  touch-action: manipulation;
+}
+
+/* Hueco para que el contenido no quede tapado por el dock inferior fijo
+   (components/dashboard.tsx), respetando además la zona segura del
+   teléfono (home indicator de iPhone, barra de gestos de Android). */
+.mobile-safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 72px);
+}
+
 /* Árbol de Gastos + IA Timmy (rediseño, cuenta beta — ver
    lib/redesign-beta.ts): brillo pulsante de los dos botones elevados del
    dock, para que ambos destaquen por igual. */
