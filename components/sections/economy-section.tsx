@@ -972,27 +972,34 @@ export function EconomySection({
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold">{t("economy.weeklySavings")}</p>
           </div>
-          <div className="h-28">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklySavingsData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#a1a1aa", fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
-                  labelStyle={{ color: "#a1a1aa" }}
-                  itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
-                  formatter={(value: unknown) => [`${currencySymbol(homeCurrency)}${(Number(value) || 0).toFixed(2)}`, t("economy.savingsLabel")]}
-                  labelFormatter={(label) => t("economy.week", { n: label.replace("W", "") })}
-                  cursor={{ fill: "rgba(255,255,255,0.06)" }}
-                />
-                <Bar dataKey="savings" radius={[3, 3, 0, 0]}>
-                  {weeklySavingsData.map((entry, i) => (
-                    <Cell key={i} fill={entry.savings >= 0 ? "#34d399" : "#f87171"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          {/* overflow-x-auto + un ancho mínimo por barra: con muchas semanas
+              (hasta 28), dejar que ResponsiveContainer las comprima todas en
+              el ancho de un móvil las deja ilegibles — mejor permitir
+              deslizar horizontalmente y que cada barra conserve un ancho
+              mínimo legible. */}
+          <div className="h-28 overflow-x-auto pb-2">
+            <div className="h-full" style={{ width: `${weeklySavingsData.length * 30}px`, minWidth: "100%" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={weeklySavingsData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: "#a1a1aa", fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1a1a1d", border: "1px solid #3f3f46", borderRadius: "8px", fontSize: "12px", color: "#f4f4f5" }}
+                    labelStyle={{ color: "#a1a1aa" }}
+                    itemStyle={{ color: "#f4f4f5", fontWeight: 600 }}
+                    formatter={(value: unknown) => [`${currencySymbol(homeCurrency)}${(Number(value) || 0).toFixed(2)}`, t("economy.savingsLabel")]}
+                    labelFormatter={(label) => t("economy.week", { n: label.replace("W", "") })}
+                    cursor={{ fill: "rgba(255,255,255,0.06)" }}
+                  />
+                  <Bar dataKey="savings" radius={[3, 3, 0, 0]}>
+                    {weeklySavingsData.map((entry, i) => (
+                      <Cell key={i} fill={entry.savings >= 0 ? "#34d399" : "#f87171"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <MiniStat label={t("economy.totalSaved")} value={`${allSavings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(allSavings).toFixed(2)}`} tone={allSavings >= 0 ? "green" : "red"} redesign={redesign} />
             {bestWeek && <MiniStat label={t("economy.best")} value={`+${currencySymbol(homeCurrency)}${bestWeek.savings.toFixed(2)}`} tone="green" redesign={redesign} />}
             {worstWeek && <MiniStat label={t("economy.worst")} value={`${worstWeek.savings >= 0 ? "+" : "-"}${currencySymbol(homeCurrency)}${Math.abs(worstWeek.savings).toFixed(2)}`} tone={worstWeek.savings >= 0 ? "green" : "red"} redesign={redesign} />}
