@@ -510,8 +510,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     // Solo se actualiza la divisa principal si no hubo ningún fallo, para
     // no dejar la app mostrando una divisa nueva con números a medio
     // convertir.
+    //
+    // BUG CORREGIDO (25 oct 2026): esto llamaba antes a `setHomeCurrency`,
+    // que guarda en Supabase en segundo plano sin esperar el resultado (ver
+    // su propia definición) — por eso el guard de arriba, aunque relee la
+    // divisa real de la base de datos, podía seguir leyendo la antigua si
+    // ese guardado en segundo plano no había terminado (o había fallado en
+    // silencio) cuando se disparó una segunda conversión. Eso fue justo lo
+    // que volvió a duplicar la conversión AUD→EUR de todo el historial
+    // entre el 20 y el 22 de oct 2026: los importes ya convertidos se
+    // reconvirtieron porque `home_currency` seguía leyendo "AUD" en el
+    // servidor. Aquí se guarda de forma síncrona (con `await`) y solo se
+    // da la conversión por buena si ese guardado se confirma; si falla, se
+    // lanza en vez de devolver éxito, para que la pantalla avise en vez de
+    // dejar la puerta abierta a que se repita esto una tercera vez.
     if (txFailed === 0 && recFailed === 0) {
-      setHomeCurrency(toCode)
+      const { error: prefsUpdateError } = await supabase
+        .from("user_preferences")
+        .upsert({ user_id: userId, home_currency: toCode })
+      if (prefsUpdateError) {
+        console.error("[supabase] convertHomeCurrency home_currency update error:", prefsUpdateError.message)
+        throw new Error(
+          "Los importes ya se convirtieron, pero no se pudo guardar la nueva divisa principal. Vuelve a intentarlo antes de seguir usando la app, o los números y la divisa mostrada quedarán desincronizados.",
+        )
+      }
+      setData((d) => ({ ...d, homeCurrency: toCode }))
     }
 
     setData((d) => ({
