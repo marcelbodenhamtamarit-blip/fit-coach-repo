@@ -59,6 +59,7 @@ export const TRANSLATIONS = {
   "nav.overview": { es: "Resumen", en: "Overview" },
   "nav.economy": { es: "Economía", en: "Finances" },
   "nav.turnos": { es: "Turnos", en: "Shifts" },
+  "nav.investments": { es: "Inversiones", en: "Investments" },
   "nav.winterArc": { es: "Winter Arc", en: "Winter Arc" },
   "nav.settings": { es: "Ajustes", en: "Settings" },
   "app.tagline": { es: "Tu economía, a tu manera", en: "Your finances, your way" },
@@ -268,6 +269,10 @@ export const TRANSLATIONS = {
     en: "All your totals and summaries are shown in this currency. If you record an expense in another one (say, while traveling), it's converted automatically using today's exchange rate.",
   },
   "settings.saved": { es: "Guardado.", en: "Saved." },
+  "settings.saveError": {
+    es: "No se ha podido guardar. Comprueba tu conexión e inténtalo de nuevo.",
+    en: "Couldn't save that. Check your connection and try again.",
+  },
   // Confirmación antes de reconvertir todo el historial al cambiar de
   // divisa principal "para siempre" (ver lib/store.tsx convertHomeCurrency).
   "settings.currencyChangeConfirmTitle": {
@@ -683,6 +688,63 @@ export const TRANSLATIONS = {
   "wa.dates": { es: "Fechas del arco", en: "Arc dates" },
   "wa.startDate": { es: "Día 1", en: "Day 1" },
   "wa.endDate": { es: "Último día", en: "Last day" },
+
+  // Inversiones (PIAS, Revolut, criptomonedas...). Entrada manual, sin
+  // conexión automática con ningún bróker/exchange — ver
+  // lib/investments-store.tsx y supabase-migrations/investments.sql.
+  "investments.appSummary": {
+    es: "Tus inversiones, aparte de tu cuenta: PIAS, Revolut, criptomonedas... Entrada manual, sin conexión automática con ningún bróker.",
+    en: "Your investments, separate from your account: PIAS, Revolut, crypto... Manual entry, no automatic connection to any broker.",
+  },
+  "investments.netWorthTitle": { es: "Patrimonio total", en: "Net worth" },
+  "investments.inAccount": { es: "En cuenta", en: "In your account" },
+  "investments.invested": { es: "Invertido", en: "Invested" },
+  "investments.empty": {
+    es: "Todavía no has añadido ninguna inversión.",
+    en: "You haven't added any investments yet.",
+  },
+  "investments.addButton": { es: "Añadir inversión", en: "Add investment" },
+  "investments.newTitle": { es: "Nueva inversión", en: "New investment" },
+  "investments.name": { es: "Nombre", en: "Name" },
+  "investments.namePlaceholder": {
+    es: "Ej. PIAS Mapfre, Revolut, Bitcoin...",
+    en: "E.g. PIAS Mapfre, Revolut, Bitcoin...",
+  },
+  "investments.type": { es: "Tipo", en: "Type" },
+  "investments.type.pias": { es: "PIAS", en: "PIAS" },
+  "investments.type.revolut": { es: "Revolut", en: "Revolut" },
+  "investments.type.crypto": { es: "Criptomonedas", en: "Crypto" },
+  "investments.type.other": { es: "Otra", en: "Other" },
+  "investments.currentValue": { es: "Valor actual", en: "Current value" },
+  "investments.noValueYet": { es: "Sin valor registrado todavía", en: "No value recorded yet" },
+  "investments.updateValue": { es: "Actualizar valor", en: "Update value" },
+  "investments.updateValueTitle": { es: "Actualizar valor actual", en: "Update current value" },
+  "investments.lastUpdated": { es: "Actualizado el {date}", en: "Updated on {date}" },
+  "investments.contributed": { es: "Aportado", en: "Contributed" },
+  "investments.gain": { es: "Ganancia", en: "Gain" },
+  "investments.loss": { es: "Pérdida", en: "Loss" },
+  "investments.contributions": { es: "Aportaciones", en: "Contributions" },
+  "investments.addContribution": { es: "Añadir aportación", en: "Add contribution" },
+  "investments.contributionAmount": {
+    es: "Importe (negativo = retirada)",
+    en: "Amount (negative = withdrawal)",
+  },
+  "investments.contributionDate": { es: "Fecha", en: "Date" },
+  "investments.contributionNote": { es: "Nota (opcional)", en: "Note (optional)" },
+  "investments.noContributions": { es: "Sin aportaciones todavía", en: "No contributions yet" },
+  "investments.rename": { es: "Renombrar", en: "Rename" },
+  "investments.archive": { es: "Archivar", en: "Archive" },
+  "investments.unarchive": { es: "Reactivar", en: "Unarchive" },
+  "investments.archivedSection": { es: "Archivadas", en: "Archived" },
+  "investments.deleteConfirmTitle": { es: "¿Eliminar esta inversión?", en: "Delete this investment?" },
+  "investments.deleteConfirmBody": {
+    es: "Se borrará junto con todo su historial de aportaciones. No se puede deshacer.",
+    en: "It will be deleted along with its whole contribution history. This can't be undone.",
+  },
+  "investments.saveError": {
+    es: "No se ha podido guardar. Comprueba tu conexión e inténtalo de nuevo.",
+    en: "Couldn't save that. Check your connection and try again.",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
