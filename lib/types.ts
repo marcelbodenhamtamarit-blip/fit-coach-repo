@@ -241,8 +241,19 @@ export const uid = () => Math.random().toString(36).slice(2, 10)
 // un historial de aportaciones/retiradas (InvestmentContribution) con
 // fecha — eso es lo que permite calcular ganancia/pérdida real: valor
 // actual menos neto aportado, no solo "cuánto vale ahora".
-export const INVESTMENT_TYPES = ["pias", "revolut", "crypto", "other"] as const
+export const INVESTMENT_TYPES = ["pias", "revolut", "crypto", "stocks", "gold", "other"] as const
 export type InvestmentType = (typeof INVESTMENT_TYPES)[number]
+
+// "stocks" y "gold" son los dos tipos con precio en vivo (ver
+// app/api/market-price/route.ts): en vez de un valor manual, guardan
+// symbol+quantity y el valor actual se calcula multiplicando por el
+// precio de mercado de hoy. El resto de tipos siguen siendo 100% manuales.
+export const LIVE_PRICE_TYPES: readonly InvestmentType[] = ["stocks", "gold"]
+export function isLivePriceType(type: InvestmentType): boolean {
+  return LIVE_PRICE_TYPES.includes(type)
+}
+export const PRICE_UNITS = ["share", "gram", "oz"] as const
+export type PriceUnit = (typeof PRICE_UNITS)[number]
 
 export type Investment = {
   id: string
@@ -253,6 +264,12 @@ export type Investment = {
   currentValueUpdatedAt: string | null // ISO datetime, null si nunca se ha puesto un valor
   archived: boolean
   createdAt: string
+  // Solo rellenos cuando type es "stocks" o "gold": symbol es el ticker
+  // (o "XAU" para oro), quantity cuántas unidades tiene, priceUnit la
+  // unidad de quantity. null en cualquier inversión manual.
+  symbol: string | null
+  quantity: number | null
+  priceUnit: PriceUnit | null
 }
 
 export type InvestmentContribution = {
