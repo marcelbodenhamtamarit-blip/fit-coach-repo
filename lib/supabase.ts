@@ -169,7 +169,12 @@ export type InvestmentContributionRow = {
   id: string
   investment_id: string
   amount: number
-  date: string
+  // La columna real en Supabase es "contributed_at" (no "date" — la
+  // migración investments.sql dice "date", pero la tabla ya existía con
+  // este nombre antes de ejecutarla, así que "create table if not exists"
+  // no la tocó; confirmado con list_tables el 29 oct 2026, mismo tipo de
+  // desajuste silencioso que current_value_updated_at/updated_at).
+  contributed_at: string
   note: string | null
   created_at: string
 }
