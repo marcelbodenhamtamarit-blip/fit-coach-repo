@@ -145,7 +145,12 @@ export type InvestmentRow = {
   type: string
   currency: string
   current_value: number
-  current_value_updated_at: string | null
+  // La tabla real (supabase-migrations/investments.sql) tiene una columna
+  // genérica "updated_at" como el resto de tablas de la app, no
+  // "current_value_updated_at" — este tipo tenía el nombre equivocado, lo
+  // que hacía fallar contra Postgres cualquier insert/update que la
+  // incluyera (columna inexistente).
+  updated_at: string
   archived: boolean
   created_at: string
 }
