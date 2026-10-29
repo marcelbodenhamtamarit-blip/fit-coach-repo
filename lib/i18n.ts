@@ -803,6 +803,15 @@ export const TRANSLATIONS = {
     es: "Se han importado {count} aportaciones.",
     en: "{count} contributions were imported.",
   },
+  "investments.importCsvTarget": {
+    es: "¿A qué inversión pertenece?",
+    en: "Which investment is this for?",
+  },
+  "investments.importCsvTargetNew": { es: "➕ Nueva inversión", en: "➕ New investment" },
+  "investments.importCsvNewNamePlaceholder": {
+    es: "Ej. Revolut Invest",
+    en: "E.g. Revolut Invest",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
