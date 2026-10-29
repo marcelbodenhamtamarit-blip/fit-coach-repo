@@ -139,6 +139,26 @@ export type AutomationEventRow = {
   created_at: string
 }
 
+export type InvestmentRow = {
+  id: string
+  name: string
+  type: string
+  currency: string
+  current_value: number
+  current_value_updated_at: string | null
+  archived: boolean
+  created_at: string
+}
+
+export type InvestmentContributionRow = {
+  id: string
+  investment_id: string
+  amount: number
+  date: string
+  note: string | null
+  created_at: string
+}
+
 export type PushSubscriptionRow = {
   id: string
   endpoint: string
