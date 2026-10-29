@@ -73,6 +73,11 @@ type InvestmentsContextType = {
   investments: Investment[]
   contributions: InvestmentContribution[]
   ready: boolean
+  // Devuelve la inversión recién creada (con su id ya asignado por
+  // Supabase) — hace falta para el import de CSV/PDF "directo" desde la
+  // pantalla principal (ver ImportCsvPanel más abajo): crear la inversión
+  // y, en el mismo gesto, usar su id para guardar las aportaciones
+  // importadas, sin que el usuario tenga que ir a buscarla después.
   addInvestment: (i: {
     name: string
     type: InvestmentType
@@ -81,7 +86,7 @@ type InvestmentsContextType = {
     symbol?: string | null
     quantity?: number | null
     priceUnit?: string | null
-  }) => Promise<void>
+  }) => Promise<Investment>
   renameInvestment: (id: string, name: string) => Promise<void>
   // Solo para inversiones de precio en vivo (stocks/gold): cambiar cuántas
   // unidades tiene sin tocar symbol/priceUnit, que se fijan al crearla.
@@ -152,22 +157,27 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
     const { data: userData } = await supabase.auth.getUser()
     const userId = userData.user?.id
     if (!userId) throw new Error("No hay sesión activa")
-    const { error } = await supabase.from("investments").insert({
-      user_id: userId,
-      name,
-      type,
-      currency,
-      current_value: currentValue,
-      updated_at: new Date().toISOString(),
-      symbol: symbol ?? null,
-      quantity: quantity ?? null,
-      price_unit: priceUnit ?? null,
-    })
-    if (error) {
-      console.error("[supabase] addInvestment error:", error.message)
-      throw new Error(error.message)
+    const { data, error } = await supabase
+      .from("investments")
+      .insert({
+        user_id: userId,
+        name,
+        type,
+        currency,
+        current_value: currentValue,
+        updated_at: new Date().toISOString(),
+        symbol: symbol ?? null,
+        quantity: quantity ?? null,
+        price_unit: priceUnit ?? null,
+      })
+      .select("*")
+      .single()
+    if (error || !data) {
+      console.error("[supabase] addInvestment error:", error?.message)
+      throw new Error(error?.message ?? "No se pudo crear la inversión")
     }
     await refresh()
+    return rowToInvestment(data as InvestmentRow)
   }
 
   const updateInvestmentQuantity = async (id: string, quantity: number) => {
