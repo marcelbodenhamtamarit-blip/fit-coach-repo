@@ -39,7 +39,7 @@ function rowToContribution(row: InvestmentContributionRow): InvestmentContributi
     id: row.id,
     investmentId: row.investment_id,
     amount: Number(row.amount),
-    date: row.date,
+    date: row.contributed_at,
     note: row.note,
     createdAt: row.created_at,
   }
@@ -61,7 +61,7 @@ async function fetchContributions(): Promise<InvestmentContribution[]> {
   const { data, error } = await supabase
     .from("investment_contributions")
     .select("*")
-    .order("date", { ascending: false })
+    .order("contributed_at", { ascending: false })
   if (error) {
     console.error("[supabase] fetchContributions error:", error.message)
     return []
@@ -230,7 +230,7 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
     if (!userId) throw new Error("No hay sesión activa")
     const { data, error } = await supabase
       .from("investment_contributions")
-      .insert({ user_id: userId, investment_id: investmentId, amount, date, note: note ?? null })
+      .insert({ user_id: userId, investment_id: investmentId, amount, contributed_at: date, note: note ?? null })
       .select("*")
       .single()
     if (error || !data) {
@@ -255,7 +255,7 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
           user_id: userId,
           investment_id: investmentId,
           amount: r.amount,
-          date: r.date,
+          contributed_at: r.date,
           note: r.note ?? null,
         })),
       )
