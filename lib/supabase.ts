@@ -153,6 +153,16 @@ export type InvestmentRow = {
   updated_at: string
   archived: boolean
   created_at: string
+  symbol: string | null
+  quantity: number | null
+  price_unit: string | null
+}
+
+export type MarketPriceRow = {
+  symbol: string
+  price_date: string
+  price: number
+  fetched_at: string
 }
 
 export type InvestmentContributionRow = {
