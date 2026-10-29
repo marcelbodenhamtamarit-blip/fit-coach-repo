@@ -131,6 +131,12 @@ export function InvestmentsSection() {
   const netWorth = accountTotal + investedTotal
 
   const [showNewForm, setShowNewForm] = useState(false)
+  // Botón de importar CSV/PDF a nivel de pantalla principal, no solo dentro
+  // de una inversión ya creada y expandida (eso seguía existiendo, pero
+  // Cel no lo encontraba porque exige tener ya una inversión creada — ver
+  // ImportCsvPanel: aquí se puede elegir "nueva inversión" en el mismo
+  // paso, sin tener que crearla antes a mano).
+  const [csvPanelOpen, setCsvPanelOpen] = useState(false)
 
   return (
     <div className="space-y-5">
@@ -192,11 +198,27 @@ export function InvestmentsSection() {
                 setShowNewForm(false)
               }}
             />
+          ) : csvPanelOpen ? (
+            <ImportCsvPanel
+              investments={active}
+              homeCurrency={homeCurrency}
+              t={t}
+              onAddInvestment={addInvestment}
+              onAddContributionsBulk={addContributionsBulk}
+              onUpdateValue={updateInvestmentValue}
+              onClose={() => setCsvPanelOpen(false)}
+            />
           ) : (
-            <Button onClick={() => setShowNewForm(true)} className="w-full">
-              <Plus className="size-4" />
-              {t("investments.addButton")}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowNewForm(true)} className="flex-1">
+                <Plus className="size-4" />
+                {t("investments.addButton")}
+              </Button>
+              <Button variant="outline" onClick={() => setCsvPanelOpen(true)} className="flex-1">
+                <Upload className="size-4" />
+                {t("investments.importCsv")}
+              </Button>
+            </div>
           )}
 
           {archived.length > 0 && (
@@ -400,6 +422,318 @@ function NewInvestmentForm({
         >
           {saving ? t("common.saving") : t("common.save")}
         </Button>
+      </div>
+    </Card>
+  )
+}
+
+// Importar CSV/PDF desde la pantalla principal de Inversiones, sin exigir
+// tener ya una inversión creada de antemano (a diferencia del import que
+// sigue viviendo dentro de cada InvestmentCard expandida, pensado para
+// añadir MÁS historial a una inversión que ya existe). Aquí se elige a qué
+// inversión van las aportaciones importadas — una ya existente, o una
+// nueva que se crea en el mismo gesto — antes de confirmar.
+function ImportCsvPanel({
+  investments,
+  homeCurrency,
+  t,
+  onAddInvestment,
+  onAddContributionsBulk,
+  onUpdateValue,
+  onClose,
+}: {
+  investments: Investment[]
+  homeCurrency: string
+  t: (key: any, params?: Record<string, string | number>) => string
+  onAddInvestment: (payload: {
+    name: string
+    type: InvestmentType
+    currency: string
+    currentValue: number
+  }) => Promise<Investment>
+  onAddContributionsBulk: (
+    investmentId: string,
+    rows: { amount: number; date: string; note?: string | null }[],
+  ) => Promise<void>
+  onUpdateValue: (id: string, value: number) => Promise<void>
+  onClose: () => void
+}) {
+  type CsvRow = { date: string; amount: number; note: string }
+  const NEW_TARGET = "__new__"
+
+  const [csvFileName, setCsvFileName] = useState<string | null>(null)
+  const [csvRows, setCsvRows] = useState<CsvRow[] | null>(null)
+  const [csvIncluded, setCsvIncluded] = useState<Set<number>>(new Set())
+  const [csvDetectedBalance, setCsvDetectedBalance] = useState<number | null>(null)
+  const [csvUpdateValue, setCsvUpdateValue] = useState(false)
+  const [csvBalanceInput, setCsvBalanceInput] = useState("")
+  const [csvBusy, setCsvBusy] = useState(false)
+  const [csvError, setCsvError] = useState<string | null>(null)
+  const [csvSuccessCount, setCsvSuccessCount] = useState<number | null>(null)
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [targetId, setTargetId] = useState<string>(investments.length > 0 ? investments[0].id : NEW_TARGET)
+  const [newName, setNewName] = useState("")
+  const [newType, setNewType] = useState<InvestmentType>("revolut")
+
+  const isNewTarget = investments.length === 0 || targetId === NEW_TARGET
+  const targetCurrency = isNewTarget
+    ? homeCurrency
+    : (investments.find((i) => i.id === targetId)?.currency ?? homeCurrency)
+
+  // Mismo patrón que en NewInvestmentForm / InvestmentCard: las inversiones
+  // de precio en vivo (acciones/oro) sacan su valor de cantidad × precio de
+  // mercado, no de un saldo de extracto — no tiene sentido ofrecerlas como
+  // destino para "crear nueva inversión" desde un CSV importado.
+  const manualTypes = INVESTMENT_TYPES.filter((ty) => !isLivePriceType(ty))
+
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = typeof reader.result === "string" ? reader.result : ""
+        resolve(result.slice(result.indexOf(",") + 1))
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
+  const handleCsvFile = async (file: File) => {
+    setCsvError(null)
+    setCsvSuccessCount(null)
+    setCsvFileName(file.name)
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    if (isPdf && file.size > 15_000_000) {
+      setCsvError(t("investments.importCsvParseError"))
+      return
+    }
+    setCsvBusy(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) {
+        setCsvError(t("investments.saveError"))
+        return
+      }
+      const payload = isPdf ? { pdfBase64: await fileToBase64(file) } : { csv: await file.text() }
+      const res = await fetch("/api/import-investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      })
+      const result = await res.json()
+      if (!res.ok || !Array.isArray(result.contributions)) {
+        setCsvError(result.error || t("investments.importCsvParseError"))
+        return
+      }
+      const rows: CsvRow[] = result.contributions
+      if (rows.length === 0) {
+        setCsvRows([])
+        setCsvError(t("investments.importCsvNoRows"))
+        return
+      }
+      setCsvRows(rows)
+      setCsvIncluded(new Set(rows.map((_, i) => i)))
+      if (typeof result.currentBalance === "number") {
+        setCsvDetectedBalance(result.currentBalance)
+        setCsvUpdateValue(true)
+        setCsvBalanceInput(String(result.currentBalance))
+      }
+    } catch (err) {
+      console.error("[investments] csv import error:", err)
+      setCsvError(t("investments.importCsvParseError"))
+    } finally {
+      setCsvBusy(false)
+    }
+  }
+
+  const toggleCsvRow = (index: number) => {
+    setCsvIncluded((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const csvSelectedRows = (csvRows ?? []).filter((_, i) => csvIncluded.has(i))
+  const csvSelectedSum = csvSelectedRows.reduce((sum, r) => sum + r.amount, 0)
+
+  const confirmCsvImport = async () => {
+    if (csvSelectedRows.length === 0) return
+    if (isNewTarget && !newName.trim()) return
+    setCsvBusy(true)
+    setCsvError(null)
+    try {
+      let investmentId = targetId
+      if (isNewTarget) {
+        const created = await onAddInvestment({
+          name: newName.trim(),
+          type: newType,
+          currency: homeCurrency,
+          currentValue: 0,
+        })
+        investmentId = created.id
+      }
+      await onAddContributionsBulk(
+        investmentId,
+        csvSelectedRows.map((r) => ({ amount: r.amount, date: r.date, note: r.note || null })),
+      )
+      if (csvUpdateValue) {
+        const n = Number(csvBalanceInput.replace(",", "."))
+        if (!Number.isNaN(n)) await onUpdateValue(investmentId, n)
+      }
+      setCsvSuccessCount(csvSelectedRows.length)
+      setCsvRows(null)
+      setCsvFileName(null)
+      setCsvDetectedBalance(null)
+      setCsvUpdateValue(false)
+      setCsvBalanceInput("")
+      setNewName("")
+    } catch (err) {
+      console.error("[investments] csv import error:", err)
+      setCsvError(t("investments.saveError"))
+    } finally {
+      setCsvBusy(false)
+    }
+  }
+
+  return (
+    <Card className="p-5 animate-in slide-in-from-top-4 duration-300">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">{t("investments.importCsv")}</h2>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="size-4" />
+        </button>
+      </div>
+      <div className="space-y-4">
+        <p className="text-[11px] leading-snug text-muted-foreground">{t("investments.importCsvHint")}</p>
+
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv,.pdf,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) handleCsvFile(file)
+            e.target.value = ""
+          }}
+        />
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={csvBusy}
+          onClick={() => csvInputRef.current?.click()}
+        >
+          <Upload className="size-4" />
+          {csvBusy && !csvRows ? t("common.loading") : (csvFileName ?? t("investments.importCsv"))}
+        </Button>
+
+        {csvError && <p className="text-xs text-red-500">{csvError}</p>}
+
+        {csvSuccessCount !== null && (
+          <p className="text-xs text-emerald-500">{t("investments.importCsvSuccess", { count: csvSuccessCount })}</p>
+        )}
+
+        {csvRows && csvRows.length > 0 && (
+          <>
+            {investments.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>{t("investments.importCsvTarget")}</Label>
+                <select
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {investments.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.name}
+                    </option>
+                  ))}
+                  <option value={NEW_TARGET}>{t("investments.importCsvTargetNew")}</option>
+                </select>
+              </div>
+            )}
+
+            {isNewTarget && (
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder={t("investments.importCsvNewNamePlaceholder")}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as InvestmentType)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {manualTypes.map((ty) => (
+                    <option key={ty} value={ty}>
+                      {t(`investments.type.${ty}` as any)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="max-h-52 space-y-1 overflow-y-auto rounded border border-border/60 p-1.5">
+              {csvRows.map((r, i) => {
+                const checked = csvIncluded.has(i)
+                return (
+                  <label key={i} className="flex items-center gap-2 rounded px-1 py-1 text-[11px] hover:bg-muted/50">
+                    <input type="checkbox" checked={checked} onChange={() => toggleCsvRow(i)} className="shrink-0" />
+                    <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{r.date}</span>
+                    <span className="min-w-0 flex-1 truncate">{r.note || "—"}</span>
+                    <span className={`shrink-0 tabular-nums ${r.amount >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                      {fmt(r.amount, targetCurrency)}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              {t("investments.importCsvRowsSelected", {
+                count: csvSelectedRows.length,
+                total: csvRows.length,
+                sum: fmt(csvSelectedSum, targetCurrency),
+              })}
+            </p>
+
+            {csvDetectedBalance !== null && (
+              <label className="flex items-center gap-2 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={csvUpdateValue}
+                  onChange={(e) => setCsvUpdateValue(e.target.checked)}
+                />
+                <span className="flex-1">{t("investments.importCsvUpdateValueLabel")}</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={csvBalanceInput}
+                  onChange={(e) => setCsvBalanceInput(e.target.value)}
+                  disabled={!csvUpdateValue}
+                  className="h-7 w-24 text-xs"
+                />
+              </label>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                disabled={csvBusy || csvSelectedRows.length === 0 || (isNewTarget && !newName.trim())}
+                onClick={confirmCsvImport}
+              >
+                {csvBusy ? t("common.saving") : `${t("investments.importCsvConfirm")} (${csvSelectedRows.length})`}
+              </Button>
+              <Button variant="ghost" onClick={onClose}>
+                {t("investments.importCsvCancel")}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </Card>
   )
