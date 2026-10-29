@@ -68,20 +68,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El PDF es demasiado grande. Pruébalo por partes." }, { status: 400 })
   }
 
+  // Un extracto de bróker multi-activo (Revolut Invest y similares) suele
+  // traer una tabla de "Portfolio breakdown"/"Holdings" con una fila por
+  // símbolo (ticker, cantidad, precio) — eso es justo lo que necesita el
+  // tipo de inversión "stocks" con precio en vivo (ver lib/types.ts,
+  // isLivePriceType): symbol + quantity, sin meter el valor a mano. Antes
+  // esto no se extraía en absoluto — solo se leían los "Cash top-up" de la
+  // tabla de transacciones, que es ruido para este caso (son el lado en
+  // dinero de cada compra, no la posición resultante) y dejaba al usuario
+  // sin ver qué había comprado realmente.
+  const positionHint =
+    `Si el extracto incluye una tabla de cartera/posiciones actuales (encabezados como "Portfolio ` +
+    `breakdown", "Holdings", "Positions" — una fila por cada activo que se posee AHORA MISMO, con su ` +
+    `símbolo/ticker y la cantidad que se tiene), extrae esa tabla completa en "positions": un símbolo ` +
+    `corto tipo ticker bursátil (p.ej. "AAPL", "VUSA" — en mayúsculas, SIN el ISIN ni el nombre completo ` +
+    `de la empresa) y la cantidad de unidades/acciones que se poseen. Si el extracto tiene varias de estas ` +
+    `tablas (p.ej. una por divisa, como "USD Portfolio breakdown" y "EUR Portfolio breakdown"), extrae TODAS ` +
+    `las filas de TODAS ellas en el mismo array "positions" — no te quedes solo con la primera. Si no hay ` +
+    `ninguna tabla de este tipo (p.ej. un extracto que solo lista ingresos/retiradas de dinero, como un PIAS ` +
+    `o una cuenta de ahorro), deja "positions" como array vacío.`
+
   const contributionHint =
-    `Solo interesan los movimientos de dinero QUE ENTRA o SALE de esta inversión/cuenta — aportaciones ` +
-    `(ingresos, compras iniciales, transferencias de dinero hacia dentro, "top up", "deposit", "buy" cuando ` +
-    `es dinero nuevo entrando) y retiradas (retiros, ventas que sacan el dinero fuera, "withdrawal", ` +
-    `"sell" cuando el dinero sale de la cuenta). NO incluyas como movimiento aparte la revalorización del ` +
-    `precio de mercado día a día, dividendos reinvertidos automáticamente, ni comisiones sueltas — solo el ` +
-    `movimiento neto de dinero de cada operación de entrada/salida tal como aparece en el extracto. Si una ` +
-    `fila es ambigua, mejor incluirla (el usuario revisa la lista antes de guardar nada) que omitirla.`
+    `Aparte de las posiciones de arriba, interesan también los movimientos de dinero QUE ENTRA o SALE de ` +
+    `esta inversión/cuenta — aportaciones (ingresos, transferencias de dinero hacia dentro, "top up", ` +
+    `"deposit") y retiradas ("withdrawal", ventas que sacan el dinero fuera de la cuenta por completo, no ` +
+    `una compra de otro activo con ese dinero). Estos dos campos son complementarios: "positions" es la foto ` +
+    `fija de qué se posee ahora, "contributions" es el historial de dinero entrando/saliendo de la cuenta en ` +
+    `general — en un extracto de bróker normalmente aparecen los dos (las posiciones arriba, y los "cash ` +
+    `top-up" aquí). NO incluyas en "contributions" cada operación individual de compra/venta de un activo ` +
+    `concreto (eso ya queda reflejado en "positions"), ni dividendos reinvertidos automáticamente, ni ` +
+    `comisiones sueltas — solo el movimiento neto de dinero entrando/saliendo de la cuenta en su conjunto. ` +
+    `Si una fila es ambigua, mejor incluirla (el usuario revisa la lista antes de guardar nada) que omitirla.`
 
   const balanceHint =
-    `Si el extracto indica en algún sitio el saldo o valor final de la cuenta/inversión (p.ej. "Balance", ` +
-    `"Closing balance", "Portfolio value", el valor de la última fila), devuélvelo en "currentBalance". Si no ` +
-    `aparece ningún saldo o valor final claro, deja "currentBalance" en null — no lo calcules ni lo inventes ` +
-    `sumando los movimientos.`
+    `Si el extracto indica en algún sitio el saldo o valor final en EFECTIVO de la cuenta (p.ej. "Cash ` +
+    `value", "Balance", el dinero sin invertir), devuélvelo en "currentBalance" — esto es aparte de las ` +
+    `posiciones, que ya llevan su propio valor. Si no aparece ningún saldo en efectivo claro, deja ` +
+    `"currentBalance" en null — no lo calcules ni lo inventes sumando los movimientos.`
 
   const model = process.env.GEMINI_CSV_MODEL || "gemini-3.6-flash"
 
@@ -89,10 +112,10 @@ export async function POST(req: NextRequest) {
     ? `Este es un extracto en PDF de una inversión, cuenta de bróker o exchange de criptomonedas (puede ser ` +
       `de cualquier proveedor: Revolut Invest, Revolut Crypto, un plan de ahorro, un bróker, etc., y cada uno ` +
       `maqueta su extracto de forma distinta — en tabla, texto plano, o varias secciones). Lee el documento ` +
-      `entero.\n\n${contributionHint}\n\n${balanceHint}`
+      `entero, todas las páginas.\n\n${positionHint}\n\n${contributionHint}\n\n${balanceHint}`
     : `Este es un extracto en CSV de una inversión, cuenta de bróker o exchange de criptomonedas (puede ser ` +
       `de cualquier proveedor y cada uno usa sus propias columnas, formato de fecha e importe). Detecta el ` +
-      `formato tú mismo.\n\n${contributionHint}\n\n${balanceHint}\n\nCSV:\n${csv}`
+      `formato tú mismo.\n\n${positionHint}\n\n${contributionHint}\n\n${balanceHint}\n\nCSV:\n${csv}`
 
   const contentParts = isPdf
     ? [{ text: prompt }, { inlineData: { mimeType: "application/pdf", data: pdfBase64 } }]
@@ -113,6 +136,27 @@ export async function POST(req: NextRequest) {
           responseSchema: {
             type: "OBJECT",
             properties: {
+              positions: {
+                type: "ARRAY",
+                items: {
+                  type: "OBJECT",
+                  properties: {
+                    symbol: {
+                      type: "STRING",
+                      description: "Símbolo/ticker bursátil en mayúsculas (p.ej. AAPL), nunca el ISIN ni el nombre completo.",
+                    },
+                    company: {
+                      type: "STRING",
+                      description: "Nombre de la empresa/fondo tal cual aparece en el extracto (p.ej. \"Apple\", \"Vanguard S&P 500 Dist ETF\").",
+                    },
+                    quantity: {
+                      type: "NUMBER",
+                      description: "Cantidad de unidades/acciones que se poseen de este activo ahora mismo.",
+                    },
+                  },
+                  required: ["symbol", "quantity"],
+                },
+              },
               contributions: {
                 type: "ARRAY",
                 items: {
@@ -134,10 +178,10 @@ export async function POST(req: NextRequest) {
               currentBalance: {
                 type: "NUMBER",
                 nullable: true,
-                description: "Saldo o valor final de la cuenta/inversión si el extracto lo indica, null si no.",
+                description: "Saldo en efectivo sin invertir de la cuenta, si el extracto lo indica, null si no.",
               },
             },
-            required: ["contributions"],
+            required: ["positions", "contributions"],
           },
         },
       }),
@@ -175,9 +219,14 @@ export async function POST(req: NextRequest) {
       parsed = null
     }
 
-    const obj = parsed as { contributions?: unknown; currentBalance?: unknown } | null
+    const obj = parsed as { positions?: unknown; contributions?: unknown; currentBalance?: unknown } | null
+    const rawPositions = Array.isArray(obj?.positions) ? obj!.positions : null
     const rawContributions = Array.isArray(obj?.contributions) ? obj!.contributions : null
 
+    // "positions" es el campo nuevo — una respuesta vieja (modelo distinto,
+    // o un reintento con un esquema desfasado) sin él no debería tratarse
+    // como un fallo total mientras al menos "contributions" esté bien
+    // formado, así que solo se exige esto último.
     if (!rawContributions) {
       console.error("[import-investments] respuesta inesperada de Gemini:", finishReason, rawText?.slice(0, 500))
       return NextResponse.json(
@@ -185,6 +234,22 @@ export async function POST(req: NextRequest) {
         { status: 502 },
       )
     }
+
+    const positions = ((rawPositions ?? []) as unknown[])
+      .map((r) => {
+        const row = r as { symbol?: unknown; company?: unknown; quantity?: unknown }
+        const symbolRaw = typeof row.symbol === "string" ? row.symbol.trim().toUpperCase() : ""
+        // Un ticker real nunca lleva espacios ni es larguísimo — esto
+        // descarta que Gemini se haya colado metiendo el ISIN o el nombre
+        // completo de la empresa en vez del símbolo corto que pide el
+        // esquema, en lugar de dejar pasar algo que luego romperá al
+        // llamar a /api/market-price.
+        const symbol = /^[A-Z0-9.]{1,10}$/.test(symbolRaw) ? symbolRaw : null
+        const quantity = typeof row.quantity === "number" && isFinite(row.quantity) && row.quantity > 0 ? row.quantity : null
+        const company = typeof row.company === "string" ? row.company.trim().slice(0, 120) : ""
+        return { symbol, quantity, company }
+      })
+      .filter((r): r is { symbol: string; quantity: number; company: string } => !!r.symbol && r.quantity !== null)
 
     const contributions = (rawContributions as unknown[])
       .map((r) => {
@@ -199,7 +264,7 @@ export async function POST(req: NextRequest) {
     const currentBalance =
       typeof obj?.currentBalance === "number" && isFinite(obj.currentBalance) ? obj.currentBalance : null
 
-    return NextResponse.json({ contributions, currentBalance })
+    return NextResponse.json({ positions, contributions, currentBalance })
   } catch (err) {
     console.error("[import-investments]", err)
     return NextResponse.json(
