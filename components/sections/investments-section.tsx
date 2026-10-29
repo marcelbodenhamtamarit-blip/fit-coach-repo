@@ -20,6 +20,9 @@ import {
   TrendingDown,
   X,
   Upload,
+  LineChart,
+  Gem,
+  RefreshCw,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,20 +32,25 @@ import { useStore } from "@/lib/store"
 import { useInvestments } from "@/lib/investments-store"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
-import { parseInvestmentCsv, type ParsedCsv, type ParsedCsvRow } from "@/lib/csv-import"
+import { fetchLivePrice, valueFromLivePrice } from "@/lib/market-price"
 import {
   CURRENCIES,
   currencySymbol,
   INVESTMENT_TYPES,
   investmentGain,
   investmentNetContributed,
+  isLivePriceType,
+  PRICE_UNITS,
   type Investment,
   type InvestmentType,
+  type PriceUnit,
 } from "@/lib/types"
 import { type Language } from "@/lib/i18n"
 
 const TYPE_ICON: Record<InvestmentType, typeof Landmark> = {
   pias: Landmark,
+  stocks: LineChart,
+  gold: Gem,
   revolut: CreditCard,
   crypto: Bitcoin,
   other: Coins,
@@ -230,25 +238,43 @@ function NewInvestmentForm({
   homeCurrency: string
   t: (key: any, params?: Record<string, string | number>) => string
   onCancel: () => void
-  onCreate: (payload: { name: string; type: InvestmentType; currency: string; currentValue: number }) => Promise<void>
+  onCreate: (payload: {
+    name: string
+    type: InvestmentType
+    currency: string
+    currentValue: number
+    symbol?: string | null
+    quantity?: number | null
+    priceUnit?: string | null
+  }) => Promise<void>
 }) {
   const [name, setName] = useState("")
   const [type, setType] = useState<InvestmentType>("pias")
   const [currency, setCurrency] = useState(homeCurrency)
   const [value, setValue] = useState("")
+  const [symbol, setSymbol] = useState("")
+  const [quantity, setQuantity] = useState("")
+  const [priceUnit, setPriceUnit] = useState<PriceUnit>("gram")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const live = isLivePriceType(type)
+
   const handleSave = async () => {
     if (!name.trim()) return
+    if (live && (!quantity.trim() || Number.isNaN(Number(quantity.replace(",", "."))))) return
+    if (type === "stocks" && !symbol.trim()) return
     setSaving(true)
     setError(null)
     try {
       await onCreate({
         name: name.trim(),
         type,
-        currency,
-        currentValue: value.trim() === "" ? 0 : Number(value.replace(",", ".")),
+        currency: live ? "USD" : currency,
+        currentValue: live ? 0 : value.trim() === "" ? 0 : Number(value.replace(",", ".")),
+        symbol: type === "stocks" ? symbol.trim().toUpperCase() : type === "gold" ? "XAU" : null,
+        quantity: live ? Number(quantity.replace(",", ".")) : null,
+        priceUnit: type === "stocks" ? "share" : type === "gold" ? priceUnit : null,
       })
     } catch (err) {
       console.error("[investments] create error:", err)
@@ -291,6 +317,53 @@ function NewInvestmentForm({
             ))}
           </select>
         </div>
+        {live ? (
+          <>
+            {type === "stocks" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="inv-symbol">{t("investments.symbol")}</Label>
+                <Input
+                  id="inv-symbol"
+                  placeholder={t("investments.symbolPlaceholder")}
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="inv-quantity">
+                {type === "stocks" ? t("investments.quantityShares") : t("investments.quantity")}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="inv-quantity"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  placeholder="0"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="flex-1"
+                />
+                {type === "gold" && (
+                  <select
+                    aria-label={t("investments.priceUnit")}
+                    value={priceUnit}
+                    onChange={(e) => setPriceUnit(e.target.value as PriceUnit)}
+                    className="flex h-9 w-28 shrink-0 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {PRICE_UNITS.filter((u) => u !== "share").map((u) => (
+                      <option key={u} value={u}>
+                        {t(`investments.priceUnit.${u}` as any)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">{t("investments.livePriceHint")}</p>
+          </>
+        ) : (
         <div className="space-y-1.5">
           <Label htmlFor="inv-value">{t("investments.currentValue")}</Label>
           <div className="flex gap-2">
@@ -318,8 +391,13 @@ function NewInvestmentForm({
             </select>
           </div>
         </div>
+        )}
         {error && <p className="text-xs text-red-500">{error}</p>}
-        <Button onClick={handleSave} disabled={saving || !name.trim()} className="w-full">
+        <Button
+          onClick={handleSave}
+          disabled={saving || !name.trim() || (live && !quantity.trim()) || (type === "stocks" && !symbol.trim())}
+          className="w-full"
+        >
           {saving ? t("common.saving") : t("common.save")}
         </Button>
       </div>
@@ -362,6 +440,7 @@ function InvestmentCard({
   const gain = investmentGain(investment, contributions)
   const hasHistory = contributions.length > 0
   const locale = lang === "en" ? "en-US" : "es-ES"
+  const live = isLivePriceType(investment.type)
 
   const [expanded, setExpanded] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -376,21 +455,54 @@ function InvestmentCard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Importar CSV: se parsea en el navegador (nada sale del dispositivo) y
-  // se muestra una vista previa con checkboxes antes de guardar nada — el
-  // formato exacto de columnas varía según de qué parte de Revolut venga
-  // el export, así que lo prudente es dejar revisar antes de confirmar en
-  // vez de fiarse ciegamente de la detección automática.
+  // Importar CSV o PDF: igual que "Importar CSV o PDF" en Economía (ver
+  // app/api/import-investments/route.ts), el archivo se manda a Gemini
+  // (ya configurado en el proyecto) para que detecte el formato — puede
+  // ser de cualquier bróker/exchange/banco, cada uno maqueta su extracto
+  // de forma distinta — y devuelva los movimientos ya normalizados. Se
+  // muestra una vista previa con checkboxes antes de guardar nada.
+  type CsvRow = { date: string; amount: number; note: string }
   const [csvPanelOpen, setCsvPanelOpen] = useState(false)
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
-  const [csvParsed, setCsvParsed] = useState<ParsedCsv | null>(null)
+  const [csvRows, setCsvRows] = useState<CsvRow[] | null>(null)
   const [csvIncluded, setCsvIncluded] = useState<Set<number>>(new Set())
+  const [csvDetectedBalance, setCsvDetectedBalance] = useState<number | null>(null)
   const [csvUpdateValue, setCsvUpdateValue] = useState(false)
   const [csvBalanceInput, setCsvBalanceInput] = useState("")
   const [csvBusy, setCsvBusy] = useState(false)
   const [csvError, setCsvError] = useState<string | null>(null)
   const [csvSuccessCount, setCsvSuccessCount] = useState<number | null>(null)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Precio en vivo (stocks/gold): sin esto, el valor es manual como
+  // siempre. "Actualizar precio" llama a API Ninjas (cacheado por día en
+  // market_prices, ver lib/market-price.ts) y calcula cantidad × precio.
+  const [priceBusy, setPriceBusy] = useState(false)
+  const [priceError, setPriceError] = useState<string | null>(null)
+  const [priceChange, setPriceChange] = useState<number | null>(null)
+  const [lastPrice, setLastPrice] = useState<number | null>(null)
+
+  const refreshLivePrice = async () => {
+    if (!investment.symbol || !investment.quantity || !investment.priceUnit) return
+    setPriceBusy(true)
+    setPriceError(null)
+    try {
+      const result = await fetchLivePrice(investment.symbol, investment.type === "gold" ? "gold" : "stock", supabase)
+      const value = valueFromLivePrice(result.price, investment.quantity, investment.priceUnit)
+      await onUpdateValue(investment.id, value)
+      setLastPrice(result.price)
+      if (result.previousPrice !== null && result.previousPrice !== 0) {
+        setPriceChange(((result.price - result.previousPrice) / result.previousPrice) * 100)
+      } else {
+        setPriceChange(null)
+      }
+    } catch (err) {
+      console.error("[investments] live price error:", err)
+      setPriceError(t("investments.livePriceError"))
+    } finally {
+      setPriceBusy(false)
+    }
+  }
 
   const saveName = async () => {
     const trimmed = nameInput.trim()
@@ -477,43 +589,75 @@ function InvestmentCard({
   }
 
   const resetCsvState = () => {
-    setCsvParsed(null)
+    setCsvRows(null)
     setCsvFileName(null)
     setCsvIncluded(new Set())
+    setCsvDetectedBalance(null)
     setCsvUpdateValue(false)
     setCsvBalanceInput("")
     setCsvError(null)
   }
 
+  // Igual que fileToBase64 en economy-section.tsx: readAsDataURL es la
+  // forma más simple de conseguir base64 en el navegador, y se le quita el
+  // prefijo "data:application/pdf;base64," antes de mandarlo al servidor.
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = typeof reader.result === "string" ? reader.result : ""
+        resolve(result.slice(result.indexOf(",") + 1))
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
   const handleCsvFile = async (file: File) => {
     setCsvError(null)
     setCsvSuccessCount(null)
     setCsvFileName(file.name)
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    if (isPdf && file.size > 15_000_000) {
+      setCsvError(t("investments.importCsvParseError"))
+      return
+    }
+    setCsvBusy(true)
     try {
-      const text = await file.text()
-      const parsed = parseInvestmentCsv(text)
-      const validRows = parsed.rows.filter((r) => r.date && r.amount !== null && r.amount !== 0)
-      setCsvParsed(parsed)
-      if (validRows.length === 0) {
-        setCsvIncluded(new Set())
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) {
+        setCsvError(t("investments.saveError"))
+        return
+      }
+      const payload = isPdf ? { pdfBase64: await fileToBase64(file) } : { csv: await file.text() }
+      const res = await fetch("/api/import-investments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload),
+      })
+      const result = await res.json()
+      if (!res.ok || !Array.isArray(result.contributions)) {
+        setCsvError(result.error || t("investments.importCsvParseError"))
+        return
+      }
+      const rows: CsvRow[] = result.contributions
+      if (rows.length === 0) {
+        setCsvRows([])
         setCsvError(t("investments.importCsvNoRows"))
         return
       }
-      setCsvIncluded(new Set(validRows.map((r) => r.index)))
-      if (parsed.detected.balanceCol) {
-        const withBalance = parsed.rows.filter((r) => r.balance !== null && r.date)
-        const latest = withBalance.reduce<ParsedCsvRow | null>((best, r) => {
-          if (!best) return r
-          return (r.date ?? "") > (best.date ?? "") ? r : best
-        }, null)
-        if (latest && latest.balance !== null) {
-          setCsvUpdateValue(true)
-          setCsvBalanceInput(String(latest.balance))
-        }
+      setCsvRows(rows)
+      setCsvIncluded(new Set(rows.map((_, i) => i)))
+      if (typeof result.currentBalance === "number") {
+        setCsvDetectedBalance(result.currentBalance)
+        setCsvUpdateValue(true)
+        setCsvBalanceInput(String(result.currentBalance))
       }
     } catch (err) {
-      console.error("[investments] csv parse error:", err)
+      console.error("[investments] csv import error:", err)
       setCsvError(t("investments.importCsvParseError"))
+    } finally {
+      setCsvBusy(false)
     }
   }
 
@@ -526,10 +670,8 @@ function InvestmentCard({
     })
   }
 
-  const csvSelectedRows = csvParsed
-    ? csvParsed.rows.filter((r) => csvIncluded.has(r.index) && r.date && r.amount !== null && r.amount !== 0)
-    : []
-  const csvSelectedSum = csvSelectedRows.reduce((sum, r) => sum + (r.amount ?? 0), 0)
+  const csvSelectedRows = (csvRows ?? []).filter((_, i) => csvIncluded.has(i))
+  const csvSelectedSum = csvSelectedRows.reduce((sum, r) => sum + r.amount, 0)
 
   const confirmCsvImport = async () => {
     if (csvSelectedRows.length === 0) return
@@ -538,7 +680,7 @@ function InvestmentCard({
     try {
       await onAddContributionsBulk(
         investment.id,
-        csvSelectedRows.map((r) => ({ amount: r.amount as number, date: r.date as string, note: r.description || null })),
+        csvSelectedRows.map((r) => ({ amount: r.amount, date: r.date, note: r.note || null })),
       )
       if (csvUpdateValue) {
         const n = Number(csvBalanceInput.replace(",", "."))
@@ -604,7 +746,42 @@ function InvestmentCard({
 
       <div className="mt-3 flex items-end justify-between gap-3">
         <div>
-          {editingValue ? (
+          {live ? (
+            <div>
+              <p className="text-xl font-bold tabular-nums">{fmt(investment.currentValue, investment.currency)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {lastPrice !== null
+                  ? t("investments.priceAt", {
+                      price: fmt(lastPrice, investment.currency),
+                      unit: t(`investments.priceUnitLabel.${investment.priceUnit}` as any),
+                      date: new Date().toLocaleDateString(locale, { day: "numeric", month: "short" }),
+                    })
+                  : investment.currentValueUpdatedAt
+                    ? t("investments.lastUpdated", {
+                        date: new Date(investment.currentValueUpdatedAt).toLocaleDateString(locale, {
+                          day: "numeric",
+                          month: "short",
+                        }),
+                      })
+                    : t("investments.priceNeverFetched")}
+                {priceChange !== null && (
+                  <span className={priceChange >= 0 ? "ml-1.5 text-emerald-500" : "ml-1.5 text-red-500"}>
+                    {priceChange >= 0 ? "▲" : "▼"} {Math.abs(priceChange).toFixed(1)}%
+                  </span>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={refreshLivePrice}
+                disabled={priceBusy}
+                className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                <RefreshCw className={`size-3 ${priceBusy ? "animate-spin" : ""}`} />
+                {t("investments.updatePrice")}
+              </button>
+              {priceError && <p className="mt-1 text-[11px] text-red-500">{priceError}</p>}
+            </div>
+          ) : editingValue ? (
             <div className="flex items-center gap-1.5">
               <Input
                 autoFocus
@@ -776,7 +953,7 @@ function InvestmentCard({
               <input
                 ref={csvInputRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,text/csv,.pdf,application/pdf"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0]
@@ -788,52 +965,37 @@ function InvestmentCard({
                 size="sm"
                 variant="outline"
                 className="h-7 w-full text-xs"
+                disabled={csvBusy}
                 onClick={() => csvInputRef.current?.click()}
               >
                 <Upload className="size-3" />
-                {csvFileName ?? t("investments.importCsv")}
+                {csvBusy ? t("common.loading") : csvFileName ?? t("investments.importCsv")}
               </Button>
 
               {csvError && <p className="text-[11px] text-red-500">{csvError}</p>}
 
-              {csvParsed && csvParsed.rows.length > 0 && (
+              {csvRows && csvRows.length > 0 && (
                 <>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t("investments.importCsvColumnsDetected", {
-                      date: csvParsed.detected.dateCol ?? t("investments.importCsvNone"),
-                      amount: csvParsed.detected.amountCol ?? t("investments.importCsvNone"),
-                      balance: csvParsed.detected.balanceCol ?? t("investments.importCsvNone"),
-                    })}
-                  </p>
-
                   <div className="max-h-52 space-y-1 overflow-y-auto rounded border border-border/60 p-1.5">
-                    {csvParsed.rows.map((r) => {
-                      const valid = r.date !== null && r.amount !== null && r.amount !== 0
-                      const checked = csvIncluded.has(r.index)
+                    {csvRows.map((r, i) => {
+                      const checked = csvIncluded.has(i)
                       return (
                         <label
-                          key={r.index}
-                          className={`flex items-center gap-2 rounded px-1 py-1 text-[11px] ${
-                            valid ? "hover:bg-muted/50" : "opacity-40"
-                          }`}
+                          key={i}
+                          className="flex items-center gap-2 rounded px-1 py-1 text-[11px] hover:bg-muted/50"
                         >
                           <input
                             type="checkbox"
-                            disabled={!valid}
                             checked={checked}
-                            onChange={() => toggleCsvRow(r.index)}
+                            onChange={() => toggleCsvRow(i)}
                             className="shrink-0"
                           />
-                          <span className="w-16 shrink-0 tabular-nums text-muted-foreground">
-                            {r.date ?? (r.dateRaw.slice(0, 10) || "?")}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate">{r.description || "—"}</span>
+                          <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{r.date}</span>
+                          <span className="min-w-0 flex-1 truncate">{r.note || "—"}</span>
                           <span
-                            className={`shrink-0 tabular-nums ${
-                              r.amount === null ? "text-muted-foreground" : r.amount >= 0 ? "text-emerald-500" : "text-red-500"
-                            }`}
+                            className={`shrink-0 tabular-nums ${r.amount >= 0 ? "text-emerald-500" : "text-red-500"}`}
                           >
-                            {r.amount === null ? r.amountRaw || "?" : fmt(r.amount, investment.currency)}
+                            {fmt(r.amount, investment.currency)}
                           </span>
                         </label>
                       )
@@ -843,12 +1005,12 @@ function InvestmentCard({
                   <p className="text-[11px] text-muted-foreground">
                     {t("investments.importCsvRowsSelected", {
                       count: csvSelectedRows.length,
-                      total: csvParsed.rows.length,
+                      total: csvRows.length,
                       sum: fmt(csvSelectedSum, investment.currency),
                     })}
                   </p>
 
-                  {csvParsed.detected.balanceCol && (
+                  {csvDetectedBalance !== null && (
                     <label className="flex items-center gap-2 text-[11px]">
                       <input
                         type="checkbox"
