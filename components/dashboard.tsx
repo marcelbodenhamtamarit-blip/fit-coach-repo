@@ -25,7 +25,7 @@ import { LogOut } from "lucide-react"
 import { isPushSupported, getNotificationPermission, subscribeToPush, needsHomeScreenInstall } from "@/lib/push"
 import { isRedesignBetaUser } from "@/lib/redesign-beta"
 import { breakdownForMonth } from "@/lib/timmy-insights"
-import { TreeSheet, type PlanLine } from "@/components/tree-sheet"
+import type { PlanLine } from "@/components/tree-sheet"
 import { TimmyDrawer } from "@/components/timmy-drawer"
 import { supabase } from "@/lib/supabase"
 import { todayISO } from "@/lib/types"
@@ -62,7 +62,6 @@ export function Dashboard() {
   // para la cuenta de lib/redesign-beta.ts mientras se prueba — el resto de
   // usuarios ve exactamente el dock y las pantallas de siempre, sin cambios.
   const isRedesign = isRedesignBetaUser(user?.email)
-  const [treeOpen, setTreeOpen] = useState(false)
   const [timmyOpen, setTimmyOpen] = useState(false)
   const monthBreakdown = useMemo(
     () => breakdownForMonth(data.transactions ?? [], todayISO().slice(0, 7)),
@@ -121,12 +120,14 @@ export function Dashboard() {
   const headerColor = isWinterArc ? "oklch(0.97 0.02 60)" : "oklch(0.22 0.05 150)"
   const headerSubColor = isWinterArc ? "oklch(0.92 0.04 60 / 85%)" : "oklch(0.32 0.05 150 / 80%)"
 
+  // "settings" ya no vive aquí: se ha quitado del menú de navegación y
+  // ahora se abre con el icono de engranaje de la cabecera (ver header más
+  // abajo), presente en todas las páginas.
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
     { id: "investments", label: t("nav.investments"), icon: LineChart },
     { id: "winterarc", label: t("nav.winterArc"), icon: Flame },
-    { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
 
   const TAB_TITLES: Record<string, string> = {
@@ -203,22 +204,13 @@ export function Dashboard() {
           })}
 
           {isRedesign && (
-            <>
-              <button
-                onClick={() => setTreeOpen(true)}
-                className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#a3e635] transition-all duration-200 hover:bg-[#a3e635]/10 active:scale-[0.98]"
-              >
-                <span className="text-base">🌳</span>
-                Árbol de Gastos
-              </button>
-              <button
-                onClick={() => setTimmyOpen(true)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#c084fc] transition-all duration-200 hover:bg-[#c084fc]/10 active:scale-[0.98]"
-              >
-                <span className="text-base">✨</span>
-                IA Timmy
-              </button>
-            </>
+            <button
+              onClick={() => setTimmyOpen(true)}
+              className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#c084fc] transition-all duration-200 hover:bg-[#c084fc]/10 active:scale-[0.98]"
+            >
+              <span className="text-base">✨</span>
+              IA Timmy
+            </button>
           )}
         </nav>
       </aside>
@@ -236,6 +228,17 @@ export function Dashboard() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActive("settings")}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/35",
+                  active === "settings" ? "bg-white/40" : "bg-white/25",
+                )}
+                style={{ color: headerColor }}
+                title={t("nav.settings")}
+              >
+                <Settings className="size-4" />
+              </button>
               <button
                 onClick={() => window.location.reload()}
                 className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
@@ -304,47 +307,26 @@ export function Dashboard() {
           )
         })}
 
-        {/* Árbol de Gastos + IA Timmy: ambos elevados y con brillo — a
-            propósito ninguno de los dos es "solo un icono más" del dock, los
-            dos destacan igual (petición explícita: que Timmy destaque como
-            el árbol). Solo para la cuenta beta del rediseño. */}
+        {/* IA Timmy: elevado y con brillo, destaca sobre el resto del dock.
+            Solo para la cuenta beta del rediseño. */}
         {isRedesign && (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.vibrate?.(15)
-                setTreeOpen(true)
-              }}
-              aria-label="Ver árbol de gastos"
-              className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px] text-[21px]"
-              style={{
-                borderColor: "oklch(0.185 0.013 250)",
-                background: "linear-gradient(135deg, #4ade80, #a3e635)",
-                boxShadow: "0 8px 20px rgba(163,230,53,0.45)",
-                animation: "tmyPulseGlow 2.6s ease-in-out infinite",
-              }}
-            >
-              🌳
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.vibrate?.(15)
-                setTimmyOpen(true)
-              }}
-              aria-label="Apartado IA Timmy"
-              className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px]"
-              style={{
-                borderColor: "oklch(0.185 0.013 250)",
-                background: "radial-gradient(circle at 32% 28%, #f3e8ff, #c084fc 55%, #7e22ce 100%)",
-                boxShadow: "0 8px 20px rgba(168,85,247,0.5)",
-                animation: "tmyPulseGlowPurple 2.6s ease-in-out infinite",
-              }}
-            >
-              <span className="text-[20px]">✨</span>
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.vibrate?.(15)
+              setTimmyOpen(true)
+            }}
+            aria-label="Apartado IA Timmy"
+            className="relative -top-4 flex size-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full border-[3px]"
+            style={{
+              borderColor: "oklch(0.185 0.013 250)",
+              background: "radial-gradient(circle at 32% 28%, #f3e8ff, #c084fc 55%, #7e22ce 100%)",
+              boxShadow: "0 8px 20px rgba(168,85,247,0.5)",
+              animation: "tmyPulseGlowPurple 2.6s ease-in-out infinite",
+            }}
+          >
+            <span className="text-[20px]">✨</span>
+          </button>
         )}
 
         {TABS.slice(2).map((tab) => {
@@ -370,34 +352,18 @@ export function Dashboard() {
       </nav>
 
       {isRedesign && (
-        <>
-          <TreeSheet
-            open={treeOpen}
-            onClose={() => setTreeOpen(false)}
-            categories={monthBreakdown.categories}
-            income={monthBreakdown.income}
-            expense={monthBreakdown.expense}
-            homeCurrency={data.homeCurrency}
-            planLines={plan?.lines ?? null}
-            planSummary={plan?.summary ?? null}
-            onOpenTimmy={() => {
-              setTreeOpen(false)
-              setTimmyOpen(true)
-            }}
-          />
-          <TimmyDrawer
-            open={timmyOpen}
-            onClose={() => setTimmyOpen(false)}
-            categories={monthBreakdown.categories}
-            income={monthBreakdown.income}
-            expense={monthBreakdown.expense}
-            homeCurrency={data.homeCurrency}
-            planLines={plan?.lines ?? null}
-            planSummary={plan?.summary ?? null}
-            planLoading={planLoading}
-            onRequestPlan={requestPlan}
-          />
-        </>
+        <TimmyDrawer
+          open={timmyOpen}
+          onClose={() => setTimmyOpen(false)}
+          categories={monthBreakdown.categories}
+          income={monthBreakdown.income}
+          expense={monthBreakdown.expense}
+          homeCurrency={data.homeCurrency}
+          planLines={plan?.lines ?? null}
+          planSummary={plan?.summary ?? null}
+          planLoading={planLoading}
+          onRequestPlan={requestPlan}
+        />
       )}
     </>
   )
