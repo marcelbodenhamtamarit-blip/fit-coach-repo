@@ -233,3 +233,53 @@ export const todayISO = () => {
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
+
+// ---------- Inversiones (Ajustes > Inversiones) ----------
+// Entrada manual: no hay conexión automática con ningún bróker ni
+// exchange. Cada inversión guarda solo su valor actual (currentValue), que
+// el usuario actualiza a mano cuando quiere (ver Ajustes > Inversiones), y
+// un historial de aportaciones/retiradas (InvestmentContribution) con
+// fecha — eso es lo que permite calcular ganancia/pérdida real: valor
+// actual menos neto aportado, no solo "cuánto vale ahora".
+export const INVESTMENT_TYPES = ["pias", "revolut", "crypto", "other"] as const
+export type InvestmentType = (typeof INVESTMENT_TYPES)[number]
+
+export type Investment = {
+  id: string
+  name: string
+  type: InvestmentType
+  currency: string
+  currentValue: number
+  currentValueUpdatedAt: string | null // ISO datetime, null si nunca se ha puesto un valor
+  archived: boolean
+  createdAt: string
+}
+
+export type InvestmentContribution = {
+  id: string
+  investmentId: string
+  amount: number // positivo = aportación, negativo = retirada
+  date: string // ISO date yyyy-mm-dd
+  note: string | null
+  createdAt: string
+}
+
+// Neto aportado a una inversión concreta: suma de aportaciones menos
+// retiradas (ya vienen con signo en `amount`).
+export function investmentNetContributed(
+  contributions: InvestmentContribution[],
+  investmentId: string,
+): number {
+  return contributions
+    .filter((c) => c.investmentId === investmentId)
+    .reduce((sum, c) => sum + c.amount, 0)
+}
+
+// Ganancia/pérdida real de una inversión: lo que vale ahora menos lo que
+// de verdad se ha metido (o sacado). Si todavía no se ha puesto ningún
+// valor actual (currentValueUpdatedAt es null), no hay ganancia que
+// mostrar de forma fiable: el llamador decide cómo tratarlo (normalmente
+// ocultando el dato en vez de mostrar un falso "-100%").
+export function investmentGain(investment: Investment, contributions: InvestmentContribution[]): number {
+  return investment.currentValue - investmentNetContributed(contributions, investment.id)
+}
