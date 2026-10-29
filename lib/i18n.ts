@@ -745,6 +745,38 @@ export const TRANSLATIONS = {
     es: "No se ha podido guardar. Comprueba tu conexión e inténtalo de nuevo.",
     en: "Couldn't save that. Check your connection and try again.",
   },
+  "investments.importCsv": { es: "Importar CSV", en: "Import CSV" },
+  "investments.importCsvHint": {
+    es: "Sube un extracto CSV (p.ej. de Revolut Invest o Crypto). Revisa las filas detectadas antes de confirmar.",
+    en: "Upload a CSV statement (e.g. from Revolut Invest or Crypto). Review the detected rows before confirming.",
+  },
+  "investments.importCsvParseError": {
+    es: "No se ha podido leer ese archivo como CSV.",
+    en: "Couldn't read that file as CSV.",
+  },
+  "investments.importCsvNoRows": {
+    es: "No se han detectado filas con fecha e importe en este CSV.",
+    en: "No rows with a date and amount were detected in this CSV.",
+  },
+  "investments.importCsvColumnsDetected": {
+    es: "Columnas detectadas — fecha: {date}, importe: {amount}, saldo: {balance}",
+    en: "Detected columns — date: {date}, amount: {amount}, balance: {balance}",
+  },
+  "investments.importCsvNone": { es: "ninguna", en: "none" },
+  "investments.importCsvRowsSelected": {
+    es: "{count} de {total} filas seleccionadas · total {sum}",
+    en: "{count} of {total} rows selected · total {sum}",
+  },
+  "investments.importCsvUpdateValueLabel": {
+    es: "También actualizar el valor actual con el último saldo del CSV",
+    en: "Also update the current value with the CSV's latest balance",
+  },
+  "investments.importCsvConfirm": { es: "Importar aportaciones", en: "Import contributions" },
+  "investments.importCsvCancel": { es: "Cancelar", en: "Cancel" },
+  "investments.importCsvSuccess": {
+    es: "Se han importado {count} aportaciones.",
+    en: "{count} contributions were imported.",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
