@@ -221,6 +221,13 @@ function PreferencesCard() {
   const [converting, setConverting] = useState(false)
   const [convertResult, setConvertResult] = useState<string | null>(null)
   const [convertError, setConvertError] = useState<string | null>(null)
+  // BUG CORREGIDO (29 oct 2026): el idioma y el inicio de semana se
+  // guardaban como si siempre fueran a funcionar (flash("saved") al
+  // instante, sin esperar a Supabase). Ahora setLanguage/setWeekStartDay
+  // esperan la confirmación del servidor, así que aquí hay que esperarlas
+  // también y solo mostrar "Guardado" si de verdad se guardó — si falla,
+  // se avisa en vez de dejar la pantalla mostrando un cambio que no cuajó.
+  const [prefError, setPrefError] = useState<{ field: "language" | "weekStartDay"; message: string } | null>(null)
 
   function flash(field: "currency" | "language" | "weekStartDay") {
     setSavedField(field)
@@ -266,14 +273,26 @@ function PreferencesCard() {
     }
   }
 
-  function handleLanguageChange(code: string) {
-    setLanguage(code)
-    flash("language")
+  async function handleLanguageChange(code: string) {
+    setPrefError(null)
+    try {
+      await setLanguage(code)
+      flash("language")
+    } catch (err) {
+      console.error("[settings] setLanguage error:", err)
+      setPrefError({ field: "language", message: t("settings.saveError") })
+    }
   }
 
-  function handleWeekStartDayChange(day: number) {
-    setWeekStartDay(day)
-    flash("weekStartDay")
+  async function handleWeekStartDayChange(day: number) {
+    setPrefError(null)
+    try {
+      await setWeekStartDay(day)
+      flash("weekStartDay")
+    } catch (err) {
+      console.error("[settings] setWeekStartDay error:", err)
+      setPrefError({ field: "weekStartDay", message: t("settings.saveError") })
+    }
   }
 
   return (
@@ -348,6 +367,7 @@ function PreferencesCard() {
             ))}
           </select>
           {savedField === "language" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+          {prefError?.field === "language" && <p className="mt-1.5 text-[11px] text-red-500">{prefError.message}</p>}
         </div>
 
         <div className="p-3">
@@ -366,6 +386,9 @@ function PreferencesCard() {
             ))}
           </select>
           {savedField === "weekStartDay" && <p className="mt-1.5 text-[11px] text-emerald-500">{t("settings.saved")}</p>}
+          {prefError?.field === "weekStartDay" && (
+            <p className="mt-1.5 text-[11px] text-red-500">{prefError.message}</p>
+          )}
         </div>
       </div>
     </div>
@@ -382,13 +405,29 @@ function TravelModeCard() {
   const { data, ready, setTravelMode, t } = useStore()
   const active = data.travelMode
   const currency = data.travelCurrency ?? data.homeCurrency
+  // BUG CORREGIDO (29 oct 2026): mismo guardado en segundo plano sin
+  // esperar que el resto de ajustes de esta pantalla (ver nota en
+  // lib/store.tsx setHomeCurrency) — ahora se espera la confirmación.
+  const [travelError, setTravelError] = useState<string | null>(null)
 
-  function toggle() {
-    setTravelMode(!active, currency)
+  async function toggle() {
+    setTravelError(null)
+    try {
+      await setTravelMode(!active, currency)
+    } catch (err) {
+      console.error("[settings] setTravelMode error:", err)
+      setTravelError(t("settings.saveError"))
+    }
   }
 
-  function handleCurrencyChange(code: string) {
-    setTravelMode(true, code)
+  async function handleCurrencyChange(code: string) {
+    setTravelError(null)
+    try {
+      await setTravelMode(true, code)
+    } catch (err) {
+      console.error("[settings] setTravelMode error:", err)
+      setTravelError(t("settings.saveError"))
+    }
   }
 
   return (
@@ -438,6 +477,7 @@ function TravelModeCard() {
           </select>
         </div>
       )}
+      {travelError && <p className="mt-2 text-[11px] text-red-500">{travelError}</p>}
     </Card>
   )
 }
