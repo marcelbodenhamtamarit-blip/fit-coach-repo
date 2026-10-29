@@ -25,7 +25,7 @@ function rowToInvestment(row: InvestmentRow): Investment {
     type: row.type as InvestmentType,
     currency: row.currency,
     currentValue: Number(row.current_value),
-    currentValueUpdatedAt: row.current_value_updated_at,
+    currentValueUpdatedAt: row.updated_at,
     archived: row.archived,
     createdAt: row.created_at,
   }
@@ -84,6 +84,12 @@ type InvestmentsContextType = {
   archiveInvestment: (id: string, archived: boolean) => Promise<void>
   deleteInvestment: (id: string) => Promise<void>
   addContribution: (investmentId: string, amount: number, date: string, note?: string | null) => Promise<void>
+  // Para importar varias aportaciones de golpe (p.ej. desde un CSV de
+  // Revolut): un único insert en vez de uno por fila.
+  addContributionsBulk: (
+    investmentId: string,
+    rows: { amount: number; date: string; note?: string | null }[],
+  ) => Promise<void>
   deleteContribution: (id: string) => Promise<void>
 }
 
@@ -135,7 +141,7 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
       type,
       currency,
       current_value: currentValue,
-      current_value_updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     if (error) {
       console.error("[supabase] addInvestment error:", error.message)
@@ -157,7 +163,7 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
     const updatedAt = new Date().toISOString()
     const { error } = await supabase
       .from("investments")
-      .update({ current_value: currentValue, current_value_updated_at: updatedAt })
+      .update({ current_value: currentValue, updated_at: updatedAt })
       .eq("id", id)
     if (error) {
       console.error("[supabase] updateInvestmentValue error:", error.message)
@@ -205,6 +211,34 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
     setContributions((list) => [rowToContribution(data as InvestmentContributionRow), ...list])
   }
 
+  const addContributionsBulk = async (
+    investmentId: string,
+    rows: { amount: number; date: string; note?: string | null }[],
+  ) => {
+    if (rows.length === 0) return
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { data, error } = await supabase
+      .from("investment_contributions")
+      .insert(
+        rows.map((r) => ({
+          user_id: userId,
+          investment_id: investmentId,
+          amount: r.amount,
+          date: r.date,
+          note: r.note ?? null,
+        })),
+      )
+      .select("*")
+    if (error || !data) {
+      console.error("[supabase] addContributionsBulk error:", error?.message)
+      throw new Error(error?.message ?? "No se pudieron importar las aportaciones")
+    }
+    const inserted = (data as InvestmentContributionRow[]).map(rowToContribution)
+    setContributions((list) => [...inserted, ...list])
+  }
+
   const deleteContribution = async (id: string) => {
     const { error } = await supabase.from("investment_contributions").delete().eq("id", id)
     if (error) {
@@ -226,6 +260,7 @@ export function InvestmentsProvider({ children }: { children: ReactNode }) {
         archiveInvestment,
         deleteInvestment,
         addContribution,
+        addContributionsBulk,
         deleteContribution,
       }}
     >
