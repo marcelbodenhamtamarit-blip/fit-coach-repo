@@ -234,7 +234,7 @@ type StoreContextType = {
   pendingReview: Transaction[]
   reviewOpen: boolean
   dismissReview: () => void
-  setHomeCurrency: (code: string) => void
+  setHomeCurrency: (code: string) => Promise<void>
   // A diferencia de setHomeCurrency (que solo cambia la etiqueta a partir
   // de ahora), esto reconvierte de verdad todo lo ya guardado — cada
   // transacción y cada plantilla recurrente — de `fromCode` a `toCode`,
@@ -245,11 +245,11 @@ type StoreContextType = {
     fromCode: string,
     toCode: string,
   ) => Promise<{ transactionsConverted: number; recurringConverted: number; failed: number }>
-  setLanguage: (code: string) => void
-  setTravelMode: (active: boolean, currency: string) => void
-  setWeekStartDay: (day: number) => void
-  setShiftHourlyRate: (rate: number) => void
-  setShiftTaxPct: (pct: number) => void
+  setLanguage: (code: string) => Promise<void>
+  setTravelMode: (active: boolean, currency: string) => Promise<void>
+  setWeekStartDay: (day: number) => Promise<void>
+  setShiftHourlyRate: (rate: number) => Promise<void>
+  setShiftTaxPct: (pct: number) => Promise<void>
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
@@ -371,20 +371,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPendingReview([])
   }
 
-  const setHomeCurrency = (code: string) => {
+  // BUG CORREGIDO (29 oct 2026): igual que el resto de ajustes de esta
+  // sección (ver setLanguage, setTravelMode, setWeekStartDay más abajo),
+  // esto actualizaba el estado local al instante y guardaba en Supabase en
+  // segundo plano sin esperar el resultado. Si la pantalla se recargaba (o
+  // `loadPreferences` volvía a leer de Supabase por cualquier otro motivo)
+  // antes de que ese guardado terminara, se perdía el cambio y la pantalla
+  // volvía a mostrar el valor antiguo aunque el usuario ya hubiera "guardado".
+  // Ahora se espera la escritura y solo se actualiza el estado local (y se
+  // avisa de éxito) si de verdad se confirmó en el servidor.
+  const setHomeCurrency = async (code: string) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, home_currency: code })
+    if (error) {
+      console.error("[supabase] setHomeCurrency error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, homeCurrency: code }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, home_currency: code })
-      if (error) {
-        console.error("[supabase] setHomeCurrency error:", error.message)
-      }
-    })()
   }
 
   // Reconversión real de todo lo guardado al cambiar de divisa principal
@@ -447,7 +454,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Ya está en la divisa pedida de verdad (servidor), aunque la
       // pantalla todavía mostrara la antigua: solo sincroniza el estado
       // local, sin recalcular ni un importe.
-      setHomeCurrency(toCode)
+      await setHomeCurrency(toCode)
       return { transactionsConverted: 0, recurringConverted: 0, failed: 0 }
     }
 
@@ -556,40 +563,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const setLanguage = (code: string) => {
+  // BUG CORREGIDO (29 oct 2026): ver nota en setHomeCurrency — mismo patrón
+  // de guardado en segundo plano sin esperar, mismo arreglo (esperar la
+  // confirmación del servidor antes de dar el cambio por hecho localmente).
+  const setLanguage = async (code: string) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, language: code })
+    if (error) {
+      console.error("[supabase] setLanguage error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, language: code }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, language: code })
-      if (error) {
-        console.error("[supabase] setLanguage error:", error.message)
-      }
-    })()
   }
 
   // Modo viaje: al activarlo, los formularios de nueva transacción (normal
   // y recurrente) empiezan a usar `currency` como divisa por defecto en vez
   // de homeCurrency. Se guarda travelCurrency incluso al desactivarlo, para
   // que la próxima vez que se active recuerde la última divisa usada.
-  const setTravelMode = (active: boolean, currency: string) => {
+  // BUG CORREGIDO (29 oct 2026): ver nota en setHomeCurrency.
+  const setTravelMode = async (active: boolean, currency: string) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, travel_mode: active, travel_currency: currency })
+    if (error) {
+      console.error("[supabase] setTravelMode error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, travelMode: active, travelCurrency: currency }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, travel_mode: active, travel_currency: currency })
-      if (error) {
-        console.error("[supabase] setTravelMode error:", error.message)
-      }
-    })()
   }
 
   // Inicio de semana (Ajustes > Preferencias): 0=domingo...6=sábado. Afecta
@@ -597,59 +604,59 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // de "ahorro semanal" (ver lib/week.ts) — no reordena ni reescribe
   // transacciones ya guardadas, solo cambia dónde se cortan las semanas a
   // partir de ahora.
-  const setWeekStartDay = (day: number) => {
+  // BUG CORREGIDO (29 oct 2026): ver nota en setHomeCurrency — este era el
+  // que Cel reportó directamente ("pongo lunes y no funciona, se queda en
+  // domingo"): el guardado en segundo plano podía perderse si la app se
+  // recargaba (o volvía a leer las preferencias) antes de terminar.
+  const setWeekStartDay = async (day: number) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, week_start_day: day })
+    if (error) {
+      console.error("[supabase] setWeekStartDay error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, weekStartDay: day }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, week_start_day: day })
-      if (error) {
-        console.error("[supabase] setWeekStartDay error:", error.message)
-      }
-    })()
   }
 
   // Tarifa por hora del turno normal (Ajustes > Turnos). Sábado y domingo
   // no se guardan aparte: se calculan multiplicando esta misma tarifa por
   // SHIFT_RATE_MULTIPLIER (ver lib/types.ts).
-  const setShiftHourlyRate = (rate: number) => {
+  // BUG CORREGIDO (29 oct 2026): ver nota en setHomeCurrency.
+  const setShiftHourlyRate = async (rate: number) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, shift_hourly_rate: rate })
+    if (error) {
+      console.error("[supabase] setShiftHourlyRate error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, shiftHourlyRate: rate }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, shift_hourly_rate: rate })
-      if (error) {
-        console.error("[supabase] setShiftHourlyRate error:", error.message)
-      }
-    })()
   }
 
   // % de impuestos a estimar al marcar un turno como cobrado (Ajustes >
   // Turnos). No hay un número exacto único válido para todo el mundo (ver
   // el aviso de esa tarjeta), así que esto es siempre un valor editable a
   // mano, nunca calculado en automático por tipo de visa.
-  const setShiftTaxPct = (pct: number) => {
+  // BUG CORREGIDO (29 oct 2026): ver nota en setHomeCurrency.
+  const setShiftTaxPct = async (pct: number) => {
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) throw new Error("No hay sesión activa")
+    const { error } = await supabase
+      .from("user_preferences")
+      .upsert({ user_id: userId, shift_tax_pct: pct })
+    if (error) {
+      console.error("[supabase] setShiftTaxPct error:", error.message)
+      throw new Error(error.message)
+    }
     setData((d) => ({ ...d, shiftTaxPct: pct }))
-
-    ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-      const { error } = await supabase
-        .from("user_preferences")
-        .upsert({ user_id: userId, shift_tax_pct: pct })
-      if (error) {
-        console.error("[supabase] setShiftTaxPct error:", error.message)
-      }
-    })()
   }
 
   // Traduce una clave del diccionario (ver lib/i18n.ts) al idioma actual
