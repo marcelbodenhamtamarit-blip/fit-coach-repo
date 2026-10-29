@@ -6,7 +6,7 @@
 // -- no hay precio en vivo de nada -- así que lo único que hace esta
 // pantalla es dejar guardar "cuánto vale esto ahora" y, con el historial de
 // aportaciones/retiradas, calcular ganancia/pérdida real.
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronDown,
   Plus,
@@ -19,6 +19,7 @@ import {
   TrendingUp,
   TrendingDown,
   X,
+  Upload,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import { useStore } from "@/lib/store"
 import { useInvestments } from "@/lib/investments-store"
 import { supabase } from "@/lib/supabase"
 import { convertAmount } from "@/lib/exchange-rates"
+import { parseInvestmentCsv, type ParsedCsv, type ParsedCsvRow } from "@/lib/csv-import"
 import {
   CURRENCIES,
   currencySymbol,
@@ -66,6 +68,7 @@ export function InvestmentsSection() {
     archiveInvestment,
     deleteInvestment,
     addContribution,
+    addContributionsBulk,
     deleteContribution,
   } = useInvestments()
 
@@ -165,6 +168,7 @@ export function InvestmentsSection() {
                 onArchive={archiveInvestment}
                 onDelete={deleteInvestment}
                 onAddContribution={addContribution}
+                onAddContributionsBulk={addContributionsBulk}
                 onDeleteContribution={deleteContribution}
               />
             ))}
@@ -204,6 +208,7 @@ export function InvestmentsSection() {
                   onArchive={archiveInvestment}
                   onDelete={deleteInvestment}
                   onAddContribution={addContribution}
+                  onAddContributionsBulk={addContributionsBulk}
                   onDeleteContribution={deleteContribution}
                   dimmed
                 />
@@ -332,6 +337,7 @@ function InvestmentCard({
   onArchive,
   onDelete,
   onAddContribution,
+  onAddContributionsBulk,
   onDeleteContribution,
   dimmed,
 }: {
@@ -344,6 +350,10 @@ function InvestmentCard({
   onArchive: (id: string, archived: boolean) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onAddContribution: (investmentId: string, amount: number, date: string, note?: string | null) => Promise<void>
+  onAddContributionsBulk: (
+    investmentId: string,
+    rows: { amount: number; date: string; note?: string | null }[],
+  ) => Promise<void>
   onDeleteContribution: (id: string) => Promise<void>
   dimmed?: boolean
 }) {
@@ -365,6 +375,22 @@ function InvestmentCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Importar CSV: se parsea en el navegador (nada sale del dispositivo) y
+  // se muestra una vista previa con checkboxes antes de guardar nada — el
+  // formato exacto de columnas varía según de qué parte de Revolut venga
+  // el export, así que lo prudente es dejar revisar antes de confirmar en
+  // vez de fiarse ciegamente de la detección automática.
+  const [csvPanelOpen, setCsvPanelOpen] = useState(false)
+  const [csvFileName, setCsvFileName] = useState<string | null>(null)
+  const [csvParsed, setCsvParsed] = useState<ParsedCsv | null>(null)
+  const [csvIncluded, setCsvIncluded] = useState<Set<number>>(new Set())
+  const [csvUpdateValue, setCsvUpdateValue] = useState(false)
+  const [csvBalanceInput, setCsvBalanceInput] = useState("")
+  const [csvBusy, setCsvBusy] = useState(false)
+  const [csvError, setCsvError] = useState<string | null>(null)
+  const [csvSuccessCount, setCsvSuccessCount] = useState<number | null>(null)
+  const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const saveName = async () => {
     const trimmed = nameInput.trim()
@@ -447,6 +473,85 @@ function InvestmentCard({
       console.error("[investments] delete error:", err)
       setError(t("investments.saveError"))
       setBusy(false)
+    }
+  }
+
+  const resetCsvState = () => {
+    setCsvParsed(null)
+    setCsvFileName(null)
+    setCsvIncluded(new Set())
+    setCsvUpdateValue(false)
+    setCsvBalanceInput("")
+    setCsvError(null)
+  }
+
+  const handleCsvFile = async (file: File) => {
+    setCsvError(null)
+    setCsvSuccessCount(null)
+    setCsvFileName(file.name)
+    try {
+      const text = await file.text()
+      const parsed = parseInvestmentCsv(text)
+      const validRows = parsed.rows.filter((r) => r.date && r.amount !== null && r.amount !== 0)
+      setCsvParsed(parsed)
+      if (validRows.length === 0) {
+        setCsvIncluded(new Set())
+        setCsvError(t("investments.importCsvNoRows"))
+        return
+      }
+      setCsvIncluded(new Set(validRows.map((r) => r.index)))
+      if (parsed.detected.balanceCol) {
+        const withBalance = parsed.rows.filter((r) => r.balance !== null && r.date)
+        const latest = withBalance.reduce<ParsedCsvRow | null>((best, r) => {
+          if (!best) return r
+          return (r.date ?? "") > (best.date ?? "") ? r : best
+        }, null)
+        if (latest && latest.balance !== null) {
+          setCsvUpdateValue(true)
+          setCsvBalanceInput(String(latest.balance))
+        }
+      }
+    } catch (err) {
+      console.error("[investments] csv parse error:", err)
+      setCsvError(t("investments.importCsvParseError"))
+    }
+  }
+
+  const toggleCsvRow = (index: number) => {
+    setCsvIncluded((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const csvSelectedRows = csvParsed
+    ? csvParsed.rows.filter((r) => csvIncluded.has(r.index) && r.date && r.amount !== null && r.amount !== 0)
+    : []
+  const csvSelectedSum = csvSelectedRows.reduce((sum, r) => sum + (r.amount ?? 0), 0)
+
+  const confirmCsvImport = async () => {
+    if (csvSelectedRows.length === 0) return
+    setCsvBusy(true)
+    setCsvError(null)
+    try {
+      await onAddContributionsBulk(
+        investment.id,
+        csvSelectedRows.map((r) => ({ amount: r.amount as number, date: r.date as string, note: r.description || null })),
+      )
+      if (csvUpdateValue) {
+        const n = Number(csvBalanceInput.replace(",", "."))
+        if (!Number.isNaN(n)) await onUpdateValue(investment.id, n)
+      }
+      setCsvSuccessCount(csvSelectedRows.length)
+      resetCsvState()
+      setCsvPanelOpen(false)
+    } catch (err) {
+      console.error("[investments] csv import error:", err)
+      setCsvError(t("investments.saveError"))
+    } finally {
+      setCsvBusy(false)
     }
   }
 
@@ -623,10 +728,171 @@ function InvestmentCard({
               </div>
             </div>
           ) : (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowContribForm(true)}>
-              <Plus className="size-3" />
-              {t("investments.addContribution")}
-            </Button>
+            !csvPanelOpen && (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowContribForm(true)}>
+                  <Plus className="size-3" />
+                  {t("investments.addContribution")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    resetCsvState()
+                    setCsvPanelOpen(true)
+                  }}
+                >
+                  <Upload className="size-3" />
+                  {t("investments.importCsv")}
+                </Button>
+              </div>
+            )
+          )}
+
+          {csvSuccessCount !== null && !csvPanelOpen && (
+            <p className="text-[11px] text-emerald-500">
+              {t("investments.importCsvSuccess", { count: csvSuccessCount })}
+            </p>
+          )}
+
+          {csvPanelOpen && (
+            <div className="space-y-2.5 rounded-md border border-border p-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium">{t("investments.importCsv")}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCsvPanelOpen(false)
+                    resetCsvState()
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] leading-snug text-muted-foreground">{t("investments.importCsvHint")}</p>
+
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleCsvFile(file)
+                  e.target.value = ""
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 w-full text-xs"
+                onClick={() => csvInputRef.current?.click()}
+              >
+                <Upload className="size-3" />
+                {csvFileName ?? t("investments.importCsv")}
+              </Button>
+
+              {csvError && <p className="text-[11px] text-red-500">{csvError}</p>}
+
+              {csvParsed && csvParsed.rows.length > 0 && (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("investments.importCsvColumnsDetected", {
+                      date: csvParsed.detected.dateCol ?? t("investments.importCsvNone"),
+                      amount: csvParsed.detected.amountCol ?? t("investments.importCsvNone"),
+                      balance: csvParsed.detected.balanceCol ?? t("investments.importCsvNone"),
+                    })}
+                  </p>
+
+                  <div className="max-h-52 space-y-1 overflow-y-auto rounded border border-border/60 p-1.5">
+                    {csvParsed.rows.map((r) => {
+                      const valid = r.date !== null && r.amount !== null && r.amount !== 0
+                      const checked = csvIncluded.has(r.index)
+                      return (
+                        <label
+                          key={r.index}
+                          className={`flex items-center gap-2 rounded px-1 py-1 text-[11px] ${
+                            valid ? "hover:bg-muted/50" : "opacity-40"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!valid}
+                            checked={checked}
+                            onChange={() => toggleCsvRow(r.index)}
+                            className="shrink-0"
+                          />
+                          <span className="w-16 shrink-0 tabular-nums text-muted-foreground">
+                            {r.date ?? (r.dateRaw.slice(0, 10) || "?")}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{r.description || "—"}</span>
+                          <span
+                            className={`shrink-0 tabular-nums ${
+                              r.amount === null ? "text-muted-foreground" : r.amount >= 0 ? "text-emerald-500" : "text-red-500"
+                            }`}
+                          >
+                            {r.amount === null ? r.amountRaw || "?" : fmt(r.amount, investment.currency)}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("investments.importCsvRowsSelected", {
+                      count: csvSelectedRows.length,
+                      total: csvParsed.rows.length,
+                      sum: fmt(csvSelectedSum, investment.currency),
+                    })}
+                  </p>
+
+                  {csvParsed.detected.balanceCol && (
+                    <label className="flex items-center gap-2 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={csvUpdateValue}
+                        onChange={(e) => setCsvUpdateValue(e.target.checked)}
+                      />
+                      <span className="flex-1">{t("investments.importCsvUpdateValueLabel")}</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={csvBalanceInput}
+                        onChange={(e) => setCsvBalanceInput(e.target.value)}
+                        disabled={!csvUpdateValue}
+                        className="h-6 w-24 text-xs"
+                      />
+                    </label>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-7 flex-1 text-xs"
+                      disabled={csvBusy || csvSelectedRows.length === 0}
+                      onClick={confirmCsvImport}
+                    >
+                      {csvBusy
+                        ? t("common.saving")
+                        : `${t("investments.importCsvConfirm")} (${csvSelectedRows.length})`}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setCsvPanelOpen(false)
+                        resetCsvState()
+                      }}
+                    >
+                      {t("investments.importCsvCancel")}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           <div className="flex items-center justify-between border-t border-border pt-2.5">
