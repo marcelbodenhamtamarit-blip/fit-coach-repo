@@ -8,6 +8,7 @@ import {
   Wallet,
   RotateCw,
   Flame,
+  LineChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
@@ -15,6 +16,7 @@ import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { WinterArcSection } from "@/components/sections/winter-arc-section"
+import { InvestmentsSection } from "@/components/sections/investments-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
@@ -48,7 +50,7 @@ export function Dashboard() {
     const stored = localStorage.getItem("marcel-fit-coach:active-tab")
     // "turnos" ya no existe (quitado 1 Oct 2026): si era la última pestaña
     // abierta, se vuelve a Resumen en vez de mostrar una pantalla vacía.
-    if (stored && ["overview", "economy", "winterarc", "settings"].includes(stored)) setActive(stored)
+    if (stored && ["overview", "economy", "investments", "winterarc", "settings"].includes(stored)) setActive(stored)
   }, [])
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
@@ -122,6 +124,7 @@ export function Dashboard() {
   const TABS: Tab[] = [
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
+    { id: "investments", label: t("nav.investments"), icon: LineChart },
     { id: "winterarc", label: t("nav.winterArc"), icon: Flame },
     { id: "settings", label: t("nav.settings"), icon: Settings },
   ]
@@ -129,6 +132,7 @@ export function Dashboard() {
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
+    investments: t("nav.investments"),
     winterarc: t("nav.winterArc"),
     settings: t("nav.settings"),
   }
@@ -267,6 +271,7 @@ export function Dashboard() {
                 <OverviewSection onNavigate={setActive} onAddExpense={goAddTransaction} redesign={isRedesign} />
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} redesign={isRedesign} />}
+              {active === "investments" && <InvestmentsSection />}
               {active === "winterarc" && <WinterArcSection />}
               {active === "settings" && <SettingsSection />}
             </div>
