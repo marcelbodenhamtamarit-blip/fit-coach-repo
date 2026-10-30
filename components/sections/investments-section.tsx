@@ -212,6 +212,8 @@ export function InvestmentsSection() {
                 contributions={contributions.filter((c) => c.investmentId === inv.id)}
                 lang={lang}
                 t={t}
+                homeCurrency={homeCurrency}
+                convertedValue={otherConverted ? (otherConverted[inv.id] ?? null) : null}
                 onRename={renameInvestment}
                 onUpdateValue={updateInvestmentValue}
                 onArchive={archiveInvestment}
@@ -235,6 +237,7 @@ export function InvestmentsSection() {
                   contributions={contributions.filter((c) => c.investmentId === inv.id)}
                   lang={lang}
                   t={t}
+                  homeCurrency={homeCurrency}
                   onRename={renameInvestment}
                   onUpdateValue={updateInvestmentValue}
                   onArchive={archiveInvestment}
@@ -929,6 +932,8 @@ function InvestmentCard({
   contributions,
   lang,
   t,
+  homeCurrency,
+  convertedValue,
   onRename,
   onUpdateValue,
   onArchive,
@@ -942,6 +947,12 @@ function InvestmentCard({
   contributions: ReturnType<typeof useInvestments>["contributions"]
   lang: Language
   t: (key: any, params?: Record<string, string | number>) => string
+  homeCurrency: string
+  // Equivalente en homeCurrency, ya convertido por el padre (mismo tipo de
+  // cambio del día que usa el total de "Patrimonio total" — ver
+  // `otherConverted` en InvestmentsSection). null/undefined si la inversión
+  // ya está en homeCurrency o la conversión aún no ha llegado.
+  convertedValue?: number | null
   onRename: (id: string, name: string) => Promise<void>
   onUpdateValue: (id: string, value: number) => Promise<void>
   onArchive: (id: string, archived: boolean) => Promise<void>
@@ -960,6 +971,11 @@ function InvestmentCard({
   const hasHistory = contributions.length > 0
   const locale = lang === "en" ? "en-US" : "es-ES"
   const live = isLivePriceType(investment.type)
+  // Entrada siempre en la divisa nativa de la inversión (USD para precio en
+  // vivo, lo que elija el usuario para las demás) — igual que en un
+  // exchange, debajo se muestra aparte el equivalente en homeCurrency ya
+  // convertido por el padre, sin tocar para nada cómo se guarda el valor.
+  const showConverted = convertedValue != null && investment.currency.toUpperCase() !== homeCurrency.toUpperCase()
 
   const [expanded, setExpanded] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -1056,6 +1072,10 @@ function InvestmentCard({
     try {
       await onUpdateValue(investment.id, n)
       setEditingValue(false)
+      // Si venía de un fallo de precio en vivo, el valor ya está puesto a
+      // mano — quitar el aviso rojo de "no se pudo obtener el precio" para
+      // que no se quede ahí contradiciendo el valor recién guardado.
+      if (live) setPriceError(null)
     } catch (err) {
       console.error("[investments] update value error:", err)
       setError(t("investments.saveError"))
@@ -1288,6 +1308,9 @@ function InvestmentCard({
           ) : live ? (
             <div>
               <p className="text-xl font-bold tabular-nums">{fmt(investment.currentValue, investment.currency)}</p>
+              {showConverted && (
+                <p className="text-xs text-muted-foreground">≈ {fmt(convertedValue!, homeCurrency)}</p>
+              )}
               <p className="text-[11px] text-muted-foreground">
                 {lastPrice !== null
                   ? t("investments.priceAt", {
@@ -1352,6 +1375,9 @@ function InvestmentCard({
           ) : (
             <button type="button" onClick={() => setEditingValue(true)} className="text-left">
               <p className="text-xl font-bold tabular-nums">{fmt(investment.currentValue, investment.currency)}</p>
+              {showConverted && (
+                <p className="text-xs text-muted-foreground">≈ {fmt(convertedValue!, homeCurrency)}</p>
+              )}
               <p className="text-[11px] text-muted-foreground">
                 {investment.currentValueUpdatedAt
                   ? t("investments.lastUpdated", {
