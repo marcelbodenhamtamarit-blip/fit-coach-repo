@@ -489,6 +489,11 @@ function ImportCsvPanel({
   const [csvError, setCsvError] = useState<string | null>(null)
   const [csvSuccessCount, setCsvSuccessCount] = useState<number | null>(null)
   const [csvPositionsSuccessCount, setCsvPositionsSuccessCount] = useState<number | null>(null)
+  // Símbolos para los que no se pudo traer el precio en vivo al importar
+  // (ver confirmPositionsImport) — se avisa aparte en vez de fallar todo el
+  // import, porque suele ser un símbolo concreto no cubierto por la fuente
+  // de precios, no un fallo general.
+  const [csvPositionsPriceFailures, setCsvPositionsPriceFailures] = useState<string[]>([])
   const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const [targetId, setTargetId] = useState<string>(investments.length > 0 ? investments[0].id : NEW_TARGET)
@@ -521,6 +526,7 @@ function ImportCsvPanel({
     setCsvError(null)
     setCsvSuccessCount(null)
     setCsvPositionsSuccessCount(null)
+    setCsvPositionsPriceFailures([])
     setCsvFileName(file.name)
     setCsvRows(null)
     setCsvPositions(null)
@@ -649,7 +655,9 @@ function ImportCsvPanel({
     if (csvSelectedPositions.length === 0) return
     setCsvBusy(true)
     setCsvError(null)
+    setCsvPositionsPriceFailures([])
     try {
+      const priceFailures: string[] = []
       for (const pos of csvSelectedPositions) {
         // Reimportar el mismo extracto (o uno más reciente) no debe crear
         // duplicados: si ya existe una inversión "stocks" con ese mismo
@@ -657,10 +665,12 @@ function ImportCsvPanel({
         const existing = investments.find(
           (inv) => inv.type === "stocks" && (inv.symbol ?? "").toUpperCase() === pos.symbol,
         )
+        let investmentId: string
         if (existing) {
           await onUpdateInvestmentQuantity(existing.id, pos.quantity)
+          investmentId = existing.id
         } else {
-          await onAddInvestment({
+          const created = await onAddInvestment({
             name: pos.company || pos.symbol,
             type: "stocks",
             currency: "USD",
@@ -669,9 +679,34 @@ function ImportCsvPanel({
             quantity: pos.quantity,
             priceUnit: "share",
           })
+          investmentId = created.id
         }
+
+        // Intenta traer el precio en vivo ya mismo, en el mismo gesto, para
+        // no obligar a ir pulsando "Actualizar precio" inversión por
+        // inversión después de importar (lo que hacía antes: dejaba el
+        // valor en 0 y requería abrir cada tarjeta a mano). Si falla para
+        // un símbolo concreto (no cubierto por la fuente de precios —
+        // suele pasar con ETFs que no cotizan en EE.UU., p.ej. tickers de
+        // bolsas europeas — o un fallo puntual) no bloquea el resto del
+        // import: se deja en 0 y se avisa al final de cuáles fallaron, en
+        // vez de reventar todo el import por un solo símbolo.
+        try {
+          const result = await fetchLivePrice(pos.symbol, "stock", supabase)
+          const value = valueFromLivePrice(result.price, pos.quantity, "share")
+          await onUpdateValue(investmentId, value)
+        } catch (err) {
+          console.error(`[investments] live price error for ${pos.symbol}:`, err)
+          priceFailures.push(pos.symbol)
+        }
+        // Pequeña pausa entre símbolos: la fuente de precios es de uso
+        // gratuito con límite de peticiones por minuto, y encadenar 9+
+        // peticiones sin pausa puede empezar a fallar por eso a partir de
+        // la mitad de la lista.
+        await new Promise((resolve) => setTimeout(resolve, 350))
       }
       setCsvPositionsSuccessCount(csvSelectedPositions.length)
+      setCsvPositionsPriceFailures(priceFailures)
       setCsvPositions(null)
       setCsvFileName(null)
     } catch (err) {
@@ -723,9 +758,16 @@ function ImportCsvPanel({
         )}
 
         {csvPositionsSuccessCount !== null && (
-          <p className="text-xs text-emerald-500">
-            {t("investments.importCsvPositionsSuccess", { count: csvPositionsSuccessCount })}
-          </p>
+          <>
+            <p className="text-xs text-emerald-500">
+              {t("investments.importCsvPositionsSuccess", { count: csvPositionsSuccessCount })}
+            </p>
+            {csvPositionsPriceFailures.length > 0 && (
+              <p className="text-[11px] leading-snug text-amber-500">
+                {t("investments.importCsvPositionsPriceWarn", { symbols: csvPositionsPriceFailures.join(", ") })}
+              </p>
+            )}
+          </>
         )}
 
         {csvPositions && csvPositions.length > 0 && (
@@ -1223,7 +1265,27 @@ function InvestmentCard({
 
       <div className="mt-3 flex items-end justify-between gap-3">
         <div>
-          {live ? (
+          {live && editingValue ? (
+            // Alternativa manual para cuando la fuente de precios no cubre
+            // el símbolo (p.ej. ETFs que no cotizan en EE. UU.) — ver el
+            // enlace "poner valor a mano" más abajo, que abre esto mismo
+            // aunque la inversión sea de tipo precio-en-vivo. saveValue()
+            // no distingue por tipo, así que reutilizarlo aquí es seguro.
+            <div className="flex items-center gap-1.5">
+              <Input
+                autoFocus
+                type="number"
+                inputMode="decimal"
+                value={valueInput}
+                onChange={(e) => setValueInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveValue()}
+                className="h-7 w-28 text-sm"
+              />
+              <Button size="sm" className="h-7 text-xs" disabled={busy} onClick={saveValue}>
+                {t("common.save")}
+              </Button>
+            </div>
+          ) : live ? (
             <div>
               <p className="text-xl font-bold tabular-nums">{fmt(investment.currentValue, investment.currency)}</p>
               <p className="text-[11px] text-muted-foreground">
@@ -1256,7 +1318,21 @@ function InvestmentCard({
                 <RefreshCw className={`size-3 ${priceBusy ? "animate-spin" : ""}`} />
                 {t("investments.updatePrice")}
               </button>
-              {priceError && <p className="mt-1 text-[11px] text-red-500">{priceError}</p>}
+              {priceError && (
+                <>
+                  <p className="mt-1 text-[11px] text-red-500">{priceError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValueInput(String(investment.currentValue))
+                      setEditingValue(true)
+                    }}
+                    className="mt-0.5 text-[11px] text-muted-foreground underline hover:text-foreground"
+                  >
+                    {t("investments.setValueManually")}
+                  </button>
+                </>
+              )}
             </div>
           ) : editingValue ? (
             <div className="flex items-center gap-1.5">
