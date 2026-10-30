@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Zap,
   MessageSquare,
+  Heart,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CURRENCIES, SHIFT_RATE_MULTIPLIER, currencySymbol } from "@/lib/types"
@@ -31,10 +32,22 @@ import { RemindersCard } from "@/components/sections/automations-section"
 
 export function SettingsSection() {
   const { t } = useStore()
+  const { role } = useAuth()
 
   return (
     <div className="max-w-2xl space-y-3">
       <AccountCard />
+
+      {role === "owner" && (
+        <CollapsibleCard
+          icon={Heart}
+          title={t("settings.notifyPartnerTitle")}
+          description={t("settings.notifyPartnerDesc")}
+          color="#fb7185"
+        >
+          <NotifyPartnerCard />
+        </CollapsibleCard>
+      )}
 
       <TravelModeCard />
 
@@ -169,6 +182,62 @@ function FeedbackCard() {
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       {sent && <p className="mt-2 text-xs text-emerald-500">{t("settings.feedbackSent")}</p>}
       <Button onClick={sendFeedback} disabled={sending || !message.trim()} className="mt-3">
+        {sending ? t("settings.sending") : t("settings.send")}
+      </Button>
+    </div>
+  )
+}
+
+// Botón de papi para mandar un mensaje suelto al push de su pareja (lo
+// contrario del "avisar a papi" del apartado de ahorro de ella). Solo se
+// monta cuando role === "owner" -- ver SettingsSection -- así que no hace
+// falta volver a comprobar el rol aquí; el endpoint igualmente lo vuelve a
+// comprobar en el servidor por si acaso.
+function NotifyPartnerCard() {
+  const { t } = useStore()
+  const [message, setMessage] = useState("")
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState("")
+
+  async function sendNotification() {
+    const trimmed = message.trim()
+    if (!trimmed) return
+    setSending(true)
+    setError("")
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error(t("settings.notifyPartnerError"))
+      const res = await fetch("/api/partner/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: trimmed }),
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error || t("settings.notifyPartnerError"))
+      setMessage("")
+      setSent(true)
+      setTimeout(() => setSent(false), 4000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("settings.notifyPartnerError"))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div>
+      <Textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder={t("settings.notifyPartnerPlaceholder")}
+        rows={3}
+        className="text-sm"
+      />
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {sent && <p className="mt-2 text-xs text-emerald-500">{t("settings.notifyPartnerSent")}</p>}
+      <Button onClick={sendNotification} disabled={sending || !message.trim()} className="mt-3">
         {sending ? t("settings.sending") : t("settings.send")}
       </Button>
     </div>
