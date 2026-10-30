@@ -6,7 +6,7 @@
 // -- nada automático. Ver lib/partner-savings-store.tsx y
 // supabase-migrations/partner-savings.sql.
 import { useMemo, useState } from "react"
-import { AlertTriangle, CheckCircle2, Send } from "lucide-react"
+import { AlertTriangle, CalendarDays, CheckCircle2, Send, Sparkles, Target } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +26,48 @@ import { type Language } from "@/lib/i18n"
 
 function fmt(amount: number, currency: string): string {
   return `${currencySymbol(currency)}${amount.toFixed(2)}`
+}
+
+// Frase motivacional del día: rota una vez al día (no en cada render) para
+// que se sienta como "el mensaje de hoy" en vez de parpadear. Nada
+// configurable -- solo un empujoncito cariñoso cada vez que abre su
+// apartado. Con esto + más aire entre tarjetas, la pantalla deja de
+// sentirse tan seca y compacta como en la primera versión.
+const MOTIVATIONAL_PHRASES: { es: string; en: string }[] = [
+  { es: "Cada euro ahorrado es un paso más hacia tus sueños.", en: "Every euro saved is a step closer to your dreams." },
+  { es: "El ahorro no es privarte de algo, es regalarte libertad mañana.", en: "Saving isn't about going without — it's giving your future self freedom." },
+  { es: "Pequeños pasos constantes ganan a los grandes saltos esporádicos.", en: "Small, steady steps beat big, occasional leaps." },
+  { es: "Hoy ahorras, mañana eliges.", en: "Save today, choose tomorrow." },
+  { es: "Tu yo del futuro te va a estar muy agradecida.", en: "Your future self is going to thank you for this." },
+  { es: "No se trata de cuánto ganas, sino de cuánto guardas.", en: "It's not about how much you earn — it's about how much you keep." },
+  { es: "La disciplina de hoy es la tranquilidad de mañana.", en: "Today's discipline is tomorrow's peace of mind." },
+  { es: "Vas mejor de lo que crees. Sigue así.", en: "You're doing better than you think. Keep it up." },
+  { es: "Cada check-in cuenta, aunque algún periodo no llegue al 100%.", en: "Every check-in counts, even the periods that fall short." },
+  { es: "Un objetivo escrito ya es la mitad del camino andado.", en: "A goal written down is already half the journey done." },
+  { es: "Papi está orgulloso de ti, llegues o no al objetivo.", en: "Dad is proud of you, whether you hit the goal or not." },
+  { es: "Ahorrar hoy es quererte a ti misma a largo plazo.", en: "Saving today is loving your long-term self." },
+]
+
+function motivationalPhraseOfTheDay(lang: Language): string {
+  const startOfYear = new Date(new Date().getFullYear(), 0, 0).getTime()
+  const dayOfYear = Math.floor((Date.now() - startOfYear) / 86400000)
+  return MOTIVATIONAL_PHRASES[dayOfYear % MOTIVATIONAL_PHRASES.length][lang]
+}
+
+function MotivationalBanner({ lang, label }: { lang: Language; label: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-rose-400/25 bg-gradient-to-br from-rose-400/15 via-amber-300/10 to-rose-400/15 px-4 py-3.5">
+      <div className="flex items-start gap-2.5">
+        <Sparkles className="mt-0.5 size-4 shrink-0 text-amber-500" />
+        <div className="space-y-0.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600/80">{label}</p>
+          <p className="text-sm italic leading-relaxed text-foreground/80">
+            {motivationalPhraseOfTheDay(lang)}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function PartnerSavingsSection() {
@@ -132,11 +174,17 @@ export function PartnerSavingsSection() {
   // Sin objetivo todavía, o editándolo a propósito.
   if (!goal || editingGoal) {
     return (
-      <div className="space-y-5">
-        <p className="text-xs leading-snug text-muted-foreground">{t("partnerSavings.appSummary")}</p>
-        <Card className="p-4">
-          <p className="mb-3 text-sm font-medium">{t("partnerSavings.setGoalTitle")}</p>
-          <div className="space-y-3">
+      <div className="space-y-6 pb-4">
+        <p className="text-sm leading-relaxed text-muted-foreground">{t("partnerSavings.appSummary")}</p>
+        <MotivationalBanner lang={lang} label={t("partnerSavings.todayLabel")} />
+        <Card className="p-5">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Target className="size-4.5" />
+            </span>
+            <p className="text-sm font-semibold">{t("partnerSavings.setGoalTitle")}</p>
+          </div>
+          <div className="space-y-4">
             <div className="flex gap-2 rounded-lg border border-border bg-muted/40 p-1">
               {SAVINGS_FREQUENCIES.map((f) => (
                 <button
@@ -161,7 +209,7 @@ export function PartnerSavingsSection() {
               onKeyDown={(e) => e.key === "Enter" && saveGoal()}
             />
             {goalError && <p className="text-xs text-red-500">{goalError}</p>}
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <Button onClick={saveGoal} disabled={goalSaving} className="flex-1">
                 {goalSaving ? t("common.saving") : t("common.save")}
               </Button>
@@ -180,19 +228,25 @@ export function PartnerSavingsSection() {
   const progressPct = currentCheckin ? Math.min(100, (currentCheckin.savedAmount / goal.targetAmount) * 100) : 0
 
   return (
-    <div className="space-y-5">
-      <p className="text-xs leading-snug text-muted-foreground">{t("partnerSavings.appSummary")}</p>
+    <div className="space-y-6 pb-4">
+      <p className="text-sm leading-relaxed text-muted-foreground">{t("partnerSavings.appSummary")}</p>
+      <MotivationalBanner lang={lang} label={t("partnerSavings.todayLabel")} />
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {t("partnerSavings.goalLabel")}
-            </p>
-            <p className="text-xl font-bold tabular-nums">{fmt(goal.targetAmount, goal.currency)}</p>
-            <p className="text-xs text-muted-foreground">
-              {goal.frequency === "weekly" ? t("common.weekly") : t("common.monthly")}
-            </p>
+      <Card className="p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Target className="size-5" />
+            </span>
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t("partnerSavings.goalLabel")}
+              </p>
+              <p className="text-2xl font-bold tabular-nums leading-tight">{fmt(goal.targetAmount, goal.currency)}</p>
+              <span className="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {goal.frequency === "weekly" ? t("common.weekly") : t("common.monthly")}
+              </span>
+            </div>
           </div>
           <Button variant="outline" size="sm" onClick={startEditingGoal}>
             {t("common.edit")}
@@ -200,14 +254,17 @@ export function PartnerSavingsSection() {
         </div>
       </Card>
 
-      <Card className="p-4">
-        <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {periodKey ? periodLabel(periodKey, goal.frequency, lang) : ""}
-        </p>
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-2 text-muted-foreground">
+          <CalendarDays className="size-4 shrink-0" />
+          <p className="text-[11px] font-medium uppercase tracking-wide">
+            {periodKey ? periodLabel(periodKey, goal.frequency, lang) : ""}
+          </p>
+        </div>
 
         {!currentCheckin ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">{t("partnerSavings.checkinPrompt")}</p>
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">{t("partnerSavings.checkinPrompt")}</p>
             <Input
               type="number"
               inputMode="decimal"
@@ -222,9 +279,9 @@ export function PartnerSavingsSection() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-end justify-between">
-              <p className="text-xl font-bold tabular-nums">{fmt(currentCheckin.savedAmount, goal.currency)}</p>
+              <p className="text-2xl font-bold tabular-nums">{fmt(currentCheckin.savedAmount, goal.currency)}</p>
               <p className="text-xs text-muted-foreground">
                 {t("partnerSavings.ofGoal", { amount: fmt(goal.targetAmount, goal.currency) })}
               </p>
@@ -232,17 +289,34 @@ export function PartnerSavingsSection() {
             <Progress value={progressPct} />
 
             {currentCheckin.metGoal ? (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-500">
-                <CheckCircle2 className="size-4 shrink-0" />
-                {t("partnerSavings.goalMet")}
+              <div className="space-y-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-500">
+                  <CheckCircle2 className="size-4 shrink-0" />
+                  {t("partnerSavings.goalMet")}
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">{t("partnerSavings.goalMetHint")}</p>
+                {reportError && <p className="text-xs text-red-500">{reportError}</p>}
+                <Button
+                  onClick={reportToDad}
+                  disabled={reporting || currentCheckin.reported}
+                  variant={currentCheckin.reported ? "outline" : "default"}
+                  className="w-full"
+                >
+                  <Send className="size-4" />
+                  {currentCheckin.reported
+                    ? t("partnerSavings.reported")
+                    : reporting
+                      ? t("common.saving")
+                      : t("partnerSavings.reportButton")}
+                </Button>
               </div>
             ) : (
-              <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="space-y-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-amber-500">
                   <AlertTriangle className="size-4 shrink-0" />
                   {t("partnerSavings.goalMissed")}
                 </div>
-                <p className="text-xs text-muted-foreground">{t("partnerSavings.goalMissedHint")}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">{t("partnerSavings.goalMissedHint")}</p>
                 {reportError && <p className="text-xs text-red-500">{reportError}</p>}
                 <Button
                   onClick={reportToDad}
@@ -264,14 +338,21 @@ export function PartnerSavingsSection() {
       </Card>
 
       {pastCheckins.length > 0 && (
-        <Card className="p-4">
-          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <Card className="p-5">
+          <p className="mb-4 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {t("partnerSavings.history")}
           </p>
-          <div className="space-y-2">
+          <div className="space-y-3.5">
             {pastCheckins.map((c) => (
-              <div key={c.id} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{periodLabel(c.periodKey, goal.frequency, lang)}</span>
+              <div key={c.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  {c.metGoal ? (
+                    <CheckCircle2 className="size-3.5 shrink-0 text-emerald-500" />
+                  ) : (
+                    <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+                  )}
+                  <span className="text-muted-foreground">{periodLabel(c.periodKey, goal.frequency, lang)}</span>
+                </div>
                 <span className={cn("font-medium tabular-nums", c.metGoal ? "text-emerald-500" : "text-amber-500")}>
                   {fmt(c.savedAmount, goal.currency)}
                 </span>
