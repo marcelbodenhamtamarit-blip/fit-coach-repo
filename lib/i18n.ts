@@ -812,6 +812,22 @@ export const TRANSLATIONS = {
     es: "Ej. Revolut Invest",
     en: "E.g. Revolut Invest",
   },
+  "investments.importCsvPositionsHint": {
+    es: "Hemos detectado estas posiciones en tu extracto. Marca las que quieras importar como inversiones de precio en vivo.",
+    en: "We detected these positions in your statement. Check the ones you want to import as live-price investments.",
+  },
+  "investments.importCsvPositionsConfirm": {
+    es: "Importar seleccionadas",
+    en: "Import selected",
+  },
+  "investments.importCsvPositionsSuccess": {
+    es: "Se han importado {count} posiciones correctamente.",
+    en: "{count} positions imported successfully.",
+  },
+  "investments.importCsvPositionUpdate": {
+    es: "actualizar",
+    en: "update",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
