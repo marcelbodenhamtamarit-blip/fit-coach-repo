@@ -862,6 +862,11 @@ export const TRANSLATIONS = {
     es: "Si quieres, puedes avisar a papi para que lo sepa.",
     en: "If you want, you can let dad know.",
   },
+  "partnerSavings.goalMetHint": {
+    es: "Si quieres, puedes avisarle también para que lo celebre contigo.",
+    en: "If you want, you can tell him too so he can celebrate with you.",
+  },
+  "partnerSavings.todayLabel": { es: "Para hoy", en: "For today" },
   "partnerSavings.reportButton": { es: "Avisar a papi", en: "Tell dad" },
   "partnerSavings.reportError": { es: "No se ha podido avisar. Inténtalo de nuevo.", en: "Couldn't send it. Try again." },
   "partnerSavings.reported": { es: "Ya avisado", en: "Already told" },
@@ -871,8 +876,28 @@ export const TRANSLATIONS = {
     es: "{name} no ha llegado a su objetivo de ahorro {period}.",
     en: "{name} didn't hit her savings goal {period}.",
   },
+  "push.partnerMetGoalTitle": { es: "🎉 Buenas noticias de ahorro", en: "🎉 Good savings news" },
+  "push.partnerMetGoal": {
+    es: "{name} ha cumplido su objetivo de ahorro {period}. ¡Bien hecho!",
+    en: "{name} hit her savings goal {period}. Nice work!",
+  },
   "push.partnerPeriodWeek": { es: "esta semana", en: "this week" },
   "push.partnerPeriodMonth": { es: "este mes", en: "this month" },
+  "push.papiMessageTitle": { es: "💌 Mensaje de papi", en: "💌 A message from dad" },
+  "settings.notifyPartnerTitle": { es: "Mandarle un ánimo", en: "Send her encouragement" },
+  "settings.notifyPartnerDesc": {
+    es: "Le llega como notificación, al momento.",
+    en: "It reaches her as a push notification, right away.",
+  },
+  "settings.notifyPartnerPlaceholder": {
+    es: "Escribe algo bonito para ella...",
+    en: "Write something nice for her...",
+  },
+  "settings.notifyPartnerSent": { es: "¡Enviado! Ya le ha llegado.", en: "Sent! It just reached her." },
+  "settings.notifyPartnerError": {
+    es: "No se ha podido enviar. Inténtalo de nuevo.",
+    en: "Couldn't send it. Try again.",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
