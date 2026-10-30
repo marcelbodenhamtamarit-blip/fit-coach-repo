@@ -72,6 +72,7 @@ export function InvestmentsSection() {
     ready,
     addInvestment,
     renameInvestment,
+    updateInvestmentQuantity,
     updateInvestmentValue,
     archiveInvestment,
     deleteInvestment,
@@ -206,6 +207,7 @@ export function InvestmentsSection() {
               onAddInvestment={addInvestment}
               onAddContributionsBulk={addContributionsBulk}
               onUpdateValue={updateInvestmentValue}
+              onUpdateInvestmentQuantity={updateInvestmentQuantity}
               onClose={() => setCsvPanelOpen(false)}
             />
           ) : (
@@ -440,6 +442,7 @@ function ImportCsvPanel({
   onAddInvestment,
   onAddContributionsBulk,
   onUpdateValue,
+  onUpdateInvestmentQuantity,
   onClose,
 }: {
   investments: Investment[]
@@ -450,26 +453,42 @@ function ImportCsvPanel({
     type: InvestmentType
     currency: string
     currentValue: number
+    symbol?: string | null
+    quantity?: number | null
+    priceUnit?: string | null
   }) => Promise<Investment>
   onAddContributionsBulk: (
     investmentId: string,
     rows: { amount: number; date: string; note?: string | null }[],
   ) => Promise<void>
   onUpdateValue: (id: string, value: number) => Promise<void>
+  onUpdateInvestmentQuantity: (id: string, quantity: number) => Promise<void>
   onClose: () => void
 }) {
   type CsvRow = { date: string; amount: number; note: string }
+  // Un extracto de bróker multi-activo (ver app/api/import-investments/
+  // route.ts) puede traer una tabla de posiciones actuales por símbolo —
+  // eso se importa como inversiones "stocks" de precio en vivo (una por
+  // símbolo), no como el historial de aportaciones de abajo. Son dos modos
+  // distintos del mismo panel: si el extracto trae posiciones, se muestran
+  // esas (es lo que pidió Cel: "quiero ver qué inversión era", no una fila
+  // genérica de "cash top-up"); si no, se cae al modo de aportaciones de
+  // siempre (p.ej. un PIAS o un extracto de Revolut sin desglose de cartera).
+  type Position = { symbol: string; company: string; quantity: number }
   const NEW_TARGET = "__new__"
 
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
   const [csvRows, setCsvRows] = useState<CsvRow[] | null>(null)
   const [csvIncluded, setCsvIncluded] = useState<Set<number>>(new Set())
+  const [csvPositions, setCsvPositions] = useState<Position[] | null>(null)
+  const [csvPositionsIncluded, setCsvPositionsIncluded] = useState<Set<number>>(new Set())
   const [csvDetectedBalance, setCsvDetectedBalance] = useState<number | null>(null)
   const [csvUpdateValue, setCsvUpdateValue] = useState(false)
   const [csvBalanceInput, setCsvBalanceInput] = useState("")
   const [csvBusy, setCsvBusy] = useState(false)
   const [csvError, setCsvError] = useState<string | null>(null)
   const [csvSuccessCount, setCsvSuccessCount] = useState<number | null>(null)
+  const [csvPositionsSuccessCount, setCsvPositionsSuccessCount] = useState<number | null>(null)
   const csvInputRef = useRef<HTMLInputElement | null>(null)
 
   const [targetId, setTargetId] = useState<string>(investments.length > 0 ? investments[0].id : NEW_TARGET)
@@ -501,7 +520,10 @@ function ImportCsvPanel({
   const handleCsvFile = async (file: File) => {
     setCsvError(null)
     setCsvSuccessCount(null)
+    setCsvPositionsSuccessCount(null)
     setCsvFileName(file.name)
+    setCsvRows(null)
+    setCsvPositions(null)
     const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
     if (isPdf && file.size > 15_000_000) {
       setCsvError(t("investments.importCsvParseError"))
@@ -522,11 +544,25 @@ function ImportCsvPanel({
         body: JSON.stringify(payload),
       })
       const result = await res.json()
-      if (!res.ok || !Array.isArray(result.contributions)) {
+      const positions: Position[] = Array.isArray(result.positions) ? result.positions : []
+      const rows: CsvRow[] = Array.isArray(result.contributions) ? result.contributions : []
+      if (!res.ok || (!Array.isArray(result.positions) && !Array.isArray(result.contributions))) {
         setCsvError(result.error || t("investments.importCsvParseError"))
         return
       }
-      const rows: CsvRow[] = result.contributions
+
+      // Si el extracto trae un desglose de cartera (posiciones por símbolo),
+      // eso es lo que se muestra — es justo lo que se pidió: ver qué
+      // inversión era cada cosa, no una lista de movimientos de caja. Las
+      // aportaciones sueltas (p.ej. los "cash top-up" de cada compra) se
+      // ignoran en ese caso: ya quedan representadas por la posición
+      // resultante.
+      if (positions.length > 0) {
+        setCsvPositions(positions)
+        setCsvPositionsIncluded(new Set(positions.map((_, i) => i)))
+        return
+      }
+
       if (rows.length === 0) {
         setCsvRows([])
         setCsvError(t("investments.importCsvNoRows"))
@@ -598,6 +634,56 @@ function ImportCsvPanel({
     }
   }
 
+  const togglePosition = (index: number) => {
+    setCsvPositionsIncluded((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const csvSelectedPositions = (csvPositions ?? []).filter((_, i) => csvPositionsIncluded.has(i))
+
+  const confirmPositionsImport = async () => {
+    if (csvSelectedPositions.length === 0) return
+    setCsvBusy(true)
+    setCsvError(null)
+    try {
+      for (const pos of csvSelectedPositions) {
+        // Reimportar el mismo extracto (o uno más reciente) no debe crear
+        // duplicados: si ya existe una inversión "stocks" con ese mismo
+        // símbolo, se actualiza su cantidad en vez de crear otra.
+        const existing = investments.find(
+          (inv) => inv.type === "stocks" && (inv.symbol ?? "").toUpperCase() === pos.symbol,
+        )
+        if (existing) {
+          await onUpdateInvestmentQuantity(existing.id, pos.quantity)
+        } else {
+          await onAddInvestment({
+            name: pos.company || pos.symbol,
+            type: "stocks",
+            currency: "USD",
+            currentValue: 0,
+            symbol: pos.symbol,
+            quantity: pos.quantity,
+            priceUnit: "share",
+          })
+        }
+      }
+      setCsvPositionsSuccessCount(csvSelectedPositions.length)
+      setCsvPositions(null)
+      setCsvFileName(null)
+    } catch (err) {
+      console.error("[investments] positions import error:", err)
+      setCsvError(t("investments.saveError"))
+    } finally {
+      setCsvBusy(false)
+    }
+  }
+
+  const formatQty = (q: number) => q.toLocaleString(undefined, { maximumFractionDigits: 6 })
+
   return (
     <Card className="p-5 animate-in slide-in-from-top-4 duration-300">
       <div className="mb-4 flex items-center justify-between">
@@ -627,13 +713,70 @@ function ImportCsvPanel({
           onClick={() => csvInputRef.current?.click()}
         >
           <Upload className="size-4" />
-          {csvBusy && !csvRows ? t("common.loading") : (csvFileName ?? t("investments.importCsv"))}
+          {csvBusy && !csvRows && !csvPositions ? t("common.loading") : (csvFileName ?? t("investments.importCsv"))}
         </Button>
 
         {csvError && <p className="text-xs text-red-500">{csvError}</p>}
 
         {csvSuccessCount !== null && (
           <p className="text-xs text-emerald-500">{t("investments.importCsvSuccess", { count: csvSuccessCount })}</p>
+        )}
+
+        {csvPositionsSuccessCount !== null && (
+          <p className="text-xs text-emerald-500">
+            {t("investments.importCsvPositionsSuccess", { count: csvPositionsSuccessCount })}
+          </p>
+        )}
+
+        {csvPositions && csvPositions.length > 0 && (
+          <>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              {t("investments.importCsvPositionsHint")}
+            </p>
+
+            <div className="max-h-64 space-y-1 overflow-y-auto rounded border border-border/60 p-1.5">
+              {csvPositions.map((p, i) => {
+                const checked = csvPositionsIncluded.has(i)
+                const existing = investments.find(
+                  (inv) => inv.type === "stocks" && (inv.symbol ?? "").toUpperCase() === p.symbol,
+                )
+                return (
+                  <label key={i} className="flex items-center gap-2 rounded px-1 py-1 text-[11px] hover:bg-muted/50">
+                    <input type="checkbox" checked={checked} onChange={() => togglePosition(i)} className="shrink-0" />
+                    <span className="w-14 shrink-0 font-semibold tabular-nums">{p.symbol}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{p.company || "—"}</span>
+                    <span className="shrink-0 tabular-nums">{formatQty(p.quantity)}</span>
+                    {existing && (
+                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                        {t("investments.importCsvPositionUpdate")}
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                disabled={csvBusy || csvSelectedPositions.length === 0}
+                onClick={confirmPositionsImport}
+              >
+                {csvBusy
+                  ? t("common.saving")
+                  : `${t("investments.importCsvPositionsConfirm")} (${csvSelectedPositions.length})`}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setCsvPositions(null)
+                  setCsvFileName(null)
+                }}
+              >
+                {t("investments.importCsvCancel")}
+              </Button>
+            </div>
+          </>
         )}
 
         {csvRows && csvRows.length > 0 && (
