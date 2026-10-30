@@ -17,6 +17,7 @@ import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
 import { WinterArcSection } from "@/components/sections/winter-arc-section"
 import { InvestmentsSection } from "@/components/sections/investments-section"
+import { PartnerSavingsSection } from "@/components/sections/partner-savings-section"
 import { useAuth } from "@/lib/use-auth"
 import { LoginScreen } from "@/components/login-screen"
 import { RecurringReviewDialog } from "@/components/recurring-review-dialog"
@@ -24,6 +25,7 @@ import { AutomationPopup } from "@/components/automation-popup"
 import { LogOut } from "lucide-react"
 import { isPushSupported, getNotificationPermission, subscribeToPush, needsHomeScreenInstall } from "@/lib/push"
 import { isRedesignBetaUser } from "@/lib/redesign-beta"
+import type { TranslationKey } from "@/lib/i18n"
 import { breakdownForMonth } from "@/lib/timmy-insights"
 import type { PlanLine } from "@/components/tree-sheet"
 import { TimmyDrawer } from "@/components/timmy-drawer"
@@ -56,7 +58,7 @@ export function Dashboard() {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
   }, [active])
   const { ready, t, data } = useStore()
-  const { mode, user, signOut } = useAuth()
+  const { mode, user, role, signOut } = useAuth()
 
   // Árbol de Gastos + IA Timmy: la "nueva versión" del dock, visible solo
   // para la cuenta de lib/redesign-beta.ts mientras se prueba — el resto de
@@ -157,6 +159,18 @@ export function Dashboard() {
     (user?.user_metadata?.name as string | undefined) ||
     user?.email?.split("@")[0] ||
     t("dashboard.greetingName.fallback")
+
+  // La cuenta de la pareja (NEXT_PUBLIC_PARTNER_EMAIL, ver lib/use-auth.tsx)
+  // no ve nada de lo de arriba (Economía/Inversiones/Winter Arc son cosas
+  // tuyas) -- solo su propio apartado de ahorro, con un shell mucho más
+  // simple (sin sidebar ni dock de pestañas, porque solo hay una pantalla).
+  // El resto de esta función, de aquí para abajo, es la experiencia de
+  // siempre y no cambia para tu cuenta.
+  if (role === "partner") {
+    return (
+      <PartnerShell displayName={displayName} backgroundGradient={BACKGROUND_GRADIENT} signOut={signOut} t={t} />
+    )
+  }
 
   const shellContent = (
     <>
@@ -380,6 +394,84 @@ export function Dashboard() {
       />
       <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
         {shellContent}
+      </div>
+    </div>
+  )
+}
+
+// Shell minimalista para la cuenta de la pareja: ni sidebar ni dock de
+// pestañas (solo hay una pantalla propia, el ahorro), solo una cabecera con
+// saludo + engranaje de ajustes + recargar + salir, igual de look&feel que
+// el resto de la app (mismo degradado de fondo verde) pero sin nada de
+// Economía/Inversiones/Winter Arc.
+function PartnerShell({
+  displayName,
+  backgroundGradient,
+  signOut,
+  t,
+}: {
+  displayName: string
+  backgroundGradient: string
+  signOut: () => void
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+}) {
+  const [view, setView] = useState<"savings" | "settings">("savings")
+  const headerColor = "oklch(0.22 0.05 150)"
+  const headerSubColor = "oklch(0.32 0.05 150 / 80%)"
+
+  return (
+    <div className="fixed inset-0 overflow-hidden">
+      <div aria-hidden className="absolute inset-0" style={{ background: backgroundGradient }} />
+      <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+        <AutoEnablePush />
+
+        <header className="sticky top-0 z-20 bg-white/10 px-4 py-3.5 backdrop-blur-md sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-balance text-lg font-semibold sm:text-xl" style={{ color: headerColor }}>
+                {view === "settings" ? t("nav.settings") : t("nav.savings")}
+              </h1>
+              <p className="hidden text-xs sm:block" style={{ color: headerSubColor }}>
+                {t(greetingKey())}, {displayName}. {t("partnerSavings.subtitle")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setView((v) => (v === "settings" ? "savings" : "settings"))}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-white/35",
+                  view === "settings" ? "bg-white/40" : "bg-white/25",
+                )}
+                style={{ color: headerColor }}
+                title={t("nav.settings")}
+              >
+                <Settings className="size-4" />
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
+                style={{ color: headerColor }}
+                title={t("dashboard.reload")}
+              >
+                <RotateCw className="size-4" />
+              </button>
+              <button
+                onClick={signOut}
+                className="flex size-8 items-center justify-center rounded-lg bg-white/25 transition-colors hover:bg-white/35"
+                style={{ color: headerColor }}
+                title={t("dashboard.signOut")}
+              >
+                <LogOut className="size-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="px-4 pt-5 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] sm:px-6 lg:px-8 lg:pb-10">
+          <div key={view} className="animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out">
+            {view === "savings" ? <PartnerSavingsSection /> : <SettingsSection />}
+          </div>
+        </main>
       </div>
     </div>
   )
