@@ -164,31 +164,6 @@ export function InvestmentsSection() {
         <p className="text-sm text-muted-foreground">{t("common.loadingData")}</p>
       ) : (
         <>
-          {active.length === 0 && (
-            <Card className="border-amber-500/50 bg-amber-500/10 p-4">
-              <p className="text-sm text-muted-foreground">{t("investments.empty")}</p>
-            </Card>
-          )}
-
-          <div className="space-y-3">
-            {active.map((inv) => (
-              <InvestmentCard
-                key={inv.id}
-                investment={inv}
-                contributions={contributions.filter((c) => c.investmentId === inv.id)}
-                lang={lang}
-                t={t}
-                onRename={renameInvestment}
-                onUpdateValue={updateInvestmentValue}
-                onArchive={archiveInvestment}
-                onDelete={deleteInvestment}
-                onAddContribution={addContribution}
-                onAddContributionsBulk={addContributionsBulk}
-                onDeleteContribution={deleteContribution}
-              />
-            ))}
-          </div>
-
           {showNewForm ? (
             <NewInvestmentForm
               homeCurrency={homeCurrency}
@@ -222,6 +197,31 @@ export function InvestmentsSection() {
               </Button>
             </div>
           )}
+
+          {active.length === 0 && (
+            <Card className="border-amber-500/50 bg-amber-500/10 p-4">
+              <p className="text-sm text-muted-foreground">{t("investments.empty")}</p>
+            </Card>
+          )}
+
+          <div className="space-y-3">
+            {active.map((inv) => (
+              <InvestmentCard
+                key={inv.id}
+                investment={inv}
+                contributions={contributions.filter((c) => c.investmentId === inv.id)}
+                lang={lang}
+                t={t}
+                onRename={renameInvestment}
+                onUpdateValue={updateInvestmentValue}
+                onArchive={archiveInvestment}
+                onDelete={deleteInvestment}
+                onAddContribution={addContribution}
+                onAddContributionsBulk={addContributionsBulk}
+                onDeleteContribution={deleteContribution}
+              />
+            ))}
+          </div>
 
           {archived.length > 0 && (
             <div className="space-y-2 border-t border-border pt-4">
