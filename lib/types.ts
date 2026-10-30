@@ -1,3 +1,5 @@
+import { weekStartISO } from "./week"
+
 export const TRANSACTION_CATEGORIES = [
   "Alojamiento",
   "Supermercado",
@@ -299,4 +301,52 @@ export function investmentNetContributed(
 // ocultando el dato en vez de mostrar un falso "-100%").
 export function investmentGain(investment: Investment, contributions: InvestmentContribution[]): number {
   return investment.currentValue - investmentNetContributed(contributions, investment.id)
+}
+
+// ---------- Ahorro de pareja ("avisar a papi") ----------
+// Apartado propio para la cuenta de la pareja (ver NEXT_PUBLIC_PARTNER_EMAIL
+// en lib/use-auth.tsx): un objetivo de ahorro fijo + check-in manual por
+// periodo, sin ninguna conexión automática con transacciones ni bancos.
+export const SAVINGS_FREQUENCIES = ["weekly", "monthly"] as const
+export type SavingsFrequency = (typeof SAVINGS_FREQUENCIES)[number]
+
+export type SavingsGoal = {
+  targetAmount: number
+  frequency: SavingsFrequency
+  currency: string
+  updatedAt: string
+}
+
+export type SavingsCheckin = {
+  id: string
+  periodKey: string
+  savedAmount: number
+  metGoal: boolean
+  reported: boolean
+  reportedAt: string | null
+  createdAt: string
+}
+
+// Identificador del periodo "actual" (semana o mes, según la frecuencia del
+// objetivo) -- para semanal reutiliza weekStartISO (lib/week.ts) con el
+// mismo weekStartDay que usa el resto de la app; para mensual es
+// simplemente "yyyy-mm". Sirve tanto para saber si ya existe un check-in de
+// este periodo como para guardar uno nuevo con la clave correcta.
+export function currentPeriodKey(frequency: SavingsFrequency, weekStartDay: number): string {
+  const today = todayISO()
+  if (frequency === "monthly") return today.slice(0, 7)
+  return weekStartISO(today, weekStartDay)
+}
+
+// Texto legible del periodo (para la cabecera del check-in: "Semana del
+// 26 oct" / "Octubre 2026").
+export function periodLabel(periodKey: string, frequency: SavingsFrequency, lang: "es" | "en"): string {
+  if (frequency === "monthly") {
+    const [y, m] = periodKey.split("-").map(Number)
+    const d = new Date(Date.UTC(y, (m ?? 1) - 1, 1))
+    return d.toLocaleDateString(lang === "en" ? "en-US" : "es-ES", { month: "long", year: "numeric", timeZone: "UTC" })
+  }
+  const d = new Date(periodKey + "T00:00:00Z")
+  const label = d.toLocaleDateString(lang === "en" ? "en-US" : "es-ES", { day: "numeric", month: "short", timeZone: "UTC" })
+  return lang === "en" ? `Week of ${label}` : `Semana del ${label}`
 }
