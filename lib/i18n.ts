@@ -62,6 +62,7 @@ export const TRANSLATIONS = {
   "nav.investments": { es: "Inversiones", en: "Investments" },
   "nav.winterArc": { es: "Winter Arc", en: "Winter Arc" },
   "nav.settings": { es: "Ajustes", en: "Settings" },
+  "nav.savings": { es: "Ahorro", en: "Savings" },
   "app.tagline": { es: "Tu economía, a tu manera", en: "Your finances, your way" },
   "dashboard.greeting.morning": { es: "Buenos días", en: "Good morning" },
   "dashboard.greeting.afternoon": { es: "Buenas tardes", en: "Good afternoon" },
@@ -836,6 +837,42 @@ export const TRANSLATIONS = {
     es: "poner valor a mano",
     en: "set value manually",
   },
+
+  // ---- Ahorro de pareja ("avisar a papi") ----
+  "partnerSavings.appSummary": {
+    es: "Tu objetivo de ahorro, periodo a periodo. Nadie más puede ver esto salvo papi, y solo si tú le avisas.",
+    en: "Your savings goal, period by period. No one else can see this except dad, and only if you tell him.",
+  },
+  "partnerSavings.subtitle": { es: "Vamos a por ello.", en: "Let's get to it." },
+  "partnerSavings.setGoalTitle": { es: "Define tu objetivo de ahorro", en: "Set your savings goal" },
+  "partnerSavings.goalAmountPlaceholder": { es: "Cantidad objetivo", en: "Target amount" },
+  "partnerSavings.goalInvalid": { es: "Pon una cantidad válida", en: "Enter a valid amount" },
+  "partnerSavings.goalLabel": { es: "Objetivo", en: "Goal" },
+  "partnerSavings.checkinPrompt": {
+    es: "¿Cuánto has ahorrado en este periodo?",
+    en: "How much have you saved this period?",
+  },
+  "partnerSavings.checkinAmountPlaceholder": { es: "Cantidad ahorrada", en: "Amount saved" },
+  "partnerSavings.checkinInvalid": { es: "Pon una cantidad válida", en: "Enter a valid amount" },
+  "partnerSavings.checkinSave": { es: "Guardar check-in", en: "Save check-in" },
+  "partnerSavings.ofGoal": { es: "de {amount}", en: "of {amount}" },
+  "partnerSavings.goalMet": { es: "¡Objetivo cumplido! 🎉", en: "Goal met! 🎉" },
+  "partnerSavings.goalMissed": { es: "Objetivo no cumplido", en: "Goal missed" },
+  "partnerSavings.goalMissedHint": {
+    es: "Si quieres, puedes avisar a papi para que lo sepa.",
+    en: "If you want, you can let dad know.",
+  },
+  "partnerSavings.reportButton": { es: "Avisar a papi", en: "Tell dad" },
+  "partnerSavings.reportError": { es: "No se ha podido avisar. Inténtalo de nuevo.", en: "Couldn't send it. Try again." },
+  "partnerSavings.reported": { es: "Ya avisado", en: "Already told" },
+  "partnerSavings.history": { es: "Historial", en: "History" },
+  "push.partnerMissedGoalTitle": { es: "⚠️ Aviso de ahorro", en: "⚠️ Savings alert" },
+  "push.partnerMissedGoal": {
+    es: "{name} no ha llegado a su objetivo de ahorro {period}.",
+    en: "{name} didn't hit her savings goal {period}.",
+  },
+  "push.partnerPeriodWeek": { es: "esta semana", en: "this week" },
+  "push.partnerPeriodMonth": { es: "este mes", en: "this month" },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
