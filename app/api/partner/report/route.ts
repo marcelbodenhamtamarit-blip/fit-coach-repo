@@ -3,12 +3,18 @@ import { createClient } from "@supabase/supabase-js"
 import { createServiceRoleClient, sendPushToUser } from "@/lib/send-push.server"
 import { translate, type Language } from "@/lib/i18n"
 
-// Botón "Avisar a papi" del apartado de ahorro de la pareja. Se autentica
-// con el access_token de la propia sesión de quien llama (Authorization:
-// Bearer ...) -- igual que app/api/push/test/route.ts -- pero el push no se
-// manda a quien llama, sino a la cuenta del dueño de la app
-// (NEXT_PUBLIC_OWNER_EMAIL): es ella avisando a él, no una prueba a sí
-// misma.
+// Botón "Avisar a papi" del apartado de ahorro de la pareja (se usa tanto
+// si cumplió el objetivo como si no -- el mensaje cambia según
+// checkin.met_goal). Se autentica con el access_token de la propia sesión
+// de quien llama (Authorization: Bearer ...) -- igual que
+// app/api/push/test/route.ts -- pero el push no se manda a quien llama,
+// sino a la cuenta de papi (PAPI_EMAIL): es ella avisando a él, no una
+// prueba a sí misma.
+//
+// PAPI_EMAIL es una variable propia (no NEXT_PUBLIC_OWNER_EMAIL): esa otra
+// se deja vacía a propósito para abrir la app a cualquiera que se registre
+// (ver comentario en Vercel), así que no sirve para encontrar la cuenta de
+// papi de forma fiable.
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") || ""
   const token = authHeader.replace(/^Bearer\s+/i, "").trim()
@@ -36,7 +42,7 @@ export async function POST(req: NextRequest) {
     // se usa la clave de servicio, que se la salta).
     const { data: checkin, error: checkinError } = await admin
       .from("savings_checkins")
-      .select("id, user_id, period_key")
+      .select("id, user_id, period_key, met_goal")
       .eq("id", checkinId)
       .maybeSingle()
     if (checkinError || !checkin || checkin.user_id !== userData.user.id) {
@@ -49,9 +55,12 @@ export async function POST(req: NextRequest) {
       .eq("user_id", userData.user.id)
       .maybeSingle()
 
-    const ownerEmail = (process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "").trim().toLowerCase()
-    if (!ownerEmail) {
-      return NextResponse.json({ error: "NEXT_PUBLIC_OWNER_EMAIL no está configurado" }, { status: 500 })
+    // PAPI_EMAIL (no NEXT_PUBLIC_OWNER_EMAIL, ver comentario arriba del
+    // todo). Mantenemos NEXT_PUBLIC_OWNER_EMAIL como respaldo por si algún
+    // día vuelve a usarse para bloquear el acceso.
+    const papiEmail = (process.env.PAPI_EMAIL ?? process.env.NEXT_PUBLIC_OWNER_EMAIL ?? "").trim().toLowerCase()
+    if (!papiEmail) {
+      return NextResponse.json({ error: "PAPI_EMAIL no está configurado" }, { status: 500 })
     }
 
     // supabase-js 2.x no tiene un getUserByEmail directo en el admin API --
@@ -61,9 +70,9 @@ export async function POST(req: NextRequest) {
     if (usersError) {
       return NextResponse.json({ error: usersError.message }, { status: 500 })
     }
-    const owner = usersData.users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail)
+    const owner = usersData.users.find((u) => (u.email ?? "").trim().toLowerCase() === papiEmail)
     if (!owner) {
-      return NextResponse.json({ error: "No se encontró la cuenta de papi (revisa NEXT_PUBLIC_OWNER_EMAIL)" }, { status: 500 })
+      return NextResponse.json({ error: "No se encontró la cuenta de papi (revisa PAPI_EMAIL)" }, { status: 500 })
     }
 
     // El texto va en el idioma guardado del DESTINATARIO (papi), no del que
@@ -83,8 +92,11 @@ export async function POST(req: NextRequest) {
     )
 
     const result = await sendPushToUser(admin, owner.id, {
-      title: translate("push.partnerMissedGoalTitle", ownerLang),
-      body: translate("push.partnerMissedGoal", ownerLang, { name: partnerName, period: periodWord }),
+      title: translate(checkin.met_goal ? "push.partnerMetGoalTitle" : "push.partnerMissedGoalTitle", ownerLang),
+      body: translate(checkin.met_goal ? "push.partnerMetGoal" : "push.partnerMissedGoal", ownerLang, {
+        name: partnerName,
+        period: periodWord,
+      }),
       url: "/",
       tag: "partner-savings-report",
     })
