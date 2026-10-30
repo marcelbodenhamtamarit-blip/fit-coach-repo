@@ -200,3 +200,27 @@ export type MealIngredientRow = {
   price_per_kg: number
   woolworths_url: string | null
 }
+
+// Ver supabase-migrations/partner-savings.sql y
+// lib/partner-savings-store.tsx. Una fila por usuario (el objetivo fijo de
+// ahorro de la pareja).
+export type SavingsGoalRow = {
+  user_id: string
+  target_amount: number
+  frequency: string
+  currency: string
+  created_at: string
+  updated_at: string
+}
+
+// Un check-in por periodo (semana o mes, según savings_goals.frequency).
+export type SavingsCheckinRow = {
+  id: string
+  user_id: string
+  period_key: string
+  saved_amount: number
+  met_goal: boolean
+  reported: boolean
+  reported_at: string | null
+  created_at: string
+}
