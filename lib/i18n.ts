@@ -828,6 +828,14 @@ export const TRANSLATIONS = {
     es: "actualizar",
     en: "update",
   },
+  "investments.importCsvPositionsPriceWarn": {
+    es: "No se pudo traer el precio en vivo de: {symbols}. Puede que no estén cubiertos por la fuente de precios (pasa a veces con ETFs que no cotizan en EE. UU.) — actualízalos a mano desde la tarjeta, o pulsa \"Actualizar precio\" más tarde para reintentarlo.",
+    en: "Couldn't fetch a live price for: {symbols}. They may not be covered by the price source (this happens with some ETFs not listed in the US) — update them manually from the card, or try \"Update price\" again later.",
+  },
+  "investments.setValueManually": {
+    es: "poner valor a mano",
+    en: "set value manually",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
