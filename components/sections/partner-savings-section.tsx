@@ -153,6 +153,36 @@ export function PartnerSavingsSection() {
     }
   }
 
+  // Botón independiente del check-in: un aviso instantáneo a papi, sin
+  // guardar nada ni depender de ningún dato -- igual de pensado para un
+  // solo toque que el botón "Avisar a papi" de arriba, pero sin tener que
+  // pasar por el check-in para llegar hasta él.
+  const [poopSending, setPoopSending] = useState(false)
+  const [poopSent, setPoopSent] = useState(false)
+  const [poopError, setPoopError] = useState<string | null>(null)
+
+  const notifyPoop = async () => {
+    setPoopSending(true)
+    setPoopError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+      if (!token) throw new Error(t("partnerSavings.poopError"))
+      const res = await fetch("/api/partner/poop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error || t("partnerSavings.poopError"))
+      setPoopSent(true)
+      setTimeout(() => setPoopSent(false), 4000)
+    } catch (err) {
+      setPoopError(err instanceof Error ? err.message : t("partnerSavings.poopError"))
+    } finally {
+      setPoopSending(false)
+    }
+  }
+
   const reportToDad = async () => {
     if (!currentCheckin) return
     setReporting(true)
@@ -244,6 +274,23 @@ export function PartnerSavingsSection() {
     <div className="space-y-6 pb-4">
       <p className="text-sm leading-relaxed text-muted-foreground">{t("partnerSavings.appSummary")}</p>
       <MotivationalBanner lang={lang} label={t("partnerSavings.todayLabel")} />
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">💩</p>
+          <div className="flex items-center gap-2">
+            {poopError && <p className="text-xs text-red-500">{poopError}</p>}
+            <Button
+              onClick={notifyPoop}
+              disabled={poopSending}
+              variant={poopSent ? "outline" : "default"}
+              size="sm"
+            >
+              {poopSent ? t("partnerSavings.poopSent") : poopSending ? t("common.saving") : t("partnerSavings.poopButton")}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <Card className="p-5">
         <div className="flex items-center justify-between gap-4">
