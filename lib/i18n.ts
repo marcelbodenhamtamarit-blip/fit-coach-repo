@@ -898,6 +898,14 @@ export const TRANSLATIONS = {
     es: "No se ha podido enviar. Inténtalo de nuevo.",
     en: "Couldn't send it. Try again.",
   },
+  // Caso distinto de un error: la API respondió bien pero no había
+  // ningún dispositivo suyo con las notificaciones activadas donde
+  // mandarlo (0 suscripciones) -- no es que fallara el envío, es que no
+  // hay sitio al que mandarlo todavía.
+  "settings.notifyPartnerNoDevices": {
+    es: "No tiene las notificaciones activadas en su dispositivo, así que no le ha llegado. Dile que entre en Ajustes → Recordatorios y las active.",
+    en: "She doesn't have notifications enabled on her device, so it didn't reach her. Ask her to open Settings → Reminders and turn them on.",
+  },
 } as const satisfies Record<string, Entry>
 
 export type TranslationKey = keyof typeof TRANSLATIONS
