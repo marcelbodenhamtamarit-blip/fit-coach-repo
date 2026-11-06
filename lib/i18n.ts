@@ -871,6 +871,9 @@ export const TRANSLATIONS = {
   "partnerSavings.reportError": { es: "No se ha podido avisar. Inténtalo de nuevo.", en: "Couldn't send it. Try again." },
   "partnerSavings.reported": { es: "Ya avisado", en: "Already told" },
   "partnerSavings.history": { es: "Historial", en: "History" },
+  "partnerSavings.poopButton": { es: "Avisar a papi 💩", en: "Tell dad 💩" },
+  "partnerSavings.poopSent": { es: "¡Avisado!", en: "Told him!" },
+  "partnerSavings.poopError": { es: "No se ha podido avisar. Inténtalo de nuevo.", en: "Couldn't send it. Try again." },
   "push.partnerMissedGoalTitle": { es: "⚠️ Aviso de ahorro", en: "⚠️ Savings alert" },
   "push.partnerMissedGoal": {
     es: "{name} no ha llegado a su objetivo de ahorro {period}.",
@@ -884,6 +887,8 @@ export const TRANSLATIONS = {
   "push.partnerPeriodWeek": { es: "esta semana", en: "this week" },
   "push.partnerPeriodMonth": { es: "este mes", en: "this month" },
   "push.papiMessageTitle": { es: "💌 Mensaje de papi", en: "💌 A message from dad" },
+  "push.poopTitle": { es: "💩 ¡Aviso urgente!", en: "💩 Urgent alert!" },
+  "push.poopBody": { es: "{name} te avisa: ¡acaba de hacer caca!", en: "{name} wants you to know: she just pooped!" },
   "settings.notifyPartnerTitle": { es: "Mandarle un ánimo", en: "Send her encouragement" },
   "settings.notifyPartnerDesc": {
     es: "Le llega como notificación, al momento.",
