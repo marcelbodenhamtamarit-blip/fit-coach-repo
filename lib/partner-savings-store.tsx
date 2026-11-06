@@ -122,13 +122,30 @@ export function PartnerSavingsProvider({ children }: { children: ReactNode }) {
     const userId = userData.user?.id
     if (!userId) throw new Error("No hay sesión activa")
     // upsert por (user_id, period_key): si ya existía un check-in de este
-    // periodo (p.ej. corrigiendo un dato mal puesto), se actualiza en vez de
-    // duplicar -- pero sin tocar reported/reported_at si ya se había
-    // avisado, para no "desavisar" por accidente al corregir la cifra.
+    // periodo (p.ej. ella vuelve a final de mes y añade lo que le quedaba
+    // por guardar), se actualiza en vez de duplicar -- la cifra se puede
+    // corregir las veces que haga falta mientras el periodo siga siendo el
+    // actual.
+    //
+    // reported/reported_at normalmente NO se tocan al corregir, para no
+    // "desavisar" por accidente solo por ajustar el número -- salvo que el
+    // resultado cambie de verdad (pasó de no llegar al objetivo a
+    // cumplirlo, o al revés): ahí sí se resetea el aviso, porque es una
+    // noticia distinta a la que papi ya recibió (o a la que nunca llegó a
+    // avisarle), y vuelve a aparecer el botón de "Avisar a papi" para ese
+    // nuevo resultado.
+    const existing = checkins.find((c) => c.periodKey === periodKey)
+    const resultChanged = existing ? existing.metGoal !== metGoal : false
     const { data, error } = await supabase
       .from("savings_checkins")
       .upsert(
-        { user_id: userId, period_key: periodKey, saved_amount: savedAmount, met_goal: metGoal },
+        {
+          user_id: userId,
+          period_key: periodKey,
+          saved_amount: savedAmount,
+          met_goal: metGoal,
+          ...(resultChanged ? { reported: false, reported_at: null } : {}),
+        },
         { onConflict: "user_id,period_key", ignoreDuplicates: false },
       )
       .select("*")
