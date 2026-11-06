@@ -120,6 +120,18 @@ export function PartnerSavingsSection() {
   const [checkinError, setCheckinError] = useState<string | null>(null)
   const [reporting, setReporting] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
+  // Permite volver a abrir el check-in del periodo actual para corregir la
+  // cifra (p.ej.: metió 100 a mitad de mes y a final de mes quiere sumar
+  // los 100 que le quedaban) -- antes, una vez guardado el check-in, no
+  // había manera de tocarlo desde la pantalla.
+  const [editingCheckin, setEditingCheckin] = useState(false)
+
+  const startEditingCheckin = () => {
+    if (!currentCheckin) return
+    setCheckinAmount(String(currentCheckin.savedAmount))
+    setCheckinError(null)
+    setEditingCheckin(true)
+  }
 
   const saveTodayCheckin = async () => {
     if (!goal || !periodKey) return
@@ -133,6 +145,7 @@ export function PartnerSavingsSection() {
     try {
       await saveCheckin(periodKey, n, n >= goal.targetAmount)
       setCheckinAmount("")
+      setEditingCheckin(false)
     } catch (err) {
       setCheckinError(err instanceof Error ? err.message : t("settings.saveError"))
     } finally {
@@ -262,7 +275,7 @@ export function PartnerSavingsSection() {
           </p>
         </div>
 
-        {!currentCheckin ? (
+        {!currentCheckin || editingCheckin ? (
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-muted-foreground">{t("partnerSavings.checkinPrompt")}</p>
             <Input
@@ -274,17 +287,29 @@ export function PartnerSavingsSection() {
               onKeyDown={(e) => e.key === "Enter" && saveTodayCheckin()}
             />
             {checkinError && <p className="text-xs text-red-500">{checkinError}</p>}
-            <Button onClick={saveTodayCheckin} disabled={checkinSaving} className="w-full">
-              {checkinSaving ? t("common.saving") : t("partnerSavings.checkinSave")}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={saveTodayCheckin} disabled={checkinSaving} className="flex-1">
+                {checkinSaving ? t("common.saving") : t("partnerSavings.checkinSave")}
+              </Button>
+              {editingCheckin && (
+                <Button variant="outline" onClick={() => setEditingCheckin(false)}>
+                  {t("common.cancel")}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-end justify-between">
-              <p className="text-2xl font-bold tabular-nums">{fmt(currentCheckin.savedAmount, goal.currency)}</p>
-              <p className="text-xs text-muted-foreground">
-                {t("partnerSavings.ofGoal", { amount: fmt(goal.targetAmount, goal.currency) })}
-              </p>
+              <div>
+                <p className="text-2xl font-bold tabular-nums">{fmt(currentCheckin.savedAmount, goal.currency)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("partnerSavings.ofGoal", { amount: fmt(goal.targetAmount, goal.currency) })}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={startEditingCheckin}>
+                {t("common.edit")}
+              </Button>
             </div>
             <Progress value={progressPct} />
 
