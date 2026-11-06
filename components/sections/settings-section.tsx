@@ -198,6 +198,13 @@ function NotifyPartnerCard() {
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  // Antes esta tarjeta mostraba "¡Enviado!" en cuanto la API respondía
+  // ok:true, aunque sendPushToUser hubiera encontrado 0 suscripciones (su
+  // pareja nunca activó las notificaciones en su dispositivo, o las
+  // perdió). Eso hacía parecer que el mensaje había llegado cuando en
+  // realidad no había ningún sitio al que mandarlo -- ahora se distingue
+  // ese caso (json.sent === 0) de un envío de verdad entregado.
+  const [noDevices, setNoDevices] = useState(false)
   const [error, setError] = useState("")
 
   async function sendNotification() {
@@ -205,6 +212,7 @@ function NotifyPartnerCard() {
     if (!trimmed) return
     setSending(true)
     setError("")
+    setNoDevices(false)
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData.session?.access_token
@@ -217,8 +225,12 @@ function NotifyPartnerCard() {
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || t("settings.notifyPartnerError"))
       setMessage("")
-      setSent(true)
-      setTimeout(() => setSent(false), 4000)
+      if (typeof json.sent === "number" && json.sent === 0) {
+        setNoDevices(true)
+      } else {
+        setSent(true)
+        setTimeout(() => setSent(false), 4000)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("settings.notifyPartnerError"))
     } finally {
@@ -236,6 +248,7 @@ function NotifyPartnerCard() {
         className="text-sm"
       />
       {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {noDevices && <p className="mt-2 text-xs text-amber-500">{t("settings.notifyPartnerNoDevices")}</p>}
       {sent && <p className="mt-2 text-xs text-emerald-500">{t("settings.notifyPartnerSent")}</p>}
       <Button onClick={sendNotification} disabled={sending || !message.trim()} className="mt-3">
         {sending ? t("settings.sending") : t("settings.send")}
