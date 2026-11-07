@@ -7,7 +7,6 @@ import {
   Dumbbell,
   Wallet,
   RotateCw,
-  Flame,
   LineChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -15,7 +14,6 @@ import { useStore } from "@/lib/store"
 import { OverviewSection } from "@/components/sections/overview-section"
 import { EconomySection } from "@/components/sections/economy-section"
 import { SettingsSection } from "@/components/sections/settings-section"
-import { WinterArcSection } from "@/components/sections/winter-arc-section"
 import { InvestmentsSection } from "@/components/sections/investments-section"
 import { PartnerSavingsSection } from "@/components/sections/partner-savings-section"
 import { useAuth } from "@/lib/use-auth"
@@ -50,9 +48,10 @@ export function Dashboard() {
   }
   useEffect(() => {
     const stored = localStorage.getItem("marcel-fit-coach:active-tab")
-    // "turnos" ya no existe (quitado 1 Oct 2026): si era la última pestaña
-    // abierta, se vuelve a Resumen en vez de mostrar una pantalla vacía.
-    if (stored && ["overview", "economy", "investments", "winterarc", "settings"].includes(stored)) setActive(stored)
+    // "turnos" y "winterarc" ya no existen (quitados 1 Oct 2026 y 7 Nov
+    // 2026): si alguna era la última pestaña abierta, se vuelve a Resumen en
+    // vez de mostrar una pantalla vacía.
+    if (stored && ["overview", "economy", "investments", "settings"].includes(stored)) setActive(stored)
   }, [])
   useEffect(() => {
     localStorage.setItem("marcel-fit-coach:active-tab", active)
@@ -112,15 +111,8 @@ export function Dashboard() {
   // al degradado neutro oscuro de abajo.
   const BACKGROUND_GRADIENT =
     "linear-gradient(to bottom, oklch(0.68 0.17 145) 0%, oklch(0.56 0.15 148) 10%, oklch(0.40 0.10 152) 28%, oklch(0.26 0.05 190) 44%, oklch(0.16 0.012 250) 60%, oklch(0.16 0.012 250) 100%)"
-
-  // Winter Arc tiene su propio ambiente: al entrar, el fondo pasa (con un
-  // fundido, ver más abajo) de verde a fuego sobre negro, y la cabecera
-  // cambia a texto claro para que se lea encima.
-  const WINTER_ARC_GRADIENT =
-    "linear-gradient(to bottom, oklch(0.62 0.21 40) 0%, oklch(0.48 0.19 32) 12%, oklch(0.30 0.11 25) 30%, oklch(0.17 0.04 20) 48%, oklch(0.12 0.01 260) 65%, oklch(0.12 0.01 260) 100%)"
-  const isWinterArc = active === "winterarc"
-  const headerColor = isWinterArc ? "oklch(0.97 0.02 60)" : "oklch(0.22 0.05 150)"
-  const headerSubColor = isWinterArc ? "oklch(0.92 0.04 60 / 85%)" : "oklch(0.32 0.05 150 / 80%)"
+  const headerColor = "oklch(0.22 0.05 150)"
+  const headerSubColor = "oklch(0.32 0.05 150 / 80%)"
 
   // "settings" ya no vive aquí: se ha quitado del menú de navegación y
   // ahora se abre con el icono de engranaje de la cabecera (ver header más
@@ -129,14 +121,12 @@ export function Dashboard() {
     { id: "overview", label: t("nav.overview"), icon: Activity },
     { id: "economy", label: t("nav.economy"), icon: Wallet },
     { id: "investments", label: t("nav.investments"), icon: LineChart },
-    { id: "winterarc", label: t("nav.winterArc"), icon: Flame },
   ]
 
   const TAB_TITLES: Record<string, string> = {
     overview: t("nav.overview"),
     economy: t("nav.economy"),
     investments: t("nav.investments"),
-    winterarc: t("nav.winterArc"),
     settings: t("nav.settings"),
   }
 
@@ -161,8 +151,8 @@ export function Dashboard() {
     t("dashboard.greetingName.fallback")
 
   // La cuenta de la pareja (NEXT_PUBLIC_PARTNER_EMAIL, ver lib/use-auth.tsx)
-  // no ve nada de lo de arriba (Economía/Inversiones/Winter Arc son cosas
-  // tuyas) -- solo su propio apartado de ahorro, con un shell mucho más
+  // no ve nada de lo de arriba (Economía/Inversiones son cosas tuyas) --
+  // solo su propio apartado de ahorro, con un shell mucho más
   // simple (sin sidebar ni dock de pestañas, porque solo hay una pantalla).
   // El resto de esta función, de aquí para abajo, es la experiencia de
   // siempre y no cambia para tu cuenta.
@@ -289,7 +279,6 @@ export function Dashboard() {
               )}
               {active === "economy" && <EconomySection autoOpenSignal={addSignal} redesign={isRedesign} />}
               {active === "investments" && <InvestmentsSection />}
-              {active === "winterarc" && <WinterArcSection />}
               {active === "settings" && <SettingsSection />}
             </div>
           )}
@@ -385,13 +374,6 @@ export function Dashboard() {
   return (
     <div className="fixed inset-0 overflow-hidden">
       <div aria-hidden className="absolute inset-0" style={{ background: BACKGROUND_GRADIENT }} />
-      {/* Los degradados no se pueden animar entre sí, así que el de Winter
-          Arc vive en su propia capa encima y solo cambia su opacidad. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 transition-opacity duration-700 ease-out"
-        style={{ background: WINTER_ARC_GRADIENT, opacity: isWinterArc ? 1 : 0 }}
-      />
       <div className="absolute inset-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
         {shellContent}
       </div>
@@ -403,7 +385,7 @@ export function Dashboard() {
 // pestañas (solo hay una pantalla propia, el ahorro), solo una cabecera con
 // saludo + engranaje de ajustes + recargar + salir, igual de look&feel que
 // el resto de la app (mismo degradado de fondo verde) pero sin nada de
-// Economía/Inversiones/Winter Arc.
+// Economía/Inversiones.
 function PartnerShell({
   displayName,
   backgroundGradient,
