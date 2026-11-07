@@ -8,9 +8,12 @@ import { TRANSACTION_CATEGORIES } from "@/lib/types"
 // justo lo que provocó "The operation was aborted due to timeout" con un
 // extracto real: aunque se bajó el nivel de "pensamiento" del modelo (ver
 // thinkingConfig más abajo), Gemini a veces tarda más de 60s con un extracto
-// grande y esto lo cortaba antes de tiempo. 180s da mucho más margen sin
-// acercarse al límite real de la plataforma.
-export const maxDuration = 180
+// grande y esto lo cortaba antes de tiempo. 280s da casi todo el margen real
+// de la plataforma (antes se dejó en 180, pero con los reintentos de abajo
+// un extracto grande + un 429/503 persistente podía necesitar más de eso —
+// el presupuesto de tiempo que reparten los reintentos, más abajo, ya se
+// encarga de quedarse por debajo de este número con margen).
+export const maxDuration = 280
 
 // Importar extracto bancario en CSV o PDF: el usuario sube el archivo tal
 // cual lo exportó su banco (CommBank, Revolut, el que sea) desde el botón
@@ -192,9 +195,28 @@ export async function POST(req: NextRequest) {
   // thinkingBudget, y ahí sí se puede poner a 0 para desactivarlo entero.
   const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
 
-  // Llama a Gemini una vez. Se separa en su propia función para poder
-  // reintentar (ver más abajo) sin duplicar el fetch entero.
-  const callGemini = () =>
+  // Presupuesto de tiempo para TODOS los intentos juntos (el primero y los
+  // reintentos de abajo), repartido dinámicamente en vez de un
+  // AbortSignal.timeout fijo por intento. Con un timeout fijo (165s, como
+  // antes) y hasta 2 reintentos, el peor caso (165s + 2s + 165s + 5s + 165s
+  // ≈ 502s) superaba por mucho maxDuration (180s entonces) — Vercel mataba la
+  // función a medias sin devolver ningún JSON, y eso es justo lo que hacía
+  // que el cliente cayera en su catch-all genérico ("No se pudo importar el
+  // archivo...") sin ningún detalle real del error. Ahora cada intento usa
+  // el tiempo que quede de este presupuesto (por debajo de maxDuration,
+  // dejando ~15s de margen para parsear la respuesta y devolver el JSON), y
+  // se deja de reintentar si no queda presupuesto útil — así la función
+  // siempre devuelve un JSON de error legible dentro de su propio
+  // maxDuration en vez de que la mate la plataforma.
+  const startedAt = Date.now()
+  const TOTAL_BUDGET_MS = 265_000
+  const MIN_USEFUL_ATTEMPT_MS = 20_000
+  const remainingBudgetMs = () => TOTAL_BUDGET_MS - (Date.now() - startedAt)
+
+  // Llama a Gemini una vez, con el timeout del intento como parámetro (se
+  // separa en su propia función para poder reintentar sin duplicar el fetch
+  // entero).
+  const callGemini = (timeoutMs: number) =>
     fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -238,15 +260,11 @@ export async function POST(req: NextRequest) {
           },
         },
       }),
-      // Deja margen por debajo de maxDuration (180s arriba) para que, si
-      // Gemini de verdad no responde, la función pueda devolver un error
-      // legible en vez de que Vercel la mate en seco sin dar ninguna
-      // respuesta al cliente.
-      signal: AbortSignal.timeout(165_000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
 
   try {
-    let geminiRes = await callGemini()
+    let geminiRes = await callGemini(Math.max(MIN_USEFUL_ATTEMPT_MS, Math.min(160_000, remainingBudgetMs())))
 
     // Un fallo puntual de cuota/carga (429 o 5xx, p.ej. el 503 "This model
     // is currently experiencing high demand" que Gemini devuelve a veces en
@@ -254,17 +272,18 @@ export async function POST(req: NextRequest) {
     // unos segundos después — así que antes de darlo por perdido se
     // reintenta, con una espera creciente entre intento e intento (2s, luego
     // 5s) para dar más margen si la saturación tarda un poco más en bajar.
-    // Un solo reintento se quedaba corto con un 503 persistente de varios
-    // segundos; con dos hay más margen sin arriesgarse a comerse todo el
-    // tiempo disponible (maxDuration = 180s arriba, con hasta 165s por
-    // intento vía AbortSignal.timeout más abajo). Un error "duro" (API key
-    // inválida, modelo no encontrado, etc. → 4xx que no sea 429) no se
-    // beneficia de reintentar, así que va directo al mensaje de error.
+    // Un error "duro" (API key inválida, modelo no encontrado, etc. → 4xx
+    // que no sea 429) no se beneficia de reintentar, así que va directo al
+    // mensaje de error. Cada reintento comprueba primero que quede
+    // presupuesto útil (ver TOTAL_BUDGET_MS arriba) — si no, se deja de
+    // reintentar y se responde con lo que haya, en vez de arriesgarse a que
+    // la plataforma mate la función antes de poder devolver el error.
     const retryDelaysMs = [2000, 5000]
     for (const delay of retryDelaysMs) {
       if (geminiRes.ok || (geminiRes.status !== 429 && geminiRes.status < 500)) break
+      if (remainingBudgetMs() < MIN_USEFUL_ATTEMPT_MS + delay) break
       await new Promise((r) => setTimeout(r, delay))
-      geminiRes = await callGemini()
+      geminiRes = await callGemini(Math.min(160_000, remainingBudgetMs()))
     }
 
     if (!geminiRes.ok) {
