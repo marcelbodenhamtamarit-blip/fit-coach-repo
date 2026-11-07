@@ -248,13 +248,22 @@ export async function POST(req: NextRequest) {
   try {
     let geminiRes = await callGemini()
 
-    // Un fallo puntual de cuota/carga (429 o 5xx) es habitual en la capa
-    // gratuita de Gemini y suele resolverse solo unos segundos después — así
-    // que antes de darlo por perdido se reintenta una vez. Un error "duro"
-    // (API key inválida, modelo no encontrado, etc. → 4xx que no sea 429) no
-    // se beneficia de reintentar, así que va directo al mensaje de error.
-    if (!geminiRes.ok && (geminiRes.status === 429 || geminiRes.status >= 500)) {
-      await new Promise((r) => setTimeout(r, 2000))
+    // Un fallo puntual de cuota/carga (429 o 5xx, p.ej. el 503 "This model
+    // is currently experiencing high demand" que Gemini devuelve a veces en
+    // horas punta) es habitual en la capa gratuita y suele resolverse solo
+    // unos segundos después — así que antes de darlo por perdido se
+    // reintenta, con una espera creciente entre intento e intento (2s, luego
+    // 5s) para dar más margen si la saturación tarda un poco más en bajar.
+    // Un solo reintento se quedaba corto con un 503 persistente de varios
+    // segundos; con dos hay más margen sin arriesgarse a comerse todo el
+    // tiempo disponible (maxDuration = 180s arriba, con hasta 165s por
+    // intento vía AbortSignal.timeout más abajo). Un error "duro" (API key
+    // inválida, modelo no encontrado, etc. → 4xx que no sea 429) no se
+    // beneficia de reintentar, así que va directo al mensaje de error.
+    const retryDelaysMs = [2000, 5000]
+    for (const delay of retryDelaysMs) {
+      if (geminiRes.ok || (geminiRes.status !== 429 && geminiRes.status < 500)) break
+      await new Promise((r) => setTimeout(r, delay))
       geminiRes = await callGemini()
     }
 
