@@ -15,12 +15,12 @@ It's installable as a PWA on both Android and iPhone — see "Mobile app / insta
 - `components/login-screen.tsx` — the logged-out screen: email/password login and signup (with an optional invite-code gate via `NEXT_PUBLIC_INVITE_CODE`, from the earlier "friends & family" phase — now redundant given the owner-only lock above, since Google OAuth never went through this code anyway; harmless to leave, safe to delete later if you want one less thing), plus "Continuar con Google" OAuth. Shows the ZentOS logo (`/icon.svg`) at the top.
 - Every Supabase table is scoped to `auth.uid()` via RLS policies, so one user's transactions, recurring templates, etc. are never visible to another user — the owner-only lock above is about keeping strangers from using the app at all, this RLS layer is what would keep them out of your data even without it.
 
-## Screens (nav: Resumen / Economía / Winter Arc / Ajustes)
+## Screens (nav: Resumen / Economía / Inversiones / Ajustes)
 
 - **Resumen**: a balance card (month/total toggle) with an optional savings goal tracker (deadline, progress %), plus four stat cards (Gastado/Ingresos/Balance/Categoría principal) for the selected period (Diario/Semanal/Mensual). Last opened tab is remembered (localStorage) across reloads. (There used to be a **Diario** tab with fitness data from Intervals.icu, and fitness stat cards here too — both removed 29 Sep 2026, see Changelog. Resumen is finance-only now.)
 - **Economía**: income/expense tracker in the user's **home currency** (see "Multi-divisa" below — AUD by default, editable in Ajustes), stored in Supabase (`transactions` table), split into **Gastos**/**Ganancias** views grouped by Diario/Semanal/Mensual. Transactions can be added, edited, or deleted. This screen also hosts the **recurring transactions manager** (see below).
 - **Turnos**: removed from the app 1 Oct 2026 (see Changelog); the section below documents how it worked.
-- **Winter Arc** (added 1 Oct 2026): private end-of-year habit and training tracker — see its own section below.
+- **Winter Arc**: removed from the app 7 Nov 2026, code and Supabase tables both deleted (see Changelog); the section below documents how it worked.
 - **Ajustes**: a stack of collapsible sections (Preferencias, Modo viaje, Recordatorios, Turnos, Atajo rápido, Feedback) — each is a titled row you tap to expand/collapse, so the screen stays scannable instead of showing every setting at once. Only the account card at the top (email + sign out) stays always visible. See "Automatizaciones" below for the Recordatorios section specifically, and "Turnos" for the Turnos card.
 
 ## Multi-divisa (home_currency)
@@ -55,7 +55,9 @@ Added 29 Sep 2026, inspired by the Homebase app: a place to plan work shifts a w
 - `lib/shifts-store.tsx` — `ShiftsProvider`/`useShifts()`, mounted in `app/page.tsx` **inside** `StoreProvider` (unlike `AutomationsProvider`, which is independent) — it needs `useStore()`'s `refreshTransactions()` so Economía picks up the created/deleted transaction immediately instead of waiting for its next reload.
 - `supabase-migrations/shifts.sql` — the `shifts` table (RLS-scoped like the rest) plus two new nullable-with-defaults columns on `user_preferences`: `shift_hourly_rate` (default 34.6) and `shift_tax_pct` (default 15).
 
-## Winter Arc (plan personal de fin de año, privado)
+## Winter Arc (plan personal de fin de año, privado) — removed 7 Nov 2026
+
+Removed from the app 7 Nov 2026 (see Changelog): both the code (section, store, pure-logic file, AI coach card + its backend route) and its 5 Supabase tables were deleted — nothing of this feature is live any more. This section is kept only as historical documentation of how it worked.
 
 Added 1 Oct 2026. Tracks Cel's Winter Arc plan (day 1 in Spain, ~26 Oct → 31 Dec 2026; dates editable in the section itself). Private: every table is RLS-scoped to `auth.uid()` like the rest, on top of the owner-only lock.
 
@@ -69,7 +71,7 @@ Added 1 Oct 2026. Tracks Cel's Winter Arc plan (day 1 in Spain, ~26 Oct → 31 D
 Added 21 Oct 2026. A from-scratch alternate look at Resumen/Economía, gated behind `lib/redesign-beta.ts`'s `REDESIGN_BETA_EMAILS` (currently just `marcelbodenham@gmail.com` — same on/off pattern as the old `AUTOMATIONS_BETA_EMAILS`, see Changelog) so it can be tried on one account before deciding whether to open it to everyone. Everyone else keeps seeing the app exactly as described above.
 
 - `components/tree-sheet.tsx` — **Árbol de Gastos**: a bottom sheet with a decorative SVG tree (trunk + branches, each branch ending in its own leaf cluster) above a grid of cards, one per spending category this month, ordered highest to lowest. Tapping a card opens a detail view (total, reduction margin from Timmy's plan, the month's actual movements in that category, and Timmy's advice for it).
-- `components/timmy-drawer.tsx` + `app/api/timmy/route.ts` — **Timmy**, a Gemini-backed assistant (same free-tier pattern as the Winter Arc coach) that reads the month's real category totals (never invented numbers) and can propose a reduction plan or chat about it. The API route only answers `lib/redesign-beta.ts`'s account — any other session gets a 403, same approach as the Winter Arc coach restricting itself to the app owner.
+- `components/timmy-drawer.tsx` + `app/api/timmy/route.ts` — **Timmy**, a Gemini-backed assistant (free-tier pattern) that reads the month's real category totals (never invented numbers) and can propose a reduction plan or chat about it. The API route only answers `lib/redesign-beta.ts`'s account — any other session gets a 403.
 - `lib/timmy-insights.ts` — pure aggregation from `data.transactions` (category totals, icons/colors matching Economía's own so the same category looks the same in both places) — no sample data anywhere.
 - Entry points live in `components/dashboard.tsx`; non-beta accounts never load any of these files' UI.
 
@@ -136,7 +138,7 @@ Publishing to an actual App Store / Play Store listing was considered at one poi
 
 The original 73 transactions covering weeks 15–27 (April–July 2026) were imported once from the "Gastos australia ben fet" Google Sheet directly into Supabase, back when the app was single-user. That sheet is no longer the live source — Supabase is. Every new transaction still also fires a best-effort POST to a Google Sheets webhook (`GOOGLE_SHEETS_WEBHOOK` in `economy-section.tsx`) for backup/legacy reasons; if it fails the app shows a small toast but nothing blocks — Supabase remains the source of truth.
 
-**Privacy note**: Claude does not read or analyze the actual contents of users' transactions/income data while building and maintaining this app — the code is written and edited without looking at real rows from Supabase. The one deliberate exception is the CSV import feature above: there, the literal content of whatever bank statement the user uploads (dates, amounts, descriptions) is sent to the Gemini API on each import, because that's the only practical way to support "any bank's CSV" without hand-writing a parser per bank. That trade-off was discussed and chosen explicitly (see `app/api/import-csv/route.ts`) — everywhere else in the app, financial data never leaves Supabase/Vercel. Separately, the Winter Arc coach (1 Oct 2026) sends Winter Arc data only (daily checklists, sessions, weekly weight/waist/long run, coach memory and chat) to Gemini on each request — never transactions. This used to also live in the app itself at `/privacy` and `/terms` (linked from the bottom of Ajustes) for end users signing up — both pages were deleted 28 Sep 2026 as part of the "solo yo" simplification (see Changelog), since there's no longer an audience of other people for them to address.
+**Privacy note**: Claude does not read or analyze the actual contents of users' transactions/income data while building and maintaining this app — the code is written and edited without looking at real rows from Supabase. The one deliberate exception is the CSV import feature above: there, the literal content of whatever bank statement the user uploads (dates, amounts, descriptions) is sent to the Gemini API on each import, because that's the only practical way to support "any bank's CSV" without hand-writing a parser per bank. That trade-off was discussed and chosen explicitly (see `app/api/import-csv/route.ts`) — everywhere else in the app, financial data never leaves Supabase/Vercel. This used to also live in the app itself at `/privacy` and `/terms` (linked from the bottom of Ajustes) for end users signing up — both pages were deleted 28 Sep 2026 as part of the "solo yo" simplification (see Changelog), since there's no longer an audience of other people for them to address.
 
 ## Weekly Supermarket Total
 
@@ -152,6 +154,16 @@ The weekly savings chart (in both Economía and Resumen) groups transactions by 
 - Recharts for the weekly savings chart in Economía (Bar) — the Diario screen's sleep/steps charts (Bar/Line) were removed 29 Sep 2026 along with the rest of the fitness data source (see Changelog)
 
 ## Changelog
+
+### 7 Nov 2026 — Winter Arc eliminado (código y base de datos)
+- Full removal of the Winter Arc feature, at Cel's explicit request (including confirming the irreversible database part): the tab, its training/habit tracker, and its AI coach card are all gone.
+- **Code deleted**: `components/sections/winter-arc-section.tsx`, `lib/winter-arc-store.tsx`, `lib/winter-arc.ts`, `components/coach-card.tsx`, `app/api/coach/route.ts`, `supabase-migrations/winter_arc.sql`, `supabase-migrations/winter_arc_coach.sql`. `lib/i18n.ts` lost `nav.winterArc` and the ~45 `wa.*` keys. `components/dashboard.tsx` lost the `WinterArcSection` import/render branch, the `winterarc` tab/title entries, the "winterarc" localStorage-allowlist entry (falls back to Resumen, same pattern as the Turnos removal below) and the fire-gradient cross-fade. `app/page.tsx` lost the `WinterArcProvider` wrapper.
+- **Database dropped** (unlike the Turnos removal, which kept its table): the 5 Supabase tables behind this feature — `winter_arc_settings`, `winter_arc_days`, `winter_arc_weekly`, `winter_arc_coach_memory`, `winter_arc_coach_messages` — were dropped from the live project, deleting Cel's Winter Arc history for good.
+- The "Winter Arc" section further down documents how the feature used to work, kept for historical reference only.
+
+### 7 Nov 2026 — Import de extractos (Economía/Inversiones): error genérico "No se pudo importar el archivo" arreglado
+- **Root cause**: `app/api/import-csv/route.ts` and `app/api/import-investments/route.ts` had `maxDuration = 180` but each Gemini call attempt used a fixed `AbortSignal.timeout(165_000)`, and both routes retry on 429/5xx — worst case (import-csv, 2 retries) could reach ~500s, far past `maxDuration`. Vercel killed the function mid-request with no clean JSON response, which the client's blanket `catch` turned into a generic, undiagnosable toast.
+- **Fix**: both routes now track a total time budget (`TOTAL_BUDGET_MS`, under the new `maxDuration = 280`) and size each attempt's timeout to whatever's left of it, skipping further retries once there isn't enough budget left to usefully attempt one — so the function always returns a readable error within its own limit instead of being killed by the platform. `components/sections/economy-section.tsx`'s catch-all now also logs the real error to the console instead of swallowing it silently.
 
 ### 21 Oct 2026 — Pulido PWA móvil (dock, teclado numérico, háptica, swipe-to-close)
 - **Dock inferior**: el bottom nav de `components/dashboard.tsx` (ya existía para todas las cuentas, con los botones elevados de Árbol/Timmy solo en la beta) ahora respeta la zona segura del teléfono (`env(safe-area-inset-bottom)`, home indicator de iPhone / barra de gestos de Android) en vez de pegarse al borde físico, y da una micro-vibración al cambiar de pestaña o abrir Árbol/Timmy (`navigator.vibrate`, no-op en navegadores sin soporte). El contenido de cada pantalla (`<main>`) deja el mismo hueco de siempre más esa zona segura, para que nunca quede tapado por el dock.
