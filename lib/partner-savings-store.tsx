@@ -1,7 +1,7 @@
 "use client"
 
 // Estado del apartado de ahorro de la pareja ("avisar a papi") -- va en un
-// provider aparte, igual que investments-store.tsx/winter-arc-store.tsx,
+// provider aparte, igual que investments-store.tsx,
 // para no mezclarlo con el resto. Ver supabase-migrations/partner-savings.sql
 // para el esquema.
 //
