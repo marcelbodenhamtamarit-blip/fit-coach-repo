@@ -3,14 +3,13 @@ import { createClient } from "@supabase/supabase-js"
 import { isRedesignBetaUser } from "@/lib/redesign-beta"
 import { fallbackReduction } from "@/lib/timmy-insights"
 
-// IA del Árbol de Gastos ("Timmy"). Mismo patrón que app/api/coach/route.ts
-// (Gemini, capa gratuita, GEMINI_API_KEY ya configurada en Vercel) pero sin
-// tablas nuevas en Supabase: no guarda nada, cada llamada manda el contexto
-// financiero real del mes (categorías/importes ya agregados en el cliente a
-// partir de data.transactions) y, en modo chat, el historial reciente de la
-// propia conversación. Solo responde a la cuenta de lib/redesign-beta.ts —
-// cualquier otra sesión válida recibe 403, igual que el coach de Winter Arc
-// solo responde al dueño de la app.
+// IA del Árbol de Gastos ("Timmy"). Usa Gemini (capa gratuita,
+// GEMINI_API_KEY ya configurada en Vercel) pero sin tablas nuevas en
+// Supabase: no guarda nada, cada llamada manda el contexto financiero real
+// del mes (categorías/importes ya agregados en el cliente a partir de
+// data.transactions) y, en modo chat, el historial reciente de la propia
+// conversación. Solo responde a la cuenta de lib/redesign-beta.ts —
+// cualquier otra sesión válida recibe 403.
 const MODEL = process.env.GEMINI_TIMMY_MODEL || process.env.GEMINI_COACH_MODEL || "gemini-3.6-flash"
 const THINKING_CONFIG = /^gemini-3/.test(MODEL) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
 
