@@ -17,7 +17,13 @@ import { createClient } from "@supabase/supabase-js"
 // inversión (aportaciones y retiradas) — no cada operación de compra/venta
 // interna ni la revalorización del precio día a día, que es justo lo que
 // el campo "valor actual" de la inversión ya representa por separado.
-export const maxDuration = 180
+// 280s en vez de 180: con Fluid Compute (ver comentario en
+// app/api/import-csv/route.ts, mismo patrón) el límite real de la
+// plataforma llega hasta 300s, y el reintento de abajo reparte un
+// presupuesto de tiempo pensado para quedarse por debajo de este número con
+// margen, en vez de un AbortSignal.timeout fijo por intento que podía
+// superar los 180s de antes y hacer que Vercel matara la función a medias.
+export const maxDuration = 280
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") || ""
@@ -108,6 +114,20 @@ export async function POST(req: NextRequest) {
 
   const model = process.env.GEMINI_CSV_MODEL || "gemini-3.6-flash"
 
+  // Presupuesto de tiempo para todos los intentos juntos (el primero y el
+  // reintento de abajo) — ver el comentario detallado en
+  // app/api/import-csv/route.ts, mismo patrón: antes cada intento usaba un
+  // AbortSignal.timeout fijo (165s) sin tener en cuenta cuánto quedaba de
+  // maxDuration, así que un reintento tras un 429/503 podía hacer que
+  // Vercel matara la función a medias sin devolver ningún JSON. Ahora cada
+  // intento usa el tiempo que quede de este presupuesto (por debajo de
+  // maxDuration, dejando margen para parsear la respuesta) y no se
+  // reintenta si no queda presupuesto útil.
+  const startedAt = Date.now()
+  const TOTAL_BUDGET_MS = 265_000
+  const MIN_USEFUL_ATTEMPT_MS = 20_000
+  const remainingBudgetMs = () => TOTAL_BUDGET_MS - (Date.now() - startedAt)
+
   const prompt = isPdf
     ? `Este es un extracto en PDF de una inversión, cuenta de bróker o exchange de criptomonedas (puede ser ` +
       `de cualquier proveedor: Revolut Invest, Revolut Crypto, un plan de ahorro, un bróker, etc., y cada uno ` +
@@ -123,7 +143,7 @@ export async function POST(req: NextRequest) {
 
   const thinkingConfig = /^gemini-3/.test(model) ? { thinkingLevel: "low" } : { thinkingBudget: 0 }
 
-  const callGemini = () =>
+  const callGemini = (timeoutMs: number) =>
     fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -185,14 +205,18 @@ export async function POST(req: NextRequest) {
           },
         },
       }),
-      signal: AbortSignal.timeout(165_000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
 
   try {
-    let geminiRes = await callGemini()
-    if (!geminiRes.ok && (geminiRes.status === 429 || geminiRes.status >= 500)) {
+    let geminiRes = await callGemini(Math.max(MIN_USEFUL_ATTEMPT_MS, Math.min(160_000, remainingBudgetMs())))
+    if (
+      !geminiRes.ok &&
+      (geminiRes.status === 429 || geminiRes.status >= 500) &&
+      remainingBudgetMs() >= MIN_USEFUL_ATTEMPT_MS + 2000
+    ) {
       await new Promise((r) => setTimeout(r, 2000))
-      geminiRes = await callGemini()
+      geminiRes = await callGemini(Math.min(160_000, remainingBudgetMs()))
     }
 
     if (!geminiRes.ok) {
