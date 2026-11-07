@@ -19,7 +19,7 @@ type Mode = "loading" | "out" | "in"
 // NEXT_PUBLIC_PARTNER_EMAIL (opcional) deja entrar además a una segunda
 // cuenta -- la de la pareja, con su propio apartado de ahorro (ver
 // components/sections/partner-savings-section.tsx) y nada más: no ve
-// Economía, Inversiones ni Winter Arc. Sin esta variable puesta, solo
+// Economía ni Inversiones. Sin esta variable puesta, solo
 // existe la cuenta de siempre (owner); con ella puesta pero sin que esa
 // persona se haya creado todavía la cuenta, simplemente nadie con ese email
 // ha entrado aún -- no hace falta nada más aquí.
