@@ -593,7 +593,16 @@ export function EconomySection({
           ? `${doneMessage} · ${t("economy.importCsvCurrencyIssue", { count: unconvertedCount })}`
           : doneMessage,
       )
-    } catch {
+    } catch (err) {
+      // Antes este catch tragaba el error entero sin dejar rastro — si
+      // /api/import-csv devolvía algo que no era JSON limpio (p.ej. la
+      // función cortada a medias por la plataforma antes de la corrección
+      // del presupuesto de tiempo en route.ts), el único indicio de qué
+      // pasó era este mensaje genérico, sin nada en la consola para
+      // investigar. El mensaje al usuario se queda igual (no hay un error
+      // más concreto que mostrarle aquí), pero ahora queda constancia en la
+      // consola del navegador.
+      console.error("[economy] importCsv error:", err)
       setToastError(t("economy.importCsvError"))
     } finally {
       setImportingCsv(false)
